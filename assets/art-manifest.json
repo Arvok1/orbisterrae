@@ -3,22 +3,6 @@
   "art_direction_brief": "docs/ART_DIRECTION.md",
   "assets": [
     {
-      "id": "village-concept-v1",
-      "role": "close-zoom art direction preview",
-      "path": "apps/client/src/assets/village-concept-v1.png",
-      "status": "preview",
-      "technical": {"dimensions": "1672x941", "alpha": false, "anchor": "center", "frames": 1, "filtering": "linear", "collision": false},
-      "visual_locks": ["warm palette", "brown ink outlines", "green roofs", "isometric view", "upper-left light"],
-      "source": {
-        "kind": "generated",
-        "url_or_tool": "built-in image_gen",
-        "created_at": "2026-11-04",
-        "license": "Generated using the built-in image tool; retain provenance and review release terms before commercial distribution.",
-        "prompt_or_source_record": "assets/village-prompt.txt"
-      },
-      "verification": {"native_scale_reviewed": true, "in_engine_reviewed": true, "technical_checks_passed": true}
-    },
-    {
       "id": "world-terrain-v1",
       "role": "global cartoon hydrography, biome colors and relief glyph locations",
       "path": "apps/client/src/assets/world-terrain-v1.json",
