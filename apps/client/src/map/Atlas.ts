@@ -19,6 +19,7 @@ export class Atlas {
   private start: Point | null = null;
   private moved = false;
   private pinch = 0;
+  private soakTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(private host: HTMLElement) {}
 
@@ -103,6 +104,46 @@ export class Atlas {
     });
     this.observer.observe(this.host);
     this.draw();
+    if (new URLSearchParams(location.search).has('soak')) this.startSoak();
+  }
+
+  /** Local QA mode: a repeatable five-minute camera tour; never emits game commands. */
+  private startSoak() {
+    const started = performance.now();
+    let step = 0;
+    let peakTiles = 0;
+    let baselineHeap = 0;
+    let minimumTailHeap = Infinity;
+    const stops = [
+      {lat: 14, lon: 8}, {lat: -23, lon: -46}, {lat: 40, lon: 110}, {lat: -26, lon: 135},
+    ];
+    const report = document.createElement('output');
+    report.className = 'soak-report';
+    report.setAttribute('aria-label', 'Map stability test');
+    this.host.appendChild(report);
+    this.soakTimer = setInterval(() => {
+      const seconds = Math.floor((performance.now() - started) / 1000);
+      const heap = (performance as Performance & {memory?: {usedJSHeapSize: number}}).memory?.usedJSHeapSize ?? 0;
+      if (seconds >= 30 && !baselineHeap) baselineHeap = heap;
+      if (seconds >= 240 && heap) minimumTailHeap = Math.min(minimumTailHeap, heap);
+      peakTiles = Math.max(peakTiles, this.tiles.size);
+      const snapshot = {seconds, tiles: this.tiles.size, pending: this.pending.size,
+        peakTiles, fps: this.app.canvas.dataset.fps, heap, baselineHeap,
+        minimumTailHeap: Number.isFinite(minimumTailHeap) ? minimumTailHeap : null};
+      report.textContent = JSON.stringify(snapshot);
+      if (seconds >= 300) {
+        if (this.soakTimer) clearInterval(this.soakTimer);
+        this.soakTimer = null;
+        const heapStable = !heap || minimumTailHeap <= baselineHeap + 16 * 1024 * 1024;
+        report.dataset.result = peakTiles <= 50 && this.pending.size < 50 && heapStable ? 'passed' : 'failed';
+        report.textContent = JSON.stringify({...snapshot, result: report.dataset.result});
+        return;
+      }
+      this.center = project(stops[step % stops.length]);
+      this.size = [1200, 2400, 4800, 2400][step % 4];
+      step++;
+      this.draw();
+    }, 1000);
   }
 
   private distance() {
@@ -177,6 +218,7 @@ export class Atlas {
   destroy() {
     this.disposed = true;
     this.abort.abort();
+    if (this.soakTimer) clearInterval(this.soakTimer);
     this.observer?.disconnect();
     this.unsubscribe?.();
     if (this.ready) this.app.destroy(true, {children: true});

@@ -20,6 +20,18 @@ do viewport são descarregadas; requisições em curso são concluídas e libera
 quando não são mais necessárias. Os atributos data-fps, data-tiles e data-pending
 do canvas permitem observar desempenho sem expor objetos internos da simulação.
 
+### Estabilidade de cinco minutos
+
+Abra `http://127.0.0.1:5173/?soak=1`. A câmera percorre quatro continentes,
+alternando zoom por 300 segundos. Um relatório visível registra tempo, FPS,
+tiles ativos, requisições pendentes e heap quando o navegador o fornece.
+No final, `data-result` do output indica passed/failed. O teste exige no máximo
+50 tiles ativos e compara o menor heap do último minuto com o heap após o
+aquecimento de 30 segundos, tolerando 16 MiB de caches/variação do coletor.
+Esse teste é um indicador prático de retenção sob navegação repetida; não
+substitui um perfil de alocações para investigar vazamentos específicos.
+Sem suporte a heap, o relatório verifica somente os recursos do mapa.
+
 O publicDir do Vite aponta somente para a pasta de tiles, sem publicar os
 arquivos fonte geográficos. O build copia esses tiles para a distribuição.
 As fontes tipográficas usam Google Fonts com fallback local Georgia/sans-serif.

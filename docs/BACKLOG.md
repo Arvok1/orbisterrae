@@ -16,7 +16,7 @@ Formato: `Tn.m` = tarefa. **Escopo** diz o que fazer; **Aceite** diz como saber 
   *Aceite:* round-trip encode/decode em testes Rust e TS.
 - [ ] **T0.4 Pipeline de dados do mundo (v0).** `tools/world-pipeline` (Python): baixar Natural Earth (costas), ETOPO/GEBCO (relevo/batimetria), WorldClim (clima). Gerar (a) tiles raster estilizados por zoom (z0–z8) e (b) grade de terreno/bioma/fertilidade em H3 res 5. Saída versionada em `data/world/vN/`.
   *Aceite:* script reproduzível (`make world`) gera tiles e um arquivo `biome_h3_r5.parquet`. Licenças registradas em `docs/DATA_LICENSES.md`.
-- [ ] **T0.5 Cliente: mapa.** Vite + React + PixiJS: pan/zoom suaves, carregamento de tiles por zoom, camadas (terreno, água, fronteiras placeholder), HUD mínimo.
+- [x] **T0.5 Cliente: mapa.** Vite + React + PixiJS: pan/zoom suaves, carregamento de tiles por zoom, camadas (terreno, água, fronteiras placeholder), HUD mínimo.
   *Aceite:* 60 fps em pan/zoom, tiles carregam sob demanda, sem vazamento de memória em 5 min de uso.
 - [ ] **T0.6 Gateway + eco.** `crates/gateway`: WebSocket binário, `SetViewport` → servidor responde com `EntityUpsert` falsos. Cliente renderiza 10 mil entidades com LOD.
   *Aceite:* 10 mil entidades visíveis a 60 fps; gateway aguenta 1.000 conexões simuladas.
