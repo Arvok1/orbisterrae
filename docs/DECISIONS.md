@@ -29,13 +29,17 @@
 
 ## Em aberto
 
-### Pipeline geográfico P0.3 (em andamento)
+### Pipeline geográfico P0.3
 
 O pipeline roda em container Python 3.12 com dependências de geoprocessamento
 isoladas do jogo. PyArrow é necessário para Parquet; Pillow para tiles; Shapely
 e pyshp leem e consultam polígonos de terra; h3 gera a grade. São ferramentas
 offline e não aumentam o runtime do cliente/servidor. A fonte Natural Earth
 é fixada por SHA-256; a primeira camada é terra/água em H3 res 4.
+
+Rasterio é ferramenta offline para reduzir ETOPO 2022 a médias de 0,5°; NumPy
+armazena a grade intermediária. O GeoTIFF original é cacheado e sua impressão
+SHA-256 é registrada no manifesto. Clima e fertilidade permanecem para P4.
 
 ### Protocolo P0.2
 

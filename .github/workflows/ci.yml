@@ -9,6 +9,14 @@ permissions:
   contents: read
 
 jobs:
+  world-pipeline:
+    name: World pipeline
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose -f tools/world-pipeline/compose.yml build
+      - run: docker compose -f tools/world-pipeline/compose.yml run --rm --entrypoint python world -m unittest discover -s tools/world-pipeline
+
   rust:
     name: Rust
     runs-on: ubuntu-latest

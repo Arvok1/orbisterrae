@@ -9,15 +9,21 @@ Na raiz, execute `make world` ou, no Windows:
 ```
 
 Use `-MaxZoom 3` para uma geração rápida. O padrão é z0–z6, H3 res 4.
-O ZIP Natural Earth fica em cache em `data/world/v0`. O manifesto inclui SHA-256
-da fonte, projeção e resolução. A camada atual classifica terra/água, sem inventar
-biomas, fertilidade ou relevo. Essas camadas ainda precisam ser implementadas
-antes do aceite completo P0.3.
+O ZIP Natural Earth e o GeoTIFF ETOPO (~456 MB no primeiro download) ficam em
+cache em `data/world/v0`. O manifesto inclui SHA-256, projeção e resolução.
+A camada classifica terra/água e atribui elevação média ETOPO em grade de 0,5°.
+Clima e fertilidade ficam para P4. `--reuse-tiles` reaproveita a pirâmide já gerada.
 
 Testes no mesmo container:
 
 ```powershell
 docker compose -f tools/world-pipeline/compose.yml run --rm --entrypoint python world -m unittest discover -s tools/world-pipeline -p "test_*.py"
+```
+
+Para conferir a pirâmide completa, as elevações e os hashes após a geração:
+
+```powershell
+docker compose -f tools/world-pipeline/compose.yml run --rm --entrypoint python world tools/world-pipeline/verify.py
 ```
 
 Fontes sugeridas (verificar licenças antes de usar; registrar em `docs/DATA_LICENSES.md`):

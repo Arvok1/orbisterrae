@@ -1,9 +1,16 @@
 import unittest
 from shapely.geometry import MultiPolygon, Polygon
-from world import project, build_cells, TILE_SIZE
+import numpy as np
+from world import project, build_cells, elevation_at, TILE_SIZE
 
 
 class GeographyTest(unittest.TestCase):
+    def test_elevation_coordinates_and_edges(self):
+        grid = np.array([[10, 20], [30, 40]])
+        self.assertEqual(elevation_at(grid, 90, -180), 10)
+        self.assertEqual(elevation_at(grid, -90, 180), 40)
+        self.assertEqual(elevation_at(grid, 45, 90), 20)
+
     def test_mercator_origin_and_poles(self):
         self.assertEqual(project(0, 0, TILE_SIZE), (128, 128))
         self.assertAlmostEqual(project(0, 90, TILE_SIZE)[1], 0)
