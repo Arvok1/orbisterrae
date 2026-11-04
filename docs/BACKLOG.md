@@ -12,7 +12,7 @@ Formato: `Tn.m` = tarefa. **Escopo** diz o que fazer; **Aceite** diz como saber 
   *Aceite:* `cargo test --workspace` e `pnpm -r test` passam em CI com testes "hello".
 - [x] **T0.2 Infra local.** `infra/docker-compose.yml` com PostgreSQL+PostGIS, Redis, NATS. Migração inicial `sqlx` (tabelas de `DATA_MODEL.md`: accounts, kingdoms, cities, scheduled_events, event_log). Gateway e workers serão processos separados desde P0, conectados pelo NATS local.
   *Aceite:* `docker compose up -d` e `sqlx migrate run` sem erro.
-- [ ] **T0.3 Protocolo.** `packages/protocol/orbis.proto` + geração (buf) para Rust (prost) e TS (ts-proto). Crate `protocol` e pacote TS consumíveis.
+- [x] **T0.3 Protocolo.** `packages/protocol/orbis.proto` + geração (buf) para Rust (prost) e TS (ts-proto). Crate `protocol` e pacote TS consumíveis.
   *Aceite:* round-trip encode/decode em testes Rust e TS.
 - [ ] **T0.4 Pipeline de dados do mundo (v0).** `tools/world-pipeline` (Python): baixar Natural Earth (costas), ETOPO/GEBCO (relevo/batimetria), WorldClim (clima). Gerar (a) tiles raster estilizados por zoom (z0–z8) e (b) grade de terreno/bioma/fertilidade em H3 res 5. Saída versionada em `data/world/vN/`.
   *Aceite:* script reproduzível (`make world`) gera tiles e um arquivo `biome_h3_r5.parquet`. Licenças registradas em `docs/DATA_LICENSES.md`.

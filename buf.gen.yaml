@@ -1,0 +1,11 @@
+version: v2
+plugins:
+  - local: [node, node_modules/ts-proto/protoc-gen-ts_proto]
+    out: packages/protocol/src/generated
+    opt:
+      - esModuleInterop=true
+      - forceLong=bigint
+      - oneof=unions
+      - importSuffix=.js
+      - env=browser
+      - outputJsonMethods=false

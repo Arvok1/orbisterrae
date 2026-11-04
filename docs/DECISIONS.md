@@ -29,4 +29,11 @@
 
 ## Em aberto
 
+### Protocolo P0.2
+
+Buf + ts-proto geram os bindings TypeScript versionados; Prost + protoc
+empacotado geram Rust no build. As ferramentas são dependências de desenvolvimento,
+sem serviço remoto de geração. O protoc empacotado evita instalação global em
+Windows/Linux; uint64 usa bigint no cliente para não perder precisão.
+
 Detalhes de onboarding, recuperação/verificação de e-mail, matriz final de navegadores, provedor/orçamento de nuvem e política de monetização pós-beta.
