@@ -1,0 +1,13 @@
+---
+description: Sistema de criação de itens únicos (crates/craft, data/craft)
+globs: ["crates/craft/**", "data/craft/**", "docs/CRAFTING.md"]
+alwaysApply: false
+---
+- Leia docs/CRAFTING.md antes de qualquer mudança.
+- Item = ItemGenome imutável; atributos derivados por `evaluate(genome, env)` pura e determinística.
+- Nada de catálogo fixo de itens. Materiais = MaterialBatch (propriedades + procedência + histórico).
+- Operações são dados (TOML) com parâmetros manuais, requisitos de tecnologia e efeitos por expressão segura. Sem eval arbitrário.
+- RNG sempre derivado de (craft_id, step_id, exec_seed). Mesma entrada => mesma saída.
+- Quantize parâmetros (bits do schema) antes de calcular genome_hash (blake3).
+- Cada nova fórmula física: testes de monotonicidade, de trade-off (sem projeto dominante) e de determinismo.
+- Coeficientes em config/balance/craft.toml.

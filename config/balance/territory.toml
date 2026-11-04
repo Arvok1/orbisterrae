@@ -1,0 +1,6 @@
+[influence]
+base_by_tier = [2.0, 4.0, 8.0, 16.0]   # acampamento, vila, cidade, metrópole
+falloff_exponent = 1.5
+max_radius_cells = [6, 12, 24, 48]     # em células H3 res 7
+contest_threshold = 0.15
+min_owner_influence = 0.05

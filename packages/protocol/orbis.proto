@@ -1,0 +1,55 @@
+syntax = "proto3";
+package orbis.v1;
+
+message LatLon { double lat = 1; double lon = 2; }
+
+message Envelope {
+  uint64 seq = 1;
+  oneof body { Command command = 2; ServerMsg server = 3; }
+}
+
+message Command {
+  string request_id = 1;
+  oneof kind {
+    FoundCity found_city = 10;
+    SetViewport viewport = 11;
+    CreateDesign create_design = 20;
+    StartCraft start_craft = 21;
+    ResolveCheckpoint resolve_checkpoint = 22;
+  }
+}
+
+message FoundCity { string name = 1; LatLon pos = 2; }
+message SetViewport { LatLon center = 1; double zoom = 2; double width_px = 3; double height_px = 4; }
+
+message MoveSegment {
+  string entity_id = 1;
+  LatLon from = 2;
+  LatLon to = 3;
+  double t_start_ms = 4;
+  double speed_mps = 5;
+  string path_id = 6;
+}
+
+message EntityUpsert { string id = 1; uint32 kind = 2; LatLon pos = 3; string kingdom_id = 4; }
+message EntityRemove { string id = 1; }
+message CommandResult { string request_id = 1; bool ok = 2; string error = 3; }
+message EraChanged { uint32 era = 1; }
+
+message DesignParam { string id = 1; double value = 2; string choice = 3; }
+message CurvePoint { double x = 1; double y = 2; }
+message DesignCurve { string id = 1; repeated CurvePoint points = 2; }
+message CreateDesign { string kind = 1; string name = 2; repeated DesignParam params = 3; repeated DesignCurve curves = 4; }
+message MaterialSlotRef { string slot = 1; string batch_id = 2; }
+message StartCraft { string design_id = 1; string workshop_id = 2; string craftsman_id = 3; repeated MaterialSlotRef slots = 4; }
+message ResolveCheckpoint { string craft_id = 1; string checkpoint_id = 2; repeated DesignParam params = 3; }
+
+message ServerMsg {
+  oneof kind {
+    CommandResult result = 1;
+    EntityUpsert upsert = 2;
+    EntityRemove remove = 3;
+    MoveSegment move = 4;
+    EraChanged era = 8;
+  }
+}

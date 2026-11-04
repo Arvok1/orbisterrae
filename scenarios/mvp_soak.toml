@@ -1,0 +1,18 @@
+# Cenário de soak do MVP (docs/TESTING.md). Executado pelo harness de bots.
+[world]
+seed = 42
+real_to_sim_speedup = 3000        # 1 s real = ~50 min simulados; ajustar
+sim_days = 7
+
+[population]
+bots = 200
+ai_kingdoms = 100
+ai_hubs_per_trade_region = 2
+
+[assertions]
+max_monthly_inflation = 0.03
+max_kingdom_collapse_rate = 0.15
+min_alive_kingdoms_ratio = 0.5
+min_design_param_dispersion = 0.10
+max_command_latency_p95_ms = 150
+max_shard_tick_p99_ms = 50

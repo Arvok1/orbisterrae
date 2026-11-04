@@ -1,0 +1,61 @@
+[[operation]]
+id = "smelt_ore"
+family = "metal"
+requires = { tech = ["bloomery"], installation = "furnace" }
+params = [
+  { id = "furnace_type", kind = "enum", values = ["pit", "bloomery", "shaft", "blast"], unlocked_by = { shaft = "shaft_furnace", blast = "blast_furnace" } },
+  { id = "fuel_species", kind = "ref", of = "wood_or_coal" },
+  { id = "bellows_power", kind = "float", min = 0, max = 1 },
+  { id = "peak_temp_c", kind = "float", min = 800, max = 1600 },
+  { id = "flux_ratio", kind = "float", min = 0, max = 0.4 },
+  { id = "duration_hours", kind = "float", min = 1, max = 24 }
+]
+effects = [
+  "carbon = carbon_uptake(fuel_species, bellows_power, peak_temp_c, duration_hours)",
+  "slag = slag_fraction(ore.impurities, flux_ratio, peak_temp_c)",
+  "defects.inclusions += slag * 0.5"
+]
+
+[[operation]]
+id = "forge_cycle"
+family = "metal"
+requires = { tech = ["hot_forging"], installation = "forge" }
+params = [
+  { id = "temp_c", kind = "float", min = 600, max = 1400 },
+  { id = "folds", kind = "int", min = 0, max = 32 },
+  { id = "hammer_strikes", kind = "int", min = 10, max = 2000 }
+]
+checkpoint = { prompt = "Reajustar temperatura e dobras", window_seconds = 120, default = "craftsman_habit" }
+effects = [
+  "grain_size *= forge_grain_refine(temp_c, hammer_strikes)",
+  "defects.inclusions *= 1 - 0.03 * folds",
+  "decarb += decarb_rate(temp_c) * duration"
+]
+
+[[operation]]
+id = "quench"
+family = "metal"
+requires = { tech = ["quenching"] }
+params = [
+  { id = "medium", kind = "enum", values = ["air", "water", "brine", "oil", "urine"], unlocked_by = { oil = "oil_pressing", brine = "salt_working" } },
+  { id = "start_temp_c", kind = "float", min = 600, max = 1000 },
+  { id = "agitation", kind = "float", min = 0, max = 1 }
+]
+checkpoint = { prompt = "Escolher meio e momento da têmpera", window_seconds = 60, default = "craftsman_habit" }
+effects = [
+  "martensite = martensite_fraction(carbon, cooling_rate(medium, agitation), start_temp_c)",
+  "defects.crack_risk += quench_crack_risk(medium, thickness, carbon)"
+]
+
+[[operation]]
+id = "temper"
+family = "metal"
+requires = { tech = ["tempering"] }
+params = [
+  { id = "temp_c", kind = "float", min = 100, max = 700 },
+  { id = "duration_min", kind = "float", min = 5, max = 600 }
+]
+effects = [
+  "hardness = temper_hardness(martensite, temp_c, duration_min)",
+  "toughness = temper_toughness(martensite, temp_c, duration_min)"
+]

@@ -1,0 +1,10 @@
+[price]
+elasticity = 0.6
+min_multiplier = 0.2
+max_multiplier = 5.0
+
+[target]
+max_monthly_inflation = 0.03   # alvo de estabilidade nos testes de simulação (T3)
+
+[hub]
+default_fee = 0.02

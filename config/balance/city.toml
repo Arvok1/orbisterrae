@@ -1,0 +1,8 @@
+[grid]
+size_by_tier = [96, 160, 256, 512]
+
+[special_buildings]
+# cota = floor(base + a*ln(pop) + b*importance + c*era_index)
+a = 0.8
+b = 0.5
+c = 0.4

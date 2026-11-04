@@ -1,0 +1,11 @@
+---
+description: Convenções do cliente (apps/client)
+globs: ["apps/client/**/*.{ts,tsx}"]
+alwaysApply: false
+---
+- TypeScript strict, sem any.
+- PixiJS cuida só do mapa (apps/client/src/map). React cuida de modais e HUD. Comunicação via store (Zustand) e eventos tipados.
+- Renderize entidades em movimento por interpolação de vetores (origem, destino, t0, velocidade), não por posição por tick.
+- LOD: agregue por zoom; use ParticleContainer/instancing para muitas entidades.
+- Modal da cidade é um canvas próprio, desacoplado do mapa.
+- Tipos do servidor vêm de packages/protocol (gerados). Não escreva tipos duplicados à mão.

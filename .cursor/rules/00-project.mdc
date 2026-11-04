@@ -1,0 +1,10 @@
+---
+description: Regras gerais do projeto Orbis Terrae
+alwaysApply: true
+---
+- Leia AGENTS.md e a tarefa atual em docs/ROADMAP.md antes de agir.
+- Servidor autoritativo; cliente só envia comandos.
+- Lógica de jogo pura e determinística (RNG com seed, Clock injetado).
+- Balanceamento em config/balance/*.toml, nunca hardcoded.
+- Ações demoradas = eventos agendados idempotentes.
+- IA e jogadores usam a mesma API de comandos.

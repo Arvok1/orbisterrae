@@ -1,0 +1,6 @@
+[package]
+name = "orbis-sim"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]

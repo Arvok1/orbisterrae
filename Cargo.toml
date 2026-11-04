@@ -1,0 +1,25 @@
+[workspace]
+resolver = "2"
+members = ["crates/core", "crates/craft", "crates/protocol", "crates/sim", "crates/ai", "crates/gateway", "crates/director"]
+
+[workspace.package]
+edition = "2021"
+version = "0.1.0"
+
+[workspace.dependencies]
+tokio = { version = "1", features = ["full"] }
+axum = { version = "0.7", features = ["ws"] }
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+thiserror = "1"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+rand = "0.8"
+rand_chacha = "0.3"
+h3o = "0.6"
+prost = "0.13"
+sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "json"] }
+async-nats = "0.37"
+proptest = "1"
+criterion = "0.5"

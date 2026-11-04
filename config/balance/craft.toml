@@ -1,0 +1,28 @@
+# Parâmetros do sistema de criação (docs/CRAFTING.md). Valores iniciais.
+[quantization]
+default_bits = 6
+
+[execution_noise]
+# desvio padrão relativo aplicado nos parâmetros finais; reduz com maestria
+base_sigma = 0.04
+min_sigma = 0.005
+mastery_exponent = 1.5
+
+[aging]
+calendar_days_per_real_day = 91.25   # coerente com real_days_per_game_year = 4 em time.toml
+
+[inspection]
+uncertainty_without_tools = 0.25
+uncertainty_floor = 0.03
+
+[reverse_engineering]
+max_fidelity_without_blueprint = 0.85
+fidelity_per_tech_tier = 0.05
+
+[checkpoint]
+default_window_seconds = 120
+fallback_quality_penalty = 0.08
+
+[limits]
+max_parallel_crafts_per_workshop = 4
+max_active_designs_per_kingdom = 200

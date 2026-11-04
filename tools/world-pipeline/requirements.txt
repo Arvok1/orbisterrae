@@ -1,0 +1,7 @@
+rasterio
+geopandas
+h3
+numpy
+pandas
+pyarrow
+pillow

@@ -1,0 +1,10 @@
+# Curva de envelhecimento: ganho até um pico e degradação depois.
+# t em dias de calendário do jogo. 'storage' modifica a taxa e o teto.
+[curve]
+id = "wood_seasoning"
+rise_halflife_days = { air = 200, smoke = 90, kiln = 12, oil_bath = 120, seawater = 160 }
+peak_stability_gain = { air = 0.30, smoke = 0.22, kiln = 0.18, oil_bath = 0.26, seawater = 0.20 }
+overage_start_days = { air = 1100, smoke = 700, kiln = 40, oil_bath = 900, seawater = 500 }
+degradation_per_100d_after_peak = 0.03
+humid_storage_penalty = 0.5     # multiplica risco de podridão
+poor_ventilation_check_risk = 0.35

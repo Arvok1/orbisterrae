@@ -1,0 +1,121 @@
+# Esquema de parâmetros: lâmina (ver docs/CRAFTING.md §7.2)
+[schema]
+kind = "blade"
+
+[[param]]
+id = "length_cm"
+kind = "float"
+min = 20
+max = 120
+bits = 6
+unlock = "base"
+
+[[param]]
+id = "width_base_mm"
+kind = "float"
+min = 15
+max = 70
+bits = 6
+unlock = "base"
+
+[[param]]
+id = "width_tip_mm"
+kind = "float"
+min = 5
+max = 60
+bits = 6
+unlock = "base"
+
+[[param]]
+id = "thickness_mm"
+kind = "float"
+min = 2
+max = 12
+bits = 6
+unlock = "base"
+
+[[param]]
+id = "edge_angle_deg"
+kind = "float"
+min = 10
+max = 40
+bits = 6
+unlock = "edge_grinding"
+
+[[param]]
+id = "curvature"
+kind = "float"
+min = 0
+max = 0.3
+bits = 5
+unlock = "base"
+
+[[param]]
+id = "fuller_depth"
+kind = "float"
+min = 0
+max = 0.5
+bits = 5
+unlock = "fuller_making"
+
+[[param]]
+id = "tang_length_frac"
+kind = "float"
+min = 0.1
+max = 1
+bits = 5
+unlock = "tang_forging"
+
+[[param]]
+id = "pommel_mass_g"
+kind = "float"
+min = 0
+max = 600
+bits = 6
+unlock = "base"
+
+[[param]]
+id = "guard_width_mm"
+kind = "float"
+min = 0
+max = 160
+bits = 6
+unlock = "guards"
+
+[[param]]
+id = "grip_length_mm"
+kind = "float"
+min = 60
+max = 300
+bits = 6
+unlock = "base"
+
+[[param]]
+id = "distal_taper"
+kind = "float"
+min = 0
+max = 1
+bits = 5
+unlock = "taper_forging"
+
+[[choice]]
+id = "guard_type"
+values = ["none", "cross", "disk", "knuckle"]
+
+[[choice]]
+id = "grip_wrap"
+values = ["bare", "leather", "cord", "wire"]
+
+[[choice]]
+id = "edge_count"
+values = ["single", "double"]
+
+[[curve]]
+id = "blade_profile"
+points = 6
+[[curve]]
+id = "heat_cycle"
+points = 8
+[[curve]]
+id = "temper_curve"
+points = 4

@@ -1,0 +1,33 @@
+# Espécies base. Valores = média da espécie; cada lote varia por terroir, idade, abate, secagem.
+# Unidades normalizadas 0..1 salvo indicação. 'terroir_sensitivity' define quanto o sítio altera cada eixo.
+[[species]]
+id = "oak_quercus"
+class = "wood"
+biomes = ["temperate_forest", "mediterranean"]
+props = { density = 0.68, stiffness = 0.62, strength = 0.66, toughness = 0.60, rot_resistance = 0.70, workability = 0.45, straightness = 0.55, tannin = 0.70, teredo_resistance = 0.35 }
+terroir_sensitivity = { density = 0.20, strength = 0.18, straightness = 0.25 }
+shape_tendency = "curved_branches"   # bom para cavernas e curvas naturais
+
+[[species]]
+id = "cedar_cedrus"
+class = "wood"
+biomes = ["mountain", "mediterranean"]
+props = { density = 0.45, stiffness = 0.48, strength = 0.50, toughness = 0.45, rot_resistance = 0.85, workability = 0.75, straightness = 0.80, resin = 0.70, teredo_resistance = 0.60 }
+terroir_sensitivity = { density = 0.15, resin = 0.30 }
+shape_tendency = "tall_straight"
+
+[[species]]
+id = "teak_tectona"
+class = "wood"
+biomes = ["tropical_monsoon"]
+props = { density = 0.60, stiffness = 0.58, strength = 0.60, toughness = 0.55, rot_resistance = 0.92, workability = 0.60, straightness = 0.75, oil = 0.80, teredo_resistance = 0.85 }
+terroir_sensitivity = { density = 0.12, oil = 0.20 }
+shape_tendency = "straight"
+
+[[species]]
+id = "pine_pinus"
+class = "wood"
+biomes = ["boreal", "temperate_forest", "mountain"]
+props = { density = 0.40, stiffness = 0.42, strength = 0.44, toughness = 0.40, rot_resistance = 0.35, workability = 0.85, straightness = 0.85, resin = 0.60, teredo_resistance = 0.25 }
+terroir_sensitivity = { density = 0.25, resin = 0.25, straightness = 0.20 }
+shape_tendency = "tall_straight"

@@ -1,0 +1,22 @@
+# Formato de nó de tecnologia
+[[tech]]
+id = "fire_control"
+era = "paleolithic"
+branch = "technology"
+prereqs = []
+requires_resources = []
+requires_region = []
+institution_min = "none"
+cost = 100
+unlocks = ["hearth", "cooking"]
+
+[[tech]]
+id = "bronze_working"
+era = "bronze"
+branch = "technology"
+prereqs = ["copper_smelting", "tin_trade"]
+requires_resources = ["copper", "tin"]
+requires_region = []
+institution_min = "workshop"
+cost = 1200
+unlocks = ["bronze_tools", "bronze_weapons"]

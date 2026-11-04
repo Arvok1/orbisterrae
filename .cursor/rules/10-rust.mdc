@@ -1,0 +1,11 @@
+---
+description: Convenções Rust (crates/*)
+globs: ["crates/**/*.rs", "Cargo.toml"]
+alwaysApply: false
+---
+- Newtypes para IDs (CityId, KingdomId, ShardId...). Sem u64 soltos na API pública.
+- Erros: thiserror em libs, anyhow só em binários. Sem unwrap/expect fora de testes.
+- Sem I/O em crates/core e crates/sim (persistência via traits implementadas fora).
+- Simulação: funções puras; receba `&mut impl Rng` e `&dyn Clock`.
+- Use `tracing` com spans por shard e por evento.
+- Benchmarks (criterion) para hot paths: scheduler, territory, interest management.

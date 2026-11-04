@@ -1,0 +1,9 @@
+---
+description: Protocolo e contratos
+globs: ["packages/protocol/**", "crates/protocol/**"]
+alwaysApply: false
+---
+- A fonte da verdade é o .proto. Nunca edite código gerado.
+- Mudanças compatíveis (campos novos com tags novas). Nunca reutilize tags.
+- Comandos (cliente→servidor) e Eventos/Deltas (servidor→cliente) em mensagens separadas.
+- Movimento enviado como segmentos (MoveSegment), não como posição por tick.

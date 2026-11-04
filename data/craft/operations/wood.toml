@@ -1,0 +1,91 @@
+# Operações de madeira. 'params' são decisões manuais do jogador (ou da IA).
+# 'effects' usam expressões seguras (evalexpr). 'requires' referenciam tecnologia/ferramenta/instalação.
+
+[[operation]]
+id = "fell_tree"
+family = "wood"
+requires = { tech = ["stone_axe"], tool_class = "axe" }
+params = [
+  { id = "season", kind = "enum", values = ["spring", "summer", "autumn", "winter"] },
+  { id = "method", kind = "enum", values = ["axe", "saw", "controlled_fire"], unlocked_by = { saw = "two_man_saw", controlled_fire = "fire_control" } },
+  { id = "moon_phase_ritual", kind = "bool", default = false }
+]
+effects = [
+  "moisture = base_moisture * (if(season == 'winter', 0.8, if(season == 'summer', 1.15, 1.0)))",
+  "defects.insect_risk += if(season == 'summer', 0.25, 0.05)",
+  "defects.split_risk += if(method == 'controlled_fire', 0.20, 0.05) * (1 - tool_quality)"
+]
+duration_action_hours = 6
+
+[[operation]]
+id = "store_logs"
+family = "wood"
+requires = { tech = ["log_storage"] }
+params = [
+  { id = "mode", kind = "enum", values = ["dry_shade", "submerged", "mud_cover", "open_sun"], unlocked_by = { submerged = "pond_storage" } },
+  { id = "duration_days", kind = "float", min = 5, max = 365 }
+]
+effects = [
+  "defects.split_risk *= if(mode == 'submerged', 0.4, if(mode == 'open_sun', 1.6, 1.0))",
+  "defects.insect_risk *= if(mode == 'submerged', 0.3, 1.0)",
+  "moisture = lerp(moisture, 0.5, 1 - exp(-duration_days / 120))"
+]
+
+[[operation]]
+id = "saw_planks"
+family = "wood"
+requires = { tech = ["cleaving", "pit_saw?"] }   # '?' = alternativa; saw melhora precisão
+params = [
+  { id = "cut", kind = "enum", values = ["plain", "quarter", "rift"], unlocked_by = { quarter = "quartersawing", rift = "quartersawing" } },
+  { id = "thickness_mm", kind = "float", min = 10, max = 120 }
+]
+effects = [
+  "stability = stability * if(cut == 'quarter', 1.25, if(cut == 'rift', 1.2, 1.0))",
+  "yield = base_yield * if(cut == 'quarter', 0.6, 1.0)"
+]
+
+[[operation]]
+id = "season_wood"
+family = "wood"
+requires = { tech = ["air_seasoning"] }
+params = [
+  { id = "method", kind = "enum", values = ["air", "smoke", "kiln", "oil_bath", "seawater"], unlocked_by = { smoke = "smoke_curing", kiln = "kiln_drying", oil_bath = "oil_pressing", seawater = "maritime_lore" } },
+  { id = "duration_days", kind = "float", min = 10, max = 1500 },
+  { id = "ventilation", kind = "float", min = 0, max = 1 },
+  { id = "stack_pattern", kind = "enum", values = ["flat", "crossed", "vertical"] }
+]
+# curva de envelhecimento definida em data/craft/aging/wood_seasoning.toml (pico e degradação)
+aging_curve = "wood_seasoning"
+effects = [
+  "moisture = aging.moisture(duration_days, method, ventilation, storage.humidity)",
+  "stability = stability * aging.stability(duration_days, method)",
+  "defects.split_risk += aging.check_risk(ventilation, stack_pattern, storage.humidity)",
+  "rot_resistance += if(method == 'smoke', 0.10, 0)"
+]
+
+[[operation]]
+id = "steam_bend"
+family = "wood"
+requires = { tech = ["steam_bending"] }
+params = [
+  { id = "steam_minutes", kind = "float", min = 10, max = 180 },
+  { id = "radius_cm", kind = "float", min = 20, max = 400 }
+]
+effects = [
+  "defects.crack_risk = bend_risk(radius_cm, steam_minutes, flexibility, moisture)",
+  "residual_stress = stress_from_bend(radius_cm, thickness)"
+]
+
+[[operation]]
+id = "treat_hull"
+family = "wood"
+requires = { tech = ["pitch_making"] }
+params = [
+  { id = "coating", kind = "enum", values = ["none", "pitch", "tar", "oil", "lime", "lead_sheathing", "copper_sheathing"], unlocked_by = { lead_sheathing = "metal_sheathing", copper_sheathing = "copper_sheathing" } },
+  { id = "coats", kind = "int", min = 0, max = 6 }
+]
+effects = [
+  "teredo_resistance += coating_teredo(coating) * (1 - exp(-coats * 0.7))",
+  "rot_resistance += coating_rot(coating) * (1 - exp(-coats * 0.5))",
+  "hull_drag_factor *= coating_drag(coating)"
+]

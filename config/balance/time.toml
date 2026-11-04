@@ -1,0 +1,7 @@
+# Valores iniciais a calibrar por playtest
+[calendar]
+seasons_per_year = 4
+real_days_per_game_year = 4.0      # 1 estação do jogo = 1 dia real
+
+[era]
+min_duration_real_days = [56, 56, 56, 56, 70, 70, 70, 70, 70]

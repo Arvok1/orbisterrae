@@ -1,0 +1,316 @@
+# Esquema de parâmetros do projeto de navio (ver docs/CRAFTING.md §7.1)
+# 'unlock' = nó da tech tree que libera a faixa. 'bits' = quantização usada no genome_hash.
+[schema]
+kind = "ship"
+
+[[param]]
+id = "lwl_m"
+kind = "float"
+min = 4
+max = 25
+bits = 6
+unlock = "base"
+
+[[param]]
+id = "beam_m"
+kind = "float"
+min = 1.2
+max = 9
+bits = 6
+unlock = "base"
+
+[[param]]
+id = "draft_m"
+kind = "float"
+min = 0.3
+max = 3.5
+bits = 6
+unlock = "base"
+
+[[param]]
+id = "depth_m"
+kind = "float"
+min = 0.6
+max = 5
+bits = 6
+unlock = "base"
+
+[[param]]
+id = "block_coef"
+kind = "float"
+min = 0.3
+max = 0.8
+bits = 6
+unlock = "base"
+
+[[param]]
+id = "prismatic_coef"
+kind = "float"
+min = 0.5
+max = 0.8
+bits = 6
+unlock = "hull_lines"
+
+[[param]]
+id = "deadrise_deg"
+kind = "float"
+min = 0
+max = 30
+bits = 6
+unlock = "hull_lines"
+
+[[param]]
+id = "sheer_rise_m"
+kind = "int"
+min = 0
+max = 1.5
+bits = 6
+unlock = "base"
+
+[[param]]
+id = "stem_rake_deg"
+kind = "float"
+min = -10
+max = 45
+bits = 6
+unlock = "base"
+
+[[param]]
+id = "stern_rake_deg"
+kind = "float"
+min = -10
+max = 45
+bits = 6
+unlock = "base"
+
+[[param]]
+id = "keel_depth_m"
+kind = "int"
+min = 0
+max = 0.8
+bits = 6
+unlock = "keel_building"
+
+[[param]]
+id = "frame_spacing_cm"
+kind = "float"
+min = 20
+max = 120
+bits = 6
+unlock = "framing"
+
+[[param]]
+id = "plank_thickness_mm"
+kind = "float"
+min = 15
+max = 100
+bits = 6
+unlock = "plank_working"
+
+[[param]]
+id = "keel_scantling_cm"
+kind = "float"
+min = 8
+max = 40
+bits = 6
+unlock = "keel_building"
+
+[[param]]
+id = "mast_count"
+kind = "int"
+min = 1
+max = 4
+bits = 2
+unlock = "masting"
+
+[[param]]
+id = "mast_height_m"
+kind = "float"
+min = 3
+max = 30
+bits = 6
+unlock = "masting"
+
+[[param]]
+id = "mast_position_frac"
+kind = "int"
+min = 0
+max = 1
+bits = 6
+unlock = "masting"
+
+[[param]]
+id = "sail_area_m2"
+kind = "float"
+min = 5
+max = 600
+bits = 7
+unlock = "weaving"
+
+[[param]]
+id = "sail_aspect_ratio"
+kind = "float"
+min = 0.5
+max = 4
+bits = 6
+unlock = "sail_cutting"
+
+[[param]]
+id = "sail_camber"
+kind = "int"
+min = 0
+max = 0.2
+bits = 6
+unlock = "sail_cutting"
+
+[[param]]
+id = "mast_rake_deg"
+kind = "float"
+min = -5
+max = 15
+bits = 5
+unlock = "masting"
+
+[[param]]
+id = "rudder_area_m2"
+kind = "float"
+min = 0.1
+max = 3
+bits = 6
+unlock = "rudder_making"
+
+[[param]]
+id = "rudder_pos_frac"
+kind = "float"
+min = 0.6
+max = 1.05
+bits = 5
+unlock = "rudder_making"
+
+[[param]]
+id = "ballast_kg"
+kind = "float"
+min = 0
+max = 20000
+bits = 7
+unlock = "ballast_stowage"
+
+[[param]]
+id = "ballast_height_frac"
+kind = "int"
+min = 0
+max = 0.5
+bits = 5
+unlock = "ballast_stowage"
+
+[[param]]
+id = "hold_compartments"
+kind = "int"
+min = 1
+max = 8
+bits = 3
+unlock = "bulkheads"
+
+[[param]]
+id = "crew_planned"
+kind = "float"
+min = 2
+max = 200
+bits = 7
+unlock = "base"
+
+[[param]]
+id = "oar_ports"
+kind = "float"
+min = 0
+max = 60
+bits = 6
+unlock = "oared_vessels"
+
+[[param]]
+id = "fore_castle_height_m"
+kind = "int"
+min = 0
+max = 3
+bits = 5
+unlock = "castles"
+
+[[param]]
+id = "aft_castle_height_m"
+kind = "int"
+min = 0
+max = 3.5
+bits = 5
+unlock = "castles"
+
+[[param]]
+id = "ram_length_m"
+kind = "int"
+min = 0
+max = 3
+bits = 5
+unlock = "ram_making"
+
+[[param]]
+id = "hull_color_hue"
+kind = "float"
+min = 0
+max = 360
+bits = 6
+unlock = "dyes"
+
+[[param]]
+id = "ornament_density"
+kind = "int"
+min = 0
+max = 1
+bits = 5
+unlock = "carving"
+
+[[choice]]
+id = "planking"
+values = ["carvel", "clinker", "mixed"]
+
+[[choice]]
+id = "joinery"
+values = ["treenails", "iron_nails", "lashing", "mortise_tenon"]
+
+[[choice]]
+id = "rig"
+values = ["square", "lateen", "lug", "sprit", "mixed"]
+
+[[choice]]
+id = "rudder_type"
+values = ["steering_oar", "stern_rudder"]
+
+[[choice]]
+id = "keel_type"
+values = ["flat", "bar", "deep", "none"]
+
+[[choice]]
+id = "hull_building_order"
+values = ["shell_first", "frame_first"]
+
+[[choice]]
+id = "deck_layout"
+values = ["open", "half", "full"]
+
+[[choice]]
+id = "bow_figure"
+values = ["none", "beast", "deity", "abstract"]
+
+[[curve]]
+id = "midship_section"
+points = 5
+[[curve]]
+id = "waterline_entry"
+points = 6
+[[curve]]
+id = "waterline_run"
+points = 6
+[[curve]]
+id = "sheer_line"
+points = 5
+[[curve]]
+id = "sail_cut_profile"
+points = 5
