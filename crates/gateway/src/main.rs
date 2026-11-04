@@ -51,8 +51,14 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/login", post(login))
         .layer(DefaultBodyLimit::max(16 * 1024))
         .with_state(state);
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:8080").await?;
-    tracing::info!("Gateway ready at http://127.0.0.1:8080");
+    let bind = std::env::var("ORBIS_BIND").unwrap_or_else(|_| "127.0.0.1:8080".into());
+    let address: std::net::SocketAddr = bind.parse()?;
+    anyhow::ensure!(
+        address.ip().is_loopback(),
+        "local prototype requires a loopback bind address"
+    );
+    let listener = tokio::net::TcpListener::bind(address).await?;
+    tracing::info!(%address,"Gateway ready");
     axum::serve(listener, app)
         .with_graceful_shutdown(async {
             let _ = tokio::signal::ctrl_c().await;

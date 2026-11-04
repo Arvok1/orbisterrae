@@ -1,5 +1,7 @@
 import { Application, Container, Graphics, Sprite, Texture } from 'pixi.js';
 import { project, type Point } from './projection.js';
+import type { Coordinate as Location } from './projection.js';
+import { decoration,foliageBiome } from './scenery.js';
 
 type Coordinate = [number, number];
 type Polygon = Coordinate[][];
@@ -26,6 +28,10 @@ export class TerrainLayer extends Container {
   private symbols: {sprite: Sprite; mountain: boolean}[] = [];
   private ownedTextures: Texture[] = [];
   private previousSize = 0;
+  private closeScenery=new Container();
+  private detailSprites:Sprite[]=[];
+  private biomePixels:Uint8ClampedArray|null=null;
+  private detailTextures:Record<string,Texture>={};
 
   constructor(app: Application, data: TerrainData, biomes: Texture) {
     super();
@@ -39,6 +45,13 @@ export class TerrainLayer extends Container {
     const mountains = this.texture(app, 'mountain');
     const snow = this.texture(app, 'snow');
     const hills = this.texture(app, 'hill');
+    this.detailTextures={trees,pines,dunes,autumn:this.texture(app,'autumn')};
+    const resource:unknown=biomes.source.resource;
+    if (resource instanceof HTMLImageElement || resource instanceof ImageBitmap || resource instanceof HTMLCanvasElement) {
+      const canvas=document.createElement('canvas');canvas.width=canvas.height=512;
+      const context=canvas.getContext('2d');
+      if (context) {context.imageSmoothingEnabled=false;context.drawImage(resource,0,0,512,512);this.biomePixels=context.getImageData(0,0,512,512).data;}
+    }
     const landmarks = new Container();
     const entries = [
       ...data.symbols.map(([lon,lat,biome]) => ({lon,lat,texture:biome===13?dunes:biome===3||biome===5||biome===6?pines:trees,mountain:false})),
@@ -57,17 +70,19 @@ export class TerrainLayer extends Container {
     for (const lake of data.lakes) {
       for (const polygon of lake.polygons) this.polygon(water,polygon,'#80b5c4');
     }
+    const riverBody=new Graphics();
     for (const river of data.rivers) for (const line of river.lines) {
       let previous: [number,number] | null = null;
       for (const coordinate of line) {
         const point = xy(coordinate);
-        if (!previous || Math.abs(point[0]-previous[0])>BASIS/2) water.moveTo(...point);
-        else water.lineTo(...point);
+        if (!previous || Math.abs(point[0]-previous[0])>BASIS/2) {water.moveTo(...point);riverBody.moveTo(...point);}
+        else {water.lineTo(...point);riverBody.lineTo(...point);}
         previous=point;
       }
       water.stroke({color:'#568ca3',pixelLine:true});
+      riverBody.stroke({color:'#80b5c4',width:0.006});
     }
-    this.addChild(water);
+    this.addChild(water,riverBody,this.closeScenery);
     this.eventMode = 'none';
   }
 
@@ -79,11 +94,11 @@ export class TerrainLayer extends Container {
 
   private texture(app: Application, kind: string) {
     const g = new Graphics();
-    if (kind==='tree') {
+    if (kind==='tree'||kind==='autumn') {
       g.ellipse(11,21,9,3).fill({color:'#56683b',alpha:0.2});
       g.rect(10,11,3,11).fill('#8a6940');
-      g.circle(7,10,6).circle(15,10,6).circle(11,5,6).fill('#577f45').stroke({color:'#465e39',width:0.8});
-      g.circle(7,7,3).fill('#91af5d');
+      g.circle(7,10,6).circle(15,10,6).circle(11,5,6).fill(kind==='autumn'?'#c3904e':'#577f45').stroke({color:'#465e39',width:0.8});
+      g.circle(7,7,3).fill(kind==='autumn'?'#e6bb6e':'#91af5d');
     } else if (kind==='pine') {
       g.rect(10,14,2,9).fill('#8a6940');
       g.poly([11,0,3,12,6,12,0,19,22,19,16,12,19,12]).fill('#527764').stroke({color:'#3b5f4a',width:0.8});
@@ -105,7 +120,7 @@ export class TerrainLayer extends Container {
     return texture;
   }
 
-  updateView(center: Point, size: number, width: number, height: number) {
+  updateView(center: Point, size: number, width: number, height: number,clearings:Location[]=[]) {
     const scale = size/BASIS;
     this.position.set(width/2-center.x*size,height/2-center.y*size);
     this.scale.set(scale);
@@ -116,6 +131,31 @@ export class TerrainLayer extends Container {
       }
       this.previousSize=size;
     }
+    this.updateScenery(center,size,width,height,clearings);
+  }
+
+  private updateScenery(center:Point,size:number,width:number,height:number,clearings:Location[]) {
+    const zoom=Math.log2(size/256);this.closeScenery.visible=zoom>9&&this.biomePixels!==null;
+    if (!this.closeScenery.visible) return;
+    this.closeScenery.alpha=Math.min(1,(zoom-9)/3);
+    const level=Math.min(18,Math.max(1,Math.floor(Math.log2(size/40)))),n=2**level,scale=size/BASIS;
+    const left=Math.floor((center.x-width/size/2)*n)-1,right=Math.ceil((center.x+width/size/2)*n)+1;
+    const top=Math.floor((center.y-height/size/2)*n)-1,bottom=Math.ceil((center.y+height/size/2)*n)+1;
+    const towns=clearings.map(project);let used=0;
+    for (let y=top;y<=bottom;y++) for (let x=left;x<=right;x++) {
+      const {point,variant}=decoration(x,y,level,42);
+      if (variant%4!==0||point.x<0||point.x>=1||point.y<0||point.y>=1) continue;
+      if (towns.some(town=>Math.hypot(town.x-point.x,town.y-point.y)*size<85)) continue;
+      const index=(Math.floor(point.y*512)*512+Math.floor(point.x*512))*4,pixels=this.biomePixels!;
+      const biome=foliageBiome(pixels[index],pixels[index+1],pixels[index+2],pixels[index+3]);
+      if (!biome) continue;
+      const texture=biome===13?this.detailTextures.dunes:[3,5,6].includes(biome)?this.detailTextures.pines:biome===4&&variant%3===0?this.detailTextures.autumn:this.detailTextures.trees;
+      let sprite=this.detailSprites[used++];
+      if (!sprite) {sprite=new Sprite(texture);sprite.anchor.set(0.5,0.85);this.closeScenery.addChild(sprite);this.detailSprites.push(sprite);}
+      sprite.texture=texture;sprite.visible=true;sprite.position.set(point.x*BASIS,point.y*BASIS);
+      sprite.scale.set((32+variant%15)/texture.width/scale);
+    }
+    for(let i=used;i<this.detailSprites.length;i++)this.detailSprites[i].visible=false;
   }
 
   override destroy(options?: Parameters<Container['destroy']>[0]) {

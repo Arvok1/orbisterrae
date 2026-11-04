@@ -1,10 +1,16 @@
 import { create } from 'zustand';
 import type { Coordinate } from './map/projection.js';
-import type { EntityUpsert, SetViewport } from '@orbis/protocol';
+import type { EntityUpsert, SetViewport, WorldSnapshot } from '@orbis/protocol';
+import { storedSession, type LocalSession } from './account.js';
 
 export type Locale = 'pt-BR' | 'en';
 interface AtlasState {
-  cityBlend: number;
+  session:LocalSession|null;
+  setSession:(session:LocalSession|null)=>void;
+  world:WorldSnapshot|null;
+  serverOffsetMs:number;
+  gameMessage:string|null;
+  commandPending:boolean;
   showDiagnostics: boolean;
   toggleDiagnostics: () => void;
   entities: EntityUpsert[];
@@ -15,13 +21,18 @@ interface AtlasState {
   zoom: number;
   loaded: number;
   error: boolean;
-  action: {kind: 'zoomIn' | 'zoomOut' | 'reset' | 'city'; serial: number} | null;
+  action: {kind: 'zoomIn' | 'zoomOut' | 'reset' | 'city' | 'follow'; serial: number} | null;
   setLocale: (locale: Locale) => void;
   select: (selected: Coordinate) => void;
-  command: (kind: 'zoomIn' | 'zoomOut' | 'reset' | 'city') => void;
+  command: (kind: 'zoomIn' | 'zoomOut' | 'reset' | 'city' | 'follow') => void;
 }
 export const useAtlas = create<AtlasState>((set) => ({
-  cityBlend: 0, showDiagnostics: false,
+  session:storedSession(),world:null,serverOffsetMs:0,gameMessage:null,commandPending:false,
+  setSession:(session)=>{
+    try {if (session) localStorage.setItem('orbis-session',JSON.stringify(session));else localStorage.removeItem('orbis-session');} catch { /* Session still works until this page closes. */ }
+    set({session,world:null,gameMessage:null,commandPending:false});
+  },
+  showDiagnostics: false,
   toggleDiagnostics: () => set(s => ({showDiagnostics: !s.showDiagnostics})),
   entities: [], viewport: null, connection: 'offline',
   locale: 'pt-BR', selected: null, zoom: 2, loaded: 0, error: false, action: null,

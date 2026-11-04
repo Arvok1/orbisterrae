@@ -25,7 +25,7 @@ button:hover, select:hover { background: #ffe4a4; }
 button:active { transform: translateY(2px); box-shadow: 0 1px 0 #9c815a; }
 button:disabled { opacity: .5; cursor: not-allowed; }
 :focus-visible { outline: 3px solid #365d72; outline-offset: 4px; }
-main { height: 100dvh; min-height: 480px; position: relative; overflow: hidden; }
+main { height: 100dvh; position: relative; overflow: hidden; }
 .map { position: absolute; inset: 0; cursor: grab; touch-action: none; }
 .map:active { cursor: grabbing; }
 .map canvas { display: block; }
@@ -70,6 +70,14 @@ aside > .eyebrow, aside > h1, aside > .intro, .preview-note { display: none; }
 .step { font-size: 9px; letter-spacing: 1px; font-weight: 900; color: #80602f; }
 h2 { font-size: 24px; line-height: 1.1; margin: 16px 0 8px; font-weight: 900; }
 .panel p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.play-panel label { display:block; font-size:11px; font-weight:800; margin:16px 0 8px; }
+.play-panel input { display:block; width:100%; margin-top:6px; min-height:44px; border:1px solid var(--border); border-radius:8px; background:var(--paper-light); padding:8px; color:var(--ink); font:inherit; font-size:14px; }
+.play-panel .primary { margin-top:16px; }
+.play-panel .chosen-location, .play-panel .game-feedback { margin-top:12px; }
+.play-panel .action-cost { margin-top:8px; font-size:10px; }
+.play-panel .ruler-status { color:var(--green); font-weight:800; }
+.text-button { border:0; box-shadow:none; background:transparent; padding:8px 0; color:var(--green); font-size:11px; text-decoration:underline; }
+.follow-button { position:absolute;right:24px;bottom:64px;font-size:24px; }
 .empty, .location { border-top: 1px solid #c8b687; padding: 16px 0; margin-top: 16px; }
 .empty > span { font-size: 24px; color: var(--green); }
 .empty h3 { font-size: 12px; margin: 8px 0; }
@@ -118,9 +126,11 @@ footer a { color: inherit; }
   .panel { padding: 16px; }
   .map-controls { right: 8px; top: 96px; }
   .layer-control { right: 8px; bottom: 64px; max-width: 72px; }
+  .follow-button { right:8px;bottom:64px; }
   .layer-control button { font-size: 8px; min-height: 56px; }
   footer { padding: 8px; font-size: 8px; }
   footer span:last-child { text-align: right; max-width: 50%; }
   .soak-report { left: 16px; right: 72px; top: 88px; }
 }
+@media(max-height:600px) { .map-controls {top:88px;gap:8px;} .compass {display:none;} }
 @media(prefers-reduced-motion:reduce) { * { transition: none !important; } }

@@ -121,6 +121,8 @@ impl Context {
                     cities: cities.iter().map(city_state).collect(),
                     territory: cells,
                     now_ms: now_ms as f64,
+                    village_cost: self.balance.village.cost,
+                    village_construction_ms: self.balance.village.construction_ms as f64,
                 })),
             });
         }
@@ -244,11 +246,18 @@ impl Context {
                     .map(|(id, _)| id)
                     .collect();
                 let cities = load_cities(&mut tx).await?;
-                for (cell, (owner, influence)) in
-                    world::territory(&cities, &self.territory, &self.geo, Some(&affected))
-                {
-                    sqlx::query("INSERT INTO territory_cells(h3_res7,city_id,influence) VALUES($1,$2,$3) ON CONFLICT(h3_res7) DO UPDATE SET city_id=EXCLUDED.city_id,influence=EXCLUDED.influence")
-                        .bind(cell as i64).bind(owner.0).bind(influence).execute(&mut *tx).await?;
+                let owners = world::territory(&cities, &self.territory, &self.geo, Some(&affected));
+                if !owners.is_empty() {
+                    let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(
+                        "INSERT INTO territory_cells(h3_res7,city_id,influence) ",
+                    );
+                    query.push_values(owners.iter(), |mut row, (cell, (owner, influence))| {
+                        row.push_bind(*cell as i64)
+                            .push_bind(owner.0)
+                            .push_bind(*influence);
+                    });
+                    query.push(" ON CONFLICT(h3_res7) DO UPDATE SET city_id=EXCLUDED.city_id,influence=EXCLUDED.influence");
+                    query.build().execute(&mut *tx).await?;
                 }
             }
             let new_shard = world::shard(next.pos);

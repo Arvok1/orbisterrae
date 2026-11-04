@@ -33,7 +33,7 @@ try {
         return
     }
     Write-Host "Abrindo atlas em $orbisUrl. Use Ctrl+C para encerrar."
-    if ($NoBrowser) { & pnpm --filter @orbis/client dev }
-    else { & pnpm --filter @orbis/client dev --open }
+    if ($NoBrowser) { & pnpm --filter @orbis/client dev --force }
+    else { & pnpm --filter @orbis/client dev --force --open }
     if ($LASTEXITCODE -ne 0) { throw "Falha ao iniciar o cliente." }
 } finally { Pop-Location }

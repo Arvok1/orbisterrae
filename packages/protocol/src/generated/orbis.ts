@@ -86,6 +86,8 @@ export interface WorldSnapshot {
   cities: CityState[];
   territory: TerritoryCell[];
   nowMs: number;
+  villageCost: number;
+  villageConstructionMs: number;
 }
 
 export interface EntityHandoff {
@@ -1103,7 +1105,7 @@ export const TerritoryCell: MessageFns<TerritoryCell> = {
 };
 
 function createBaseWorldSnapshot(): WorldSnapshot {
-  return { ruler: undefined, cities: [], territory: [], nowMs: 0 };
+  return { ruler: undefined, cities: [], territory: [], nowMs: 0, villageCost: 0, villageConstructionMs: 0 };
 }
 
 export const WorldSnapshot: MessageFns<WorldSnapshot> = {
@@ -1119,6 +1121,12 @@ export const WorldSnapshot: MessageFns<WorldSnapshot> = {
     }
     if (message.nowMs !== 0) {
       writer.uint32(33).double(message.nowMs);
+    }
+    if (message.villageCost !== 0) {
+      writer.uint32(40).uint32(message.villageCost);
+    }
+    if (message.villageConstructionMs !== 0) {
+      writer.uint32(49).double(message.villageConstructionMs);
     }
     return writer;
   },
@@ -1162,6 +1170,22 @@ export const WorldSnapshot: MessageFns<WorldSnapshot> = {
           message.nowMs = reader.double();
           continue;
         }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.villageCost = reader.uint32();
+          continue;
+        }
+        case 6: {
+          if (tag !== 49) {
+            break;
+          }
+
+          message.villageConstructionMs = reader.double();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1182,6 +1206,8 @@ export const WorldSnapshot: MessageFns<WorldSnapshot> = {
     message.cities = object.cities?.map((e) => CityState.fromPartial(e)) || [];
     message.territory = object.territory?.map((e) => TerritoryCell.fromPartial(e)) || [];
     message.nowMs = object.nowMs ?? 0;
+    message.villageCost = object.villageCost ?? 0;
+    message.villageConstructionMs = object.villageConstructionMs ?? 0;
     return message;
   },
 };

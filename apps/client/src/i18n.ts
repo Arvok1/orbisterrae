@@ -1,8 +1,6 @@
 const pt = {
-  cityScene: 'A vila', worldScene: 'Mapa-múndi', artPreview: 'Prévia da direção artística',
   openDetails: 'Explorar este lugar', closeDetails: 'Recolher detalhes', connected: 'Mundo local conectado',
-  visitPreview: 'Aproximar da vila ilustrada', testLayer: 'Camada de teste',
-  zoomBack: 'Afaste o zoom para voltar ao mapa', zoomVillage: 'Selecione um lugar e aproxime para ver a vila',
+  testLayer: 'Camada de teste',
   diagnostic: 'ENTIDADES DE TESTE',
   atlas: 'ATLAS DO MUNDO', era: 'O início de uma civilização', eraLabel: 'IDADE DA PEDRA',
   title: 'Toda história começa\nem algum lugar.',
@@ -22,10 +20,8 @@ const pt = {
   notice: 'Fundação e construção estarão disponíveis quando o servidor de simulação estiver conectado.',
 };
 const en: typeof pt = {
-  cityScene: 'The village', worldScene: 'World map', artPreview: 'Art direction preview',
   openDetails: 'Explore this place', closeDetails: 'Collapse details', connected: 'Local world connected',
-  visitPreview: 'Zoom into the illustrated village', testLayer: 'Test layer',
-  zoomBack: 'Zoom out to return to the map', zoomVillage: 'Select a place and zoom in to see the village',
+  testLayer: 'Test layer',
   diagnostic: 'TEST ENTITIES',
   atlas: 'WORLD ATLAS', era: 'The dawn of a civilization', eraLabel: 'STONE AGE',
   title: 'Every story begins\nsomewhere.',

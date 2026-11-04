@@ -1,12 +1,13 @@
 import { Application, Assets, ColorMatrixFilter, Container, Graphics, Sprite, type Texture } from 'pixi.js';
-import villageUrl from '../assets/village-concept-v1.png?url';
 import terrainUrl from '../assets/world-terrain-v1.json?url';
 import biomesUrl from '../assets/world-biomes-v1.png?url';
 import land from '../assets/world-land-v1.json' with {type: 'json'};
 import { project, unproject, visibleTiles, type Point } from './projection.js';
 import { useAtlas } from '../state.js';
-import { sceneBlend } from './scene.js';
 import { TerrainLayer, type TerrainData } from './TerrainLayer.js';
+import { GameLayer } from './GameLayer.js';
+import { rulerPosition } from './gameScene.js';
+import { sendGame } from '../network.js';
 
 /** Rendering only: no React dependency and no simulation results calculated here. */
 export class Atlas {
@@ -22,10 +23,10 @@ export class Atlas {
   private tilesLayer = new Container();
   private coastline = new Graphics();
   private terrain: TerrainLayer | null = null;
+  private game:GameLayer|null=null;
+  private following=false;
   private coastRings = land.coordinates.flatMap(polygon => polygon.map(ring =>
     ring.map(point => project({lon: point[0], lat: point[1]}))));
-  private cityScene: Sprite | null = null;
-  private cityTarget = 0;
   private observer: ResizeObserver | null = null;
   private abort = new AbortController();
   private unsubscribe: (() => void) | null = null;
@@ -52,6 +53,7 @@ export class Atlas {
     ];
     this.tilesLayer.filters = [cartoon];
     this.app.stage.addChild(this.tilesLayer, this.coastline, this.entities, this.marker);
+    for (const ring of this.coastRings) this.coastline.poly(ring.flatMap(p=>[p.x*4096,p.y*4096])).stroke({color:'#64754c',pixelLine:true,alpha:0.7});
     const response = await fetch(terrainUrl, {signal: this.abort.signal});
     if (!response.ok) throw new Error(`Terrain load failed: ${response.status}`);
     const terrainData = await response.json() as TerrainData;
@@ -61,21 +63,16 @@ export class Atlas {
     this.terrain = new TerrainLayer(this.app, terrainData, biomes);
     this.app.stage.addChildAt(this.terrain, 1);
     this.app.canvas.dataset.terrain = JSON.stringify(terrainData.stats);
-    const village = await Assets.load<Texture>(villageUrl);
-    if (this.disposed) { void Assets.unload(villageUrl); return; }
-    this.cityScene = new Sprite(village);
-    this.cityScene.anchor.set(0.5);
-    this.cityScene.alpha = 0;
-    this.app.stage.addChild(this.cityScene);
+    this.game=new GameLayer(this.app);this.game.sync(useAtlas.getState().world);this.app.stage.addChild(this.game);
     let elapsed = 0;
     let frames = 0;
     this.app.ticker.add((ticker) => {
-      if (this.cityScene) {
-        const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-        this.cityScene.alpha += (this.cityTarget - this.cityScene.alpha) * (reduced ? 1 : Math.min(1, ticker.deltaMS / 140));
-        this.tilesLayer.alpha = this.marker.alpha = this.entities.alpha = this.coastline.alpha = 1 - this.cityScene.alpha;
-        if (this.terrain) this.terrain.alpha = 1 - this.cityScene.alpha;
+      const state=useAtlas.getState();const now=Date.now()+state.serverOffsetMs;
+      if (this.following&&state.world?.ruler) {
+        const center=project(rulerPosition(state.world.ruler,now));
+        if (Math.hypot(center.x-this.center.x,center.y-this.center.y)>1e-12) {this.center=center;this.draw();}
       }
+      this.game?.frame(this.center,this.size,this.host.clientWidth,this.host.clientHeight,now);
       elapsed += ticker.deltaMS;
       frames++;
       if (elapsed >= 1000) {
@@ -108,7 +105,7 @@ export class Atlas {
         this.pinch = distance;
         this.moved = true;
       } else {
-        if (this.start && Math.hypot(e.clientX - this.start.x, e.clientY - this.start.y) > 5) this.moved = true;
+        if (this.start && Math.hypot(e.clientX - this.start.x, e.clientY - this.start.y) > 5) {this.moved = true;this.following=false;}
         this.center.x -= (e.clientX - previous.x) / this.size;
         this.center.y -= (e.clientY - previous.y) / this.size;
         this.draw();
@@ -123,6 +120,18 @@ export class Atlas {
     }, options);
     this.host.addEventListener('pointercancel', (e) => { this.pointers.delete(e.pointerId); }, options);
     this.host.addEventListener('keydown', (e) => {
+      const state=useAtlas.getState(),ruler=state.world?.ruler;
+      const direction:Record<string,Point>={w:{x:0,y:-1},s:{x:0,y:1},a:{x:-1,y:0},d:{x:1,y:0}};
+      const move=direction[e.key.toLowerCase()];
+      if (move&&ruler) {
+        e.preventDefault();
+        if (!ruler.journey&&!ruler.foundingUntilMs&&!state.commandPending) {
+          const origin=project(rulerPosition(ruler,Date.now()+state.serverOffsetMs));
+          const step=48/Math.max(this.size,8_388_608);
+          sendGame({$case:'moveRuler',moveRuler:{destination:unproject({x:origin.x+move.x*step,y:origin.y+move.y*step})}});
+        }
+        return;
+      }
       const step = 80 / this.size;
       const actions: Record<string, () => void> = {
         ArrowLeft: () => { this.center.x -= step; }, ArrowRight: () => { this.center.x += step; },
@@ -135,13 +144,19 @@ export class Atlas {
     this.unsubscribe = useAtlas.subscribe((state, before) => {
       if (state.action !== before.action && state.action) {
         if (state.action.kind === 'reset') {
+          this.following=false;
           this.center = project({lat: 14, lon: 8});
           this.size = Math.max(this.host.clientWidth * 0.95, 800);
+        } else if (state.action.kind === 'follow') {
+          if (state.world?.ruler) {this.following=true;this.center=project(rulerPosition(state.world.ruler,Date.now()+state.serverOffsetMs));this.size=8_388_608;}
         } else if (state.action.kind === 'city') {
-          if (state.selected) { this.center = project(state.selected); this.size = 16384; }
+          const city=state.world?.cities.find(city=>city.id===state.world?.ruler?.cityId);
+          if (city?.pos) {this.following=false;this.center=project(city.pos);this.size=8_388_608;}
+          else if (!state.world&&state.selected) { this.center = project(state.selected); this.size = 16384; }
         } else this.zoom(state.action.kind === 'zoomIn' ? 1.5 : 1 / 1.5);
       }
-      if (state.selected !== before.selected || state.action !== before.action || state.entities !== before.entities || state.showDiagnostics !== before.showDiagnostics) this.draw();
+      if (state.world!==before.world) this.game?.sync(state.world);
+      if (state.selected !== before.selected || state.action !== before.action || state.entities !== before.entities || state.showDiagnostics !== before.showDiagnostics || state.world!==before.world) this.draw();
     });
     this.observer = new ResizeObserver(() => {
       this.app.renderer.resize(this.host.clientWidth, this.host.clientHeight);
@@ -201,7 +216,7 @@ export class Atlas {
   }
   private zoom(factor: number, point = {x: this.host.clientWidth / 2, y: this.host.clientHeight / 2}) {
     const before = this.worldAt(point);
-    this.size = Math.max(600, Math.min(16384, this.size * factor));
+    this.size = Math.max(600, Math.min(useAtlas.getState().world?.ruler?16_777_216:16384, this.size * factor));
     const after = this.worldAt(point);
     this.center.x += before.x - after.x;
     this.center.y += before.y - after.y;
@@ -246,12 +261,9 @@ export class Atlas {
       }
     }
     this.marker.clear();
-    this.terrain?.updateView(this.center, this.size, width, height);
-    this.coastline.clear();
-    for (const ring of this.coastRings) {
-      const points = ring.flatMap(p => [width / 2 + (p.x - this.center.x) * this.size, height / 2 + (p.y - this.center.y) * this.size]);
-      this.coastline.poly(points).stroke({color: '#64754c', width: 1.5, alpha: 0.7});
-    }
+    this.terrain?.updateView(this.center, this.size, width, height,useAtlas.getState().world?.cities.flatMap(city=>city.pos?[city.pos]:[])??[]);
+    this.coastline.position.set(width/2-this.center.x*this.size,height/2-this.center.y*this.size);
+    this.coastline.scale.set(this.size/4096);
     this.entities.clear();
     const entities = useAtlas.getState().showDiagnostics ? useAtlas.getState().entities : [];
     for (const entity of entities) {
@@ -263,12 +275,6 @@ export class Atlas {
     this.entities.fill({color: '#e1bd79', alpha: 0.8});
     const selected = useAtlas.getState().selected;
     const zoom = Math.log2(this.size / 256);
-    const cityProgress = selected ? Math.max(0, Math.min(1, (zoom - 4.1) / 1.1)) : 0;
-    this.cityTarget = sceneBlend(zoom, selected !== null);
-    if (this.cityScene) {
-      this.cityScene.position.set(width / 2, height / 2);
-      this.cityScene.scale.set(Math.max(width / this.cityScene.texture.width, height / this.cityScene.texture.height) * (1 + cityProgress * 0.08));
-    }
     if (selected) {
       const p = project(selected);
       const x = width / 2 + (p.x - this.center.x) * this.size;
@@ -279,10 +285,15 @@ export class Atlas {
         .moveTo(x, y - 26).lineTo(x, y - 12).moveTo(x, y + 12).lineTo(x, y + 26)
         .stroke({color: '#ebc575', width: 1});
     }
-    useAtlas.setState({zoom, loaded: this.tiles.size, cityBlend: this.cityTarget,
+    useAtlas.setState({zoom, loaded: this.tiles.size,
       viewport: {center: unproject(this.center), zoom: Math.log2(this.size / 256), widthPx: width, heightPx: height}});
     this.app.canvas.dataset.tiles = String(this.tiles.size);
     this.app.canvas.dataset.pending = String(this.pending.size);
+    const world=useAtlas.getState().world;
+    if (world?.ruler) {
+      this.app.canvas.dataset.ruler=JSON.stringify(world.ruler.pos);
+      this.app.canvas.dataset.cities=String(world.cities.filter(city=>city.active).length);
+    }
   }
   destroy() {
     this.disposed = true;
@@ -292,7 +303,6 @@ export class Atlas {
     this.unsubscribe?.();
     if (this.ready) this.app.destroy(true, {children: true});
     for (const url of this.tiles.keys()) void Assets.unload(url);
-    void Assets.unload(villageUrl);
     void Assets.unload(biomesUrl);
     this.tiles.clear();
   }

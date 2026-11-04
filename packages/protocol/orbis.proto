@@ -36,7 +36,7 @@ message CityState {
   uint32 tier = 5; bool active = 6; double ready_at_ms = 7; uint32 population = 8;
 }
 message TerritoryCell { string h3 = 1; string city_id = 2; repeated LatLon boundary = 3; }
-message WorldSnapshot { RulerState ruler = 1; repeated CityState cities = 2; repeated TerritoryCell territory = 3; double now_ms = 4; }
+message WorldSnapshot { RulerState ruler = 1; repeated CityState cities = 2; repeated TerritoryCell territory = 3; double now_ms = 4; uint32 village_cost = 5; double village_construction_ms = 6; }
 message EntityHandoff {
   string entity_id = 1; uint64 revision = 2; uint64 from_shard = 3;
   uint64 to_shard = 4; bytes state = 5;

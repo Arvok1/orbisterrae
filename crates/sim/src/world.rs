@@ -410,11 +410,43 @@ pub fn territory(
     affected: Option<&BTreeSet<u64>>,
 ) -> BTreeMap<u64, (CityId, f64)> {
     let mut owners: BTreeMap<u64, (CityId, f64)> = BTreeMap::new();
+    let affected_land = affected.map(|cells| {
+        cells
+            .iter()
+            .copied()
+            .filter(|id| {
+                let position = LatLng::from(CellIndex::try_from(*id).expect("validated H3 cell"));
+                geo.is_land(Position {
+                    lat: position.lat(),
+                    lon: position.lng(),
+                })
+            })
+            .collect::<Vec<_>>()
+    });
     for city in cities.iter().filter(|city| city.active) {
-        for (cell, influence) in footprint(city, balance, geo) {
-            if affected.is_some_and(|cells| !cells.contains(&cell)) {
-                continue;
-            }
+        let candidates = if let Some(cells) = &affected_land {
+            let center = LatLng::new(city.pos.lat, city.pos.lon)
+                .expect("valid city")
+                .to_cell(Resolution::Seven);
+            let tier = city.tier.min(balance.influence.base_by_tier.len() - 1);
+            cells
+                .iter()
+                .filter_map(|id| {
+                    let distance = center
+                        .grid_distance(CellIndex::try_from(*id).expect("validated H3 cell"))
+                        .ok()?;
+                    if distance < 0 || distance as u32 > balance.influence.max_radius_cells[tier] {
+                        return None;
+                    }
+                    let influence = balance.influence.base_by_tier[tier]
+                        / (1.0 + distance as f64).powf(balance.influence.falloff_exponent);
+                    (influence >= balance.influence.min_owner_influence).then_some((*id, influence))
+                })
+                .collect::<Vec<_>>()
+        } else {
+            footprint(city, balance, geo)
+        };
+        for (cell, influence) in candidates {
             let owner = owners.entry(cell).or_insert((city.id, influence));
             if influence > owner.1 || (influence == owner.1 && city.id < owner.0) {
                 *owner = (city.id, influence);

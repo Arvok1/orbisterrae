@@ -18,7 +18,7 @@ export class BotClient {
     } catch (error) { socket.close(); throw error; }
   }
 
-  async request(kind: Command['kind']): Promise<ServerMsg> {
+  async request(kind: Command['kind'],requestId?:string): Promise<ServerMsg> {
     if (this.pending) throw new Error('Only one in-flight request per bot');
     this.pending = true;
     const seq = ++this.seq;
@@ -38,7 +38,7 @@ export class BotClient {
         onClose = ()=>reject(new Error('Bot socket closed before reply'));
         this.socket.addEventListener('message',onMessage,{once:true});
         this.socket.addEventListener('close',onClose,{once:true});
-        this.socket.send(Envelope.encode(Envelope.fromPartial({seq,body:{$case:'command',command:{requestId:`bot-${seq}`,kind}}})).finish());
+        this.socket.send(Envelope.encode(Envelope.fromPartial({seq,body:{$case:'command',command:{requestId:requestId??`bot-${seq}`,kind}}})).finish());
       });
     } finally {
       clearTimeout(timer!);

@@ -1,0 +1,9 @@
+[run]
+seed = 42
+bots = 100
+concurrency = 10
+timeout_ms = 30000
+
+[assertions]
+active_villages = 100
+maximum_pending_handoffs = 0
