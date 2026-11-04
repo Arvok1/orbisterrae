@@ -51,7 +51,7 @@ Meta: eliminar riscos técnicos e montar a base. Referência: `BACKLOG.md` T0.1 
 | P0.5 ✓ | Gateway WebSocket + eco de entidades distribuído (T0.6) | Gateway e workers locais separados via NATS; 10 mil entidades a 60 fps |
 | P0.4a ✓ | Direção cartunesca solicitada: mapa de tela inteira e cidade ilustrada por zoom | HUD recolhível; mundo 2D distante e transição isométrica próxima; desktop/mobile |
 | P0.4b ✓ | Terreno cartunesco detalhado já na visão aberta, solicitado pelo usuário | Exibir montanhas, rios e demais feições do terreno sem depender do zoom; fontes reais e cobertura documentadas |
-| P0.6 | **Benchmarks de risco** (T0.7): scheduler, ownership de território, interest management | Metas registradas em `DECISIONS.md` |
+| P0.6 ✓ | **Benchmarks de risco** (T0.7): scheduler, ownership de território, interest management | Metas registradas em `DECISIONS.md` |
 | P0.7 | **Harness de bots v0**: cliente headless que fala o protocolo | Bot loga, envia comandos, mede latência |
 
 **Linha de corte:** pipeline v0 pode usar só Natural Earth + relevo de baixa resolução; clima e ventos reais ficam para P4.

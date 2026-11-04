@@ -21,7 +21,7 @@ Formato: `Tn.m` = tarefa. **Escopo** diz o que fazer; **Aceite** diz como saber 
   *Ampliação P0.4b concluída:* rios, lagos, regiões ecológicas e símbolos globais de relevo/vegetação/deserto visíveis sem aproximar; fontes e limites documentados.
 - [x] **T0.6 Gateway + eco.** `crates/gateway`: WebSocket binário, `SetViewport` → servidor responde com `EntityUpsert` falsos. Cliente renderiza 10 mil entidades com LOD.
   *Aceite:* 10 mil entidades visíveis a 60 fps; gateway aguenta 1.000 conexões simuladas.
-- [ ] **T0.7 Decisão de linguagem (confirmar).** Benchmark do scheduler e do ownership de território em Rust. Registrar em `docs/DECISIONS.md`.
+- [x] **T0.7 Decisão de linguagem (confirmar).** Benchmark do scheduler e do ownership de território em Rust. Registrar em `docs/DECISIONS.md`.
   *Aceite:* 1 milhão de eventos agendados/seg em um shard, p99 < 5 ms.
 
 ## Fase 1: Núcleo do mundo

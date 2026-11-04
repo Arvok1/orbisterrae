@@ -1,5 +1,6 @@
 //! Esqueleto: implementar conforme docs/ROADMAP.md
 pub mod demo;
+pub mod risk;
 
 #[cfg(test)]
 mod tests {

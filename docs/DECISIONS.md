@@ -14,7 +14,7 @@
 | 10 | 2026-11-02 | Religião emergente com dogmas modulares e favor divino | Impacto sistêmico | Aceita |
 | 11 | 2026-11-02 | Director de eventos com orçamento de adversidade | Justiça | Aceita |
 | 12 | 2026-11-02 | Shards H3 + eventos agendados + Rust + TS + WebSocket por visibilidade | Escala | Aceita |
-| 13 | 2026-11-02 | Rust (em vez de Go) para a simulação, a confirmar em T0.7 | Desempenho previsível | Pendente |
+| 13 | 2026-11-02 | Rust para a simulação, confirmado em P0.6/T0.7 | Fila determinística supera 1 milhão de eventos/s no benchmark local; metodologia e limites em BENCHMARKS.md | Aceita |
 | 14 | 2026-11-02 | Sem catálogo de itens: todo item é um `ItemGenome` único (projeto manual + lotes com procedência + processo + artesão + tempo); atributos por `evaluate()` com física simplificada | Unicidade garantida e profundidade de design | Aceita |
 | 15 | 2026-11-02 | Toda etapa de criação é tecnologia (operações, faixas, precisão, ferramentas, instrumentos) | Integração com a tech tree | Aceita |
 | 16 | 2026-11-02 | Mercado: fungíveis por graus no order book; itens únicos por anúncios e leilões; projetos são propriedade informacional (engenharia reversa com fidelidade parcial) | Preserva unicidade e economia player-driven | Aceita |
@@ -28,6 +28,22 @@
 | 24 | 2026-11-03 | Guildas/federações e monetização ficam pós-beta | Mantém o beta focado no loop estratégico e na retenção | Aceita |
 
 ## Em aberto
+
+### Benchmarks de risco P0.6
+
+Medida local em release (Rust 1.99.1, Windows): 1.388.174 eventos/s incluindo
+inserção e despacho; p99 por lote de 1.000: inserir 0,351 ms, despachar 1,583 ms.
+Ownership de 100 mil candidaturas pré-calculadas: p99 3,562 ms; viewport de
+10 mil entidades: p99 3,871 ms. O controle de duplicidade usa uma tabela de
+IDs vistos, sem percorrê-la; a ordem vem apenas do heap (prazo, ID). Hash fixo
+evita entropia oculta. TOML é dependência de desenvolvimento já prevista no
+workspace, usada para ler o limiar de território real no benchmark.
+
+São kernels em memória, sem banco, NATS, H3/distância ou handler de jogo.
+O conjunto de IDs vistos não é limitado neste protótipo; a política de retenção
+e idempotência persistente será definida na integração S1.1. A decisão de Rust
+fica confirmada para prosseguir, sem alegar esses números para o mundo completo.
+Reprodução, metas e limites em `BENCHMARKS.md`.
 
 ### Visual e primeiro loop jogável (2026-11-04)
 
