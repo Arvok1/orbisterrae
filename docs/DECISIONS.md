@@ -21,8 +21,12 @@
 | 17 | 2026-11-03 | Equipe: 1 desenvolvedor + Cursor. Roadmap por passes incrementais com linhas de corte | Escopo grande para equipe de 1 | Aceita |
 | 18 | 2026-11-03 | MVP = mundo mínimo completo (todos os sistemas em versão simples) antes de aprofundar | Validar o loop inteiro cedo | Aceita |
 | 19 | 2026-11-03 | Lançamento até a Era Industrial inicial, com tudo no lançamento; `era_pack_ready` retém eras sem pacote validado | Meta mantida com rede de segurança | Aceita (rede de segurança é proposta) |
-| 20 | 2026-11-03 | Implantação em estágios: monólito modular com shards in-process até o P6; NATS e multi-worker depois | Reduz complexidade operacional para 1 pessoa; arquitetura-alvo inalterada | Proposta (confirmar) |
+| 20 | 2026-11-03 | Serviços distribuídos desde P0 em Docker local: gateway, workers de shard e NATS em processos separados; provedor e primeiro deploy remoto antes do beta no P6 | Valida cedo o contrato de shard/handoff sem escolher nuvem prematuramente | Aceita |
+| 21 | 2026-11-03 | Cliente web responsivo, PT-BR e inglês, com i18n iniciado em P0 | Suporta público móvel e internacional sem retrofit de textos | Aceita |
+| 22 | 2026-11-03 | Mundos de desenvolvimento e alpha podem ser reiniciados; primeiro mundo persistente começa no beta fechado | Permite evolução rápida sem prometer persistência antes da validação | Aceita |
+| 23 | 2026-11-03 | Antes do beta: governante móvel, assembleias locais, correspondência por mensageiros físicos e moderação com bloqueio, denúncia e auditoria | Comunicação é parte da simulação e precisa de proteção antes de usuários externos | Aceita |
+| 24 | 2026-11-03 | Guildas/federações e monetização ficam pós-beta | Mantém o beta focado no loop estratégico e na retenção | Aceita |
 
 ## Em aberto
 
-Diplomacia entre jogadores (federações/guildas), onboarding detalhado, monetização, anti-cheat/moderação, mobile web, hospedagem/custos de infraestrutura, i18n/acessibilidade.
+Detalhes de onboarding, recuperação/verificação de e-mail, matriz final de navegadores, provedor/orçamento de nuvem e política de monetização pós-beta.

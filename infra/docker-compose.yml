@@ -7,12 +7,24 @@ services:
       POSTGRES_DB: orbis
     ports: ["5432:5432"]
     volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orbis -d orbis"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
   redis:
     image: redis:7
     ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
   nats:
     image: nats:2
-    command: ["-js"]
+    command: ["-js", "--store_dir", "/data"]
     ports: ["4222:4222", "8222:8222"]
+    volumes: ["natsdata:/data"]
 volumes:
   pgdata:
+  natsdata:
