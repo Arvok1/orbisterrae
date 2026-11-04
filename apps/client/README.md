@@ -40,3 +40,12 @@ Sem suporte a heap, o relatório verifica somente os recursos do mapa.
 O publicDir do Vite aponta somente para a pasta de tiles, sem publicar os
 arquivos fonte geográficos. O build copia esses tiles para a distribuição.
 As fontes tipográficas usam Google Fonts com fallback local Georgia/sans-serif.
+
+### Direção cartunesca
+
+O mapa ocupa todo o canvas, com controles flutuantes e painel recolhível.
+Selecione um ponto e aproxime além de 4×: a câmera faz uma transição para uma
+vila isométrica ilustrada. Afaste para retornar ao mapa 2D. Essa imagem é uma
+prévia de arte, não um layout de cidade calculado pelo servidor.
+As entidades diagnósticas continuam disponíveis pelo botão Camada de teste.
+Direção, procedência e prompt estão em docs/ART_DIRECTION.md e assets/.

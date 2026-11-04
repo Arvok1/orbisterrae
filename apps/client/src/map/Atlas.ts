@@ -1,6 +1,9 @@
-import { Application, Assets, Graphics, Sprite, type Texture } from 'pixi.js';
+import { Application, Assets, ColorMatrixFilter, Container, Graphics, Sprite, type Texture } from 'pixi.js';
+import villageUrl from '../assets/village-concept-v1.png?url';
+import land from '../assets/world-land-v1.json' with {type: 'json'};
 import { project, unproject, visibleTiles, type Point } from './projection.js';
 import { useAtlas } from '../state.js';
+import { sceneBlend } from './scene.js';
 
 /** Rendering only: no React dependency and no simulation results calculated here. */
 export class Atlas {
@@ -13,6 +16,12 @@ export class Atlas {
   private pending = new Set<string>();
   private marker = new Graphics();
   private entities = new Graphics();
+  private tilesLayer = new Container();
+  private coastline = new Graphics();
+  private coastRings = land.coordinates.flatMap(polygon => polygon.map(ring =>
+    ring.map(point => project({lon: point[0], lat: point[1]}))));
+  private cityScene: Sprite | null = null;
+  private cityTarget = 0;
   private observer: ResizeObserver | null = null;
   private abort = new AbortController();
   private unsubscribe: (() => void) | null = null;
@@ -25,14 +34,34 @@ export class Atlas {
   constructor(private host: HTMLElement) {}
 
   async init() {
-    await this.app.init({background: '#163b48', antialias: true,
+    await this.app.init({background: '#7eb8be', antialias: true,
       resolution: Math.min(devicePixelRatio, 2), autoDensity: true, resizeTo: this.host});
     if (this.disposed) { this.app.destroy(true); return; }
     this.ready = true;
     this.host.appendChild(this.app.canvas);
+    const cartoon = new ColorMatrixFilter();
+    cartoon.matrix = [
+      0.6532258, 0, 0, 0, 0.4377609,
+      0.1370968, 0, 0, 0, 0.7097407,
+      -0.516129, 0, 0, 0, 0.7896268,
+      0, 0, 0, 1, 0,
+    ];
+    this.tilesLayer.filters = [cartoon];
+    this.app.stage.addChild(this.tilesLayer, this.coastline, this.entities, this.marker);
+    const village = await Assets.load<Texture>(villageUrl);
+    if (this.disposed) { void Assets.unload(villageUrl); return; }
+    this.cityScene = new Sprite(village);
+    this.cityScene.anchor.set(0.5);
+    this.cityScene.alpha = 0;
+    this.app.stage.addChild(this.cityScene);
     let elapsed = 0;
     let frames = 0;
     this.app.ticker.add((ticker) => {
+      if (this.cityScene) {
+        const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+        this.cityScene.alpha += (this.cityTarget - this.cityScene.alpha) * (reduced ? 1 : Math.min(1, ticker.deltaMS / 140));
+        this.tilesLayer.alpha = this.marker.alpha = this.entities.alpha = this.coastline.alpha = 1 - this.cityScene.alpha;
+      }
       elapsed += ticker.deltaMS;
       frames++;
       if (elapsed >= 1000) {
@@ -41,8 +70,6 @@ export class Atlas {
         frames = 0;
       }
     });
-    this.app.stage.addChild(this.marker);
-    this.app.stage.addChildAt(this.entities, 0);
     this.size = Math.max(this.host.clientWidth * 0.95, 800);
     const options = {signal: this.abort.signal};
     this.host.addEventListener('wheel', (e) => {
@@ -96,9 +123,11 @@ export class Atlas {
         if (state.action.kind === 'reset') {
           this.center = project({lat: 14, lon: 8});
           this.size = Math.max(this.host.clientWidth * 0.95, 800);
+        } else if (state.action.kind === 'city') {
+          if (state.selected) { this.center = project(state.selected); this.size = 16384; }
         } else this.zoom(state.action.kind === 'zoomIn' ? 1.5 : 1 / 1.5);
       }
-      if (state.selected !== before.selected || state.action !== before.action || state.entities !== before.entities) this.draw();
+      if (state.selected !== before.selected || state.action !== before.action || state.entities !== before.entities || state.showDiagnostics !== before.showDiagnostics) this.draw();
     });
     this.observer = new ResizeObserver(() => {
       this.app.renderer.resize(this.host.clientWidth, this.host.clientHeight);
@@ -193,7 +222,7 @@ export class Atlas {
           if (this.disposed) { void Assets.unload(url); return; }
           const sprite = new Sprite(texture);
           this.tiles.set(url, sprite);
-          this.app.stage.addChildAt(sprite, 0);
+          this.tilesLayer.addChild(sprite);
           this.draw();
         }).catch((error: unknown) => {
           this.host.dataset.loadError = String(error);
@@ -203,8 +232,13 @@ export class Atlas {
       }
     }
     this.marker.clear();
+    this.coastline.clear();
+    for (const ring of this.coastRings) {
+      const points = ring.flatMap(p => [width / 2 + (p.x - this.center.x) * this.size, height / 2 + (p.y - this.center.y) * this.size]);
+      this.coastline.poly(points).stroke({color: '#64754c', width: 1.5, alpha: 0.7});
+    }
     this.entities.clear();
-    const entities = useAtlas.getState().entities;
+    const entities = useAtlas.getState().showDiagnostics ? useAtlas.getState().entities : [];
     for (const entity of entities) {
       if (!entity.pos) continue;
       const p = project(entity.pos);
@@ -213,6 +247,13 @@ export class Atlas {
     }
     this.entities.fill({color: '#e1bd79', alpha: 0.8});
     const selected = useAtlas.getState().selected;
+    const zoom = Math.log2(this.size / 256);
+    const cityProgress = selected ? Math.max(0, Math.min(1, (zoom - 4.1) / 1.1)) : 0;
+    this.cityTarget = sceneBlend(zoom, selected !== null);
+    if (this.cityScene) {
+      this.cityScene.position.set(width / 2, height / 2);
+      this.cityScene.scale.set(Math.max(width / this.cityScene.texture.width, height / this.cityScene.texture.height) * (1 + cityProgress * 0.08));
+    }
     if (selected) {
       const p = project(selected);
       const x = width / 2 + (p.x - this.center.x) * this.size;
@@ -223,7 +264,7 @@ export class Atlas {
         .moveTo(x, y - 26).lineTo(x, y - 12).moveTo(x, y + 12).lineTo(x, y + 26)
         .stroke({color: '#ebc575', width: 1});
     }
-    useAtlas.setState({zoom: Math.log2(this.size / 256), loaded: this.tiles.size,
+    useAtlas.setState({zoom, loaded: this.tiles.size, cityBlend: this.cityTarget,
       viewport: {center: unproject(this.center), zoom: Math.log2(this.size / 256), widthPx: width, heightPx: height}});
     this.app.canvas.dataset.tiles = String(this.tiles.size);
     this.app.canvas.dataset.pending = String(this.pending.size);
@@ -236,6 +277,7 @@ export class Atlas {
     this.unsubscribe?.();
     if (this.ready) this.app.destroy(true, {children: true});
     for (const url of this.tiles.keys()) void Assets.unload(url);
+    void Assets.unload(villageUrl);
     this.tiles.clear();
   }
 }

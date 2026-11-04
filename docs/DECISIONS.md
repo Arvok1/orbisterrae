@@ -29,6 +29,16 @@
 
 ## Em aberto
 
+### Visual e primeiro loop jogável (2026-11-04)
+
+O usuário escolheu mapa cartunesco de tela inteira e transição pelo zoom entre
+mundo 2D e cidade com volume isométrico. HUD recolhível; arte original gerada
+para prévia, com prompt e procedência em assets/art-manifest.json. Cidades
+interativas deverão preservar essa direção sem substituir dados do servidor
+por uma imagem. O objetivo agora inclui governante que passeia no mapa e
+fundação da primeira vila: representação e movimento mínimos do governante
+entram em S1.1; assembleias, correspondência e moderação continuam em P6.
+
 ### Rede P0.5
 
 Gateway Axum e worker são binários separados, ligados por request/reply NATS.
