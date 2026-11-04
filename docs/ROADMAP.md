@@ -6,7 +6,7 @@
 
 1. **Esqueleto andante primeiro.** Todos os sistemas existem em versão simples antes de qualquer um ficar sofisticado.
 2. **Sempre jogável.** Ao fim de cada sprint o jogo roda, o harness de bots passa e o estado pode ser demonstrado.
-3. **Monólito modular primeiro.** Os shards H3 existem como abstração, mas rodam **no mesmo processo** (canais in-process). NATS, múltiplos workers e deploy distribuído só entram no Passe 6. A arquitetura-alvo não muda, o custo operacional inicial cai muito.
+3. **Distribuído desde o início, local primeiro.** Gateway, workers de shard e NATS rodam como processos separados em Docker local desde P0. A escolha do provedor e o primeiro deploy remoto entram no P6, antes do beta fechado.
 4. **Dados antes de código.** Tech tree, operações, materiais, unidades e eventos são **dados** (TOML) com validadores. Cursor gera conteúdo, validadores garantem consistência.
 5. **Testes como rede de segurança.** Harness de simulação com bots e testes de determinismo (ver `docs/TESTING.md`) são pré-requisito dos sistemas de IA, economia e guerra.
 6. **Cortes explícitos.** Cada passe tem "linha de corte": o que sai primeiro se o prazo apertar.
@@ -22,9 +22,9 @@
 | P3 | Aprofundar guerra, marinha e IA | 12 a 16 sem | Cerco, logística, espionagem, IA com personalidade |
 | P4 | Aprofundar navegação, tech, religião e eventos | 12 a 16 sem | Ventos reais, difusão/perda de tecnologia, religião e director completos |
 | P5 | **Conteúdo de eras até a Industrial** | 16 a 22 sem | 9 eras com pacotes de conteúdo validados |
-| P6 | Escala, segurança, tutorial e beta | 10 a 14 sem | Multi-shard, anti-abuso, onboarding, beta fechado |
+| P6 | Operação, segurança, tutorial e beta | 10 a 14 sem | Deploy remoto, anti-abuso, privacidade, onboarding e beta fechado |
 
-\* Semanas de trabalho em **tempo integral (~35 h/sem)** com Cursor. Soma: **84 a 114 semanas (≈ 20 a 26 meses)**, com incerteza de ±40%. Em meio período, multiplique por ~2. Reestimar ao fim de cada passe.
+\* Estimativas de esforço para uma pessoa com Cursor, com incerteza de ±40%. Como a disponibilidade é variável, reestimar mensalmente e ao fim de cada passe; não usar estas faixas como compromisso de calendário.
 
 ### Marcos
 
@@ -44,11 +44,11 @@ Meta: eliminar riscos técnicos e montar a base. Referência: `BACKLOG.md` T0.1 
 
 | ID | Tarefa | Aceite |
 |---|---|---|
-| P0.1 | Monorepo, CI, esqueleto (T0.1, T0.2) | CI verde; `docker compose up` sobe postgis/redis |
+| P0.1 | Monorepo, CI, esqueleto e infra local (T0.1, T0.2) | CI verde; Docker sobe PostGIS/Redis/NATS; migração inicial aplica |
 | P0.2 | Protocolo `.proto` + geração Rust/TS (T0.3) | Round-trip nos dois lados |
 | P0.3 | Pipeline de dados v0 (T0.4) em **baixa resolução** (tiles z0–z6, H3 res 4 a 5) | `make world` reproduz tiles e `biome_h3.parquet` |
-| P0.4 | Cliente: mapa PixiJS (T0.5) | 60 fps pan/zoom; tiles sob demanda |
-| P0.5 | Gateway WebSocket + eco de entidades (T0.6) | 10 mil entidades a 60 fps |
+| P0.4 | Cliente: mapa PixiJS (T0.5) | 60 fps pan/zoom; tiles sob demanda; web responsiva e i18n PT-BR/en |
+| P0.5 | Gateway WebSocket + eco de entidades distribuído (T0.6) | Gateway e workers locais separados via NATS; 10 mil entidades a 60 fps |
 | P0.6 | **Benchmarks de risco** (T0.7): scheduler, ownership de território, interest management | Metas registradas em `DECISIONS.md` |
 | P0.7 | **Harness de bots v0**: cliente headless que fala o protocolo | Bot loga, envia comandos, mede latência |
 
@@ -62,7 +62,7 @@ Meta: **todos os sistemas em versão simples**, integrados, jogáveis de ponta a
 
 | Sprint | Entrega | Aceite | Tamanho |
 |---|---|---|---|
-| S1.1 | **Mundo servível (monólito modular):** contas, reino, clã nômade, fundação de cidade, território (T1.1 a T1.6 simplificados), shards in-process | 100 bots fundam cidades; territórios sem sobreposição | 3 a 4 sem |
+| S1.1 | **Mundo servível distribuído:** contas locais com JWT, reino, clã nômade, fundação de cidade e território (T1.1 a T1.6 simplificados), com gateway e workers de shard separados via NATS | 100 bots fundam cidades; territórios sem sobreposição; `EntityHandoff` não perde entidade | 3 a 4 sem |
 | S1.2 | **Cidade simples:** grade com ruas/zonas/prédios (~15 tipos), fila de construção, população por classes, 3 métricas de layout (água, densidade, defesa), 2 eventos (fome, incêndio) | Layout muda defesa e crescimento de forma mensurável | 3 a 4 sem |
 | S1.3 | **Economia simples:** 8 mercadorias, preço local, caravanas e navios (sem vento ainda), 2 a 3 hubs IA com order book simples, moeda (escambo→metal) | Economia fechada com bots por 7 dias simulados sem hiperinflação | 3 a 4 sem |
 | S1.4 | **IA simples:** Utility AI com 4 objetivos (crescer, comerciar, expandir, defender), nascimento/colapso básicos | 100 reinos IA por 14 dias simulados, trajetórias variadas | 2 a 3 sem |
@@ -146,19 +146,21 @@ Meta: produzir **9 pacotes de conteúdo** (Paleolítico a Industrial inicial), c
 
 **Marco de ritmo:** pelos valores de `time.toml`, o mundo leva ≥ **~19 meses reais** para chegar à Era Industrial (tempo mínimo por era). Isso permite um **modo de corte seguro** descrito em §3.
 
-## P6: Escala, segurança, tutorial e beta
+## P6: Operação, segurança, tutorial e beta
 
 | ID | Tarefa |
 |---|---|
-| P6.1 | Distribuição: múltiplos workers por shard, NATS, `EntityHandoff` em produção, rebalanceamento |
+| P6.1 | Escolha de provedor e primeiro deploy remoto dos serviços já distribuídos; rebalanceamento e operação de workers |
 | P6.2 | Segurança e anti-abuso: rate limits, validação, detecção de multi-conta/bots, auditoria |
 | P6.3 | Observabilidade completa e ferramentas de admin |
-| P6.4 | Tutorial da Idade da Pedra e onboarding (T7.5) |
-| P6.5 | Modo tático opcional (T7.4) |
-| P6.6 | Testes de carga (milhares de conexões), soak de 30 dias simulados |
-| P6.7 | Beta fechado, balanceamento com dados reais (T7.11) |
+| P6.4 | Governante móvel, assembleias locais e correspondência por mensageiros físicos; bloqueio, denúncia e auditoria |
+| P6.5 | Privacidade antes de usuários externos: política de dados, retenção, exportação e exclusão de conta/mensagens |
+| P6.6 | Tutorial da Idade da Pedra e onboarding (T7.5) |
+| P6.7 | Modo tático opcional (T7.4) |
+| P6.8 | Testes de carga (milhares de conexões), soak de 30 dias simulados |
+| P6.9 | Beta fechado, balanceamento com dados reais (T7.11); iniciar o primeiro mundo persistente |
 
-**Linha de corte:** modo tático (P6.5) é o primeiro a sair.
+**Linha de corte:** modo tático (P6.7) é o primeiro a sair. Guildas/federações e monetização ficam pós-beta.
 
 ---
 
@@ -179,7 +181,7 @@ Isso é uma recomendação de redução de risco. A decisão de lançar sem paco
 | Esgotamento / perda de ritmo | Marcos curtos (sprints de 2 a 4 semanas), demo a cada sprint |
 | Código gerado sem entendimento | Revisão por tarefa (`CURSOR_WORKFLOW.md`), testes obrigatórios, ADRs curtos |
 | Bugs de simulação difíceis de achar | Determinismo + log de eventos + replay (ver `TESTING.md`) |
-| Complexidade operacional cedo demais | Monólito modular até o P6 |
+| Complexidade operacional cedo demais | Serviços distribuídos exercitados em Docker local desde P0; provedor e deploy remoto só antes do beta |
 | Conteúdo (eras) é enorme | Pipeline de dados + validadores + geração assistida (`CONTENT.md`) |
 | Balanceamento infinito | Metas numéricas por sistema + simulação automática |
 | Licenças de dados | Auditoria no P0 (`DATA_LICENSES.md`) |

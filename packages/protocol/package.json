@@ -1,0 +1,6 @@
+{
+  "name": "@orbis/protocol",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Protocol source and generated TypeScript bindings for Orbis Terrae"
+}

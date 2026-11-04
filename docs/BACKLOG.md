@@ -8,9 +8,9 @@ Formato: `Tn.m` = tarefa. **Escopo** diz o que fazer; **Aceite** diz como saber 
 
 ## Fase 0: Fundações
 
-- [ ] **T0.1 Monorepo e tooling.** Cargo workspace (`crates/*`), pnpm workspace (`apps/client`, `packages/*`), CI (GitHub Actions: fmt, clippy, test, lint). 
+- [x] **T0.1 Monorepo e tooling.** Cargo workspace (`crates/*`), pnpm workspace (`apps/client`, `packages/*`), CI (GitHub Actions: fmt, clippy, test, lint).
   *Aceite:* `cargo test --workspace` e `pnpm -r test` passam em CI com testes "hello".
-- [ ] **T0.2 Infra local.** `infra/docker-compose.yml` com PostgreSQL+PostGIS, Redis, NATS. Migração inicial `sqlx` (tabelas de `DATA_MODEL.md`: accounts, kingdoms, cities, scheduled_events, event_log).
+- [x] **T0.2 Infra local.** `infra/docker-compose.yml` com PostgreSQL+PostGIS, Redis, NATS. Migração inicial `sqlx` (tabelas de `DATA_MODEL.md`: accounts, kingdoms, cities, scheduled_events, event_log). Gateway e workers serão processos separados desde P0, conectados pelo NATS local.
   *Aceite:* `docker compose up -d` e `sqlx migrate run` sem erro.
 - [ ] **T0.3 Protocolo.** `packages/protocol/orbis.proto` + geração (buf) para Rust (prost) e TS (ts-proto). Crate `protocol` e pacote TS consumíveis.
   *Aceite:* round-trip encode/decode em testes Rust e TS.
@@ -117,3 +117,7 @@ Formato: `Tn.m` = tarefa. **Escopo** diz o que fazer; **Aceite** diz como saber 
 - [ ] **T7.9 Itens com história (TC.12).** Viagens, batalhas, reparos e rituais alteram atributos; pátina e lendas; nomes.
 - [ ] **T7.10 IA projetista.** Gerador evolutivo de projetos para reinos IA, com deriva de estilo e métricas de diversidade (alerta de convergência).
 - [ ] **T7.11 Balanceamento e beta fechado.**
+- [ ] **T7.12 Governante, assembleias e mensageiros.** Governante persistente e móvel; assembleias liberam chat local por presença; correspondência via entidades de mensageiro, com entrega agendada e possibilidade de interceptação.
+  *Aceite:* mensagem entre cidades só chega após o mensageiro completar a rota; jogador fora da cidade não participa da assembleia local.
+- [ ] **T7.13 Moderação e privacidade de comunicação.** Bloqueio e denúncia de usuários, auditoria administrativa, retenção limitada de mensagens e fluxos de exportação/exclusão antes de aceitar usuários externos.
+  *Aceite:* denúncias são revisáveis por administrador; exportação e exclusão respeitam a política de retenção documentada.
