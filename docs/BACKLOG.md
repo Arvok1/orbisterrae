@@ -18,7 +18,7 @@ Formato: `Tn.m` = tarefa. **Escopo** diz o que fazer; **Aceite** diz como saber 
   *Aceite:* script reproduzível (`make world`) gera tiles e um arquivo `biome_h3_r5.parquet`. Licenças registradas em `docs/DATA_LICENSES.md`.
 - [x] **T0.5 Cliente: mapa.** Vite + React + PixiJS: pan/zoom suaves, carregamento de tiles por zoom, camadas (terreno, água, fronteiras placeholder), HUD mínimo.
   *Aceite:* 60 fps em pan/zoom, tiles carregam sob demanda, sem vazamento de memória em 5 min de uso.
-- [ ] **T0.6 Gateway + eco.** `crates/gateway`: WebSocket binário, `SetViewport` → servidor responde com `EntityUpsert` falsos. Cliente renderiza 10 mil entidades com LOD.
+- [x] **T0.6 Gateway + eco.** `crates/gateway`: WebSocket binário, `SetViewport` → servidor responde com `EntityUpsert` falsos. Cliente renderiza 10 mil entidades com LOD.
   *Aceite:* 10 mil entidades visíveis a 60 fps; gateway aguenta 1.000 conexões simuladas.
 - [ ] **T0.7 Decisão de linguagem (confirmar).** Benchmark do scheduler e do ownership de território em Rust. Registrar em `docs/DECISIONS.md`.
   *Aceite:* 1 milhão de eventos agendados/seg em um shard, p99 < 5 ms.

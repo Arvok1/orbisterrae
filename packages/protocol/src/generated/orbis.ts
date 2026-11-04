@@ -62,6 +62,10 @@ export interface EntityRemove {
   id: string;
 }
 
+export interface ViewportSnapshot {
+  entities: EntityUpsert[];
+}
+
 export interface CommandResult {
   requestId: string;
   ok: boolean;
@@ -120,6 +124,7 @@ export interface ServerMsg {
     | { $case: "remove"; remove: EntityRemove }
     | { $case: "move"; move: MoveSegment }
     | { $case: "era"; era: EraChanged }
+    | { $case: "snapshot"; snapshot: ViewportSnapshot }
     | undefined;
 }
 
@@ -785,6 +790,52 @@ export const EntityRemove: MessageFns<EntityRemove> = {
   },
 };
 
+function createBaseViewportSnapshot(): ViewportSnapshot {
+  return { entities: [] };
+}
+
+export const ViewportSnapshot: MessageFns<ViewportSnapshot> = {
+  encode(message: ViewportSnapshot, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.entities) {
+      EntityUpsert.encode(v!, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ViewportSnapshot {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseViewportSnapshot();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.entities.push(EntityUpsert.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<ViewportSnapshot>, I>>(base?: I): ViewportSnapshot {
+    return ViewportSnapshot.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ViewportSnapshot>, I>>(object: I): ViewportSnapshot {
+    const message = createBaseViewportSnapshot();
+    message.entities = object.entities?.map((e) => EntityUpsert.fromPartial(e)) || [];
+    return message;
+  },
+};
+
 function createBaseCommandResult(): CommandResult {
   return { requestId: "", ok: false, error: "" };
 }
@@ -1401,6 +1452,9 @@ export const ServerMsg: MessageFns<ServerMsg> = {
       case "era":
         EraChanged.encode(message.kind.era, writer.uint32(66).fork()).join();
         break;
+      case "snapshot":
+        ViewportSnapshot.encode(message.kind.snapshot, writer.uint32(74).fork()).join();
+        break;
     }
     return writer;
   },
@@ -1452,6 +1506,14 @@ export const ServerMsg: MessageFns<ServerMsg> = {
           message.kind = { $case: "era", era: EraChanged.decode(reader, reader.uint32()) };
           continue;
         }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.kind = { $case: "snapshot", snapshot: ViewportSnapshot.decode(reader, reader.uint32()) };
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1494,6 +1556,12 @@ export const ServerMsg: MessageFns<ServerMsg> = {
       case "era": {
         if (object.kind?.era !== undefined && object.kind?.era !== null) {
           message.kind = { $case: "era", era: EraChanged.fromPartial(object.kind.era) };
+        }
+        break;
+      }
+      case "snapshot": {
+        if (object.kind?.snapshot !== undefined && object.kind?.snapshot !== null) {
+          message.kind = { $case: "snapshot", snapshot: ViewportSnapshot.fromPartial(object.kind.snapshot) };
         }
         break;
       }

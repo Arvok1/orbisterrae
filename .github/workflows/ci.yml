@@ -9,6 +9,38 @@ permissions:
   contents: read
 
 jobs:
+  network:
+    name: Gateway and NATS integration
+    runs-on: ubuntu-latest
+    services:
+      nats:
+        image: nats:2
+        ports: ["4222:4222"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @orbis/protocol build
+      - run: cargo build -p orbis-gateway --bins
+      - name: Check 1000 connections through gateway and worker
+        run: |
+          target/debug/orbis-shard-worker > worker.log 2>&1 &
+          worker_pid=$!
+          target/debug/orbis-gateway > gateway.log 2>&1 &
+          gateway_pid=$!
+          trap 'kill "$worker_pid" "$gateway_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..30}; do
+            if curl -sf http://127.0.0.1:8080/ready; then break; fi
+            sleep 1
+          done
+          node tools/gateway-smoke.mjs
+
   world-pipeline:
     name: World pipeline
     runs-on: ubuntu-latest
@@ -44,6 +76,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec buf build
       - run: pnpm exec buf generate
+      - run: pnpm --filter @orbis/protocol build
       - run: git diff --exit-code -- packages/protocol/src/generated
       - run: pnpm -r lint
       - run: pnpm -r test

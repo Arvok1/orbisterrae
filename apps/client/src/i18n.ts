@@ -1,4 +1,5 @@
 const pt = {
+  diagnostic: 'ENTIDADES DE TESTE',
   atlas: 'ATLAS DO MUNDO', era: 'O início de uma civilização', eraLabel: 'IDADE DA PEDRA',
   title: 'Toda história começa\nem algum lugar.',
   intro: 'Explore a Terra. Encontre um lugar para chamar de seu.',
@@ -17,6 +18,7 @@ const pt = {
   notice: 'Fundação e construção estarão disponíveis quando o servidor de simulação estiver conectado.',
 };
 const en: typeof pt = {
+  diagnostic: 'TEST ENTITIES',
   atlas: 'WORLD ATLAS', era: 'The dawn of a civilization', eraLabel: 'STONE AGE',
   title: 'Every story begins\nsomewhere.',
   intro: 'Explore the Earth. Find a place to call your own.',

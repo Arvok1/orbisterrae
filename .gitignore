@@ -6,3 +6,4 @@ data/world/
 *.parquet
 __pycache__/
 .venv/
+.local/

@@ -4,3 +4,5 @@ edition.workspace = true
 version.workspace = true
 
 [dependencies]
+thiserror.workspace = true
+orbis-protocol = { path = "../protocol" }

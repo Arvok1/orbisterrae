@@ -11,9 +11,14 @@ Abra http://127.0.0.1:5173. O servidor escuta apenas na máquina local.
 O mapa suporta arraste, roda do mouse, toque com dois dedos, botões de zoom e
 teclado (setas, +/−, Enter). O seletor alterna PT-BR/inglês.
 
-Em P0.4, este é um atlas explorável com seleção de coordenadas. Fundação,
+Em P0.5, este é um atlas explorável com seleção de coordenadas e entidades
+de diagnóstico recebidas pelo servidor. Fundação,
 construção e comandos autoritativos serão integrados nas tarefas seguintes.
 Os painéis não apresentam resultados fictícios de simulação.
+
+Use o `start.ps1` da raiz para subir todos os serviços locais. O Vite encaminha
+`/ws` ao gateway; gateway e worker se comunicam por NATS. Snapshots substituem
+o conjunto anterior e carregam sequência para ignorar respostas antigas.
 
 PixiJS fica em `src/map`, React no HUD e Zustand liga ambos. As texturas fora
 do viewport são descarregadas; requisições em curso são concluídas e liberadas

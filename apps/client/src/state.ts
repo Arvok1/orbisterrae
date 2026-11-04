@@ -1,8 +1,12 @@
 import { create } from 'zustand';
 import type { Coordinate } from './map/projection.js';
+import type { EntityUpsert, SetViewport } from '@orbis/protocol';
 
 export type Locale = 'pt-BR' | 'en';
 interface AtlasState {
+  entities: EntityUpsert[];
+  viewport: SetViewport | null;
+  connection: 'offline' | 'connecting' | 'online';
   locale: Locale;
   selected: Coordinate | null;
   zoom: number;
@@ -14,6 +18,7 @@ interface AtlasState {
   command: (kind: 'zoomIn' | 'zoomOut' | 'reset') => void;
 }
 export const useAtlas = create<AtlasState>((set) => ({
+  entities: [], viewport: null, connection: 'offline',
   locale: 'pt-BR', selected: null, zoom: 2, loaded: 0, error: false, action: null,
   setLocale: (locale) => { document.documentElement.lang = locale; set({locale}); },
   select: (selected) => set({selected}),

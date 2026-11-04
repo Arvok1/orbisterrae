@@ -12,6 +12,7 @@ export class Atlas {
   private tiles = new Map<string, Sprite>();
   private pending = new Set<string>();
   private marker = new Graphics();
+  private entities = new Graphics();
   private observer: ResizeObserver | null = null;
   private abort = new AbortController();
   private unsubscribe: (() => void) | null = null;
@@ -41,6 +42,7 @@ export class Atlas {
       }
     });
     this.app.stage.addChild(this.marker);
+    this.app.stage.addChildAt(this.entities, 0);
     this.size = Math.max(this.host.clientWidth * 0.95, 800);
     const options = {signal: this.abort.signal};
     this.host.addEventListener('wheel', (e) => {
@@ -96,7 +98,7 @@ export class Atlas {
           this.size = Math.max(this.host.clientWidth * 0.95, 800);
         } else this.zoom(state.action.kind === 'zoomIn' ? 1.5 : 1 / 1.5);
       }
-      if (state.selected !== before.selected || state.action !== before.action) this.draw();
+      if (state.selected !== before.selected || state.action !== before.action || state.entities !== before.entities) this.draw();
     });
     this.observer = new ResizeObserver(() => {
       this.app.renderer.resize(this.host.clientWidth, this.host.clientHeight);
@@ -193,13 +195,23 @@ export class Atlas {
           this.tiles.set(url, sprite);
           this.app.stage.addChildAt(sprite, 0);
           this.draw();
-        }).catch(() => {
+        }).catch((error: unknown) => {
+          this.host.dataset.loadError = String(error);
           this.pending.delete(url);
           useAtlas.setState({error: true});
         });
       }
     }
     this.marker.clear();
+    this.entities.clear();
+    const entities = useAtlas.getState().entities;
+    for (const entity of entities) {
+      if (!entity.pos) continue;
+      const p = project(entity.pos);
+      this.entities.circle(width / 2 + (p.x - this.center.x) * this.size,
+        height / 2 + (p.y - this.center.y) * this.size, this.size < 1500 ? 1.5 : 3);
+    }
+    this.entities.fill({color: '#e1bd79', alpha: 0.8});
     const selected = useAtlas.getState().selected;
     if (selected) {
       const p = project(selected);
@@ -211,7 +223,8 @@ export class Atlas {
         .moveTo(x, y - 26).lineTo(x, y - 12).moveTo(x, y + 12).lineTo(x, y + 26)
         .stroke({color: '#ebc575', width: 1});
     }
-    useAtlas.setState({zoom: Math.log2(this.size / 256), loaded: this.tiles.size});
+    useAtlas.setState({zoom: Math.log2(this.size / 256), loaded: this.tiles.size,
+      viewport: {center: unproject(this.center), zoom: Math.log2(this.size / 256), widthPx: width, heightPx: height}});
     this.app.canvas.dataset.tiles = String(this.tiles.size);
     this.app.canvas.dataset.pending = String(this.pending.size);
   }

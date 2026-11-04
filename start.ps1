@@ -18,6 +18,9 @@ try {
     }
     & pnpm install --frozen-lockfile
     if ($LASTEXITCODE -ne 0) { throw "Falha ao instalar dependências." }
+    & pnpm --filter @orbis/protocol build
+    if ($LASTEXITCODE -ne 0) { throw "Falha ao compilar protocolo TypeScript." }
+    & "$PSScriptRoot/scripts/start-services.ps1"
     $orbisUrl = "http://127.0.0.1:5173"
     $orbisRunning = $false
     try {

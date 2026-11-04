@@ -7,12 +7,16 @@ MMO de estratégia persistente no navegador. Jogadores e reinos IA fundam cidade
 ### Abrir a prévia local
 
 No PowerShell, execute `./start.ps1`. O script prepara dependências, gera os
-dados geográficos se necessário e inicia o atlas em http://127.0.0.1:5173.
-Requer Node.js/PNPM; Docker é necessário no primeiro download dos dados do mundo.
+dados geográficos se necessário, sobe PostGIS/Redis/NATS, compila e inicia gateway
+e worker Rust separados e abre o atlas em http://127.0.0.1:5173.
+Requer Node.js/PNPM, Rust via rustup e Docker Desktop aberto.
 Use `./start.ps1 -NoBrowser` para iniciar sem abrir uma aba.
 
-P0.4 entrega a exploração visual do mapa. A integração com a simulação
-autoritativa e o fluxo jogável ainda está em desenvolvimento.
+P0.5 entrega a exploração visual conectada a um mundo diagnóstico de 10.000
+entidades. O fluxo de fundação/construção ainda está em desenvolvimento.
+Use `./stop.ps1` para encerrar somente os processos Rust iniciados pelo projeto;
+o cliente encerra com Ctrl+C. Containers e volumes de dados são preservados.
+Logs dos serviços ficam em `.local/`.
 
 1. Abra a pasta no Cursor. O arquivo `AGENTS.md` e as regras em `.cursor/rules/` são carregados automaticamente.
 2. Leia `docs/ARCHITECTURE.md`, `docs/DOMAIN.md` e `docs/CRAFTING.md` uma vez (ou peça ao agente para resumir).

@@ -33,6 +33,7 @@ message MoveSegment {
 
 message EntityUpsert { string id = 1; uint32 kind = 2; LatLon pos = 3; string kingdom_id = 4; }
 message EntityRemove { string id = 1; }
+message ViewportSnapshot { repeated EntityUpsert entities = 1; }
 message CommandResult { string request_id = 1; bool ok = 2; string error = 3; }
 message EraChanged { uint32 era = 1; }
 
@@ -51,5 +52,6 @@ message ServerMsg {
     EntityRemove remove = 3;
     MoveSegment move = 4;
     EraChanged era = 8;
+    ViewportSnapshot snapshot = 9;
   }
 }

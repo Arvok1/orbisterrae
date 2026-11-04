@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { Atlas } from './map/Atlas.js';
 import { useAtlas } from './state.js';
 import { messages } from './i18n.js';
+import { connectWorld } from './network.js';
 import './style.css';
 
 function App() {
@@ -10,17 +11,22 @@ function App() {
   const state = useAtlas();
   const t = messages[state.locale];
   useEffect(() => {
+    const disconnect = connectWorld();
     if (!host.current) return;
     const atlas = new Atlas(host.current);
-    void atlas.init().catch(() => useAtlas.setState({error: true}));
-    return () => atlas.destroy();
+    void atlas.init().catch((error: unknown) => {
+      console.error('Atlas initialization failed', error);
+      host.current?.setAttribute('data-init-error', String(error));
+      useAtlas.setState({error: true});
+    });
+    return () => { disconnect(); atlas.destroy(); };
   }, []);
   return <main>
     <div className="map" ref={host} tabIndex={0} role="application" aria-label={t.map} aria-describedby="keyboard-help" />
     <header>
       <a className="brand" href="/" aria-label="Orbis Terrae"><span className="brand-mark">⊕</span><span>ORBIS <b>TERRAE</b><small>{t.atlas}</small></span></a>
       <div className="era"><span className="sun">☼</span><span>{t.eraLabel}<small>{t.era}</small></span></div>
-      <div className="header-right"><span className="status"><i />{t.offline}</span>
+      <div className="header-right"><span className="status"><i />{state.connection === 'online' ? `${t.diagnostic} · ${state.entities.length}` : t.offline}</span>
         <select aria-label="Language / Idioma" value={state.locale} onChange={e => state.setLocale(e.target.value === 'en' ? 'en' : 'pt-BR')}>
           <option value="pt-BR">PT-BR</option><option value="en">EN</option>
         </select>

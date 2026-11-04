@@ -29,6 +29,17 @@
 
 ## Em aberto
 
+### Rede P0.5
+
+Gateway Axum e worker são binários separados, ligados por request/reply NATS.
+O worker diagnóstico usa função pura em sim; não persiste nem cria cidades.
+Uma mensagem ViewportSnapshot (tag 9 nova de ServerMsg) agrupa EntityUpsert,
+preserva seq e substitui o viewport anterior. Tags existentes foram mantidas.
+Futures-util permite consumir o stream NATS; as demais dependências de rede
+já estavam previstas no workspace. Processos Windows são iniciados ocultos,
+identificados por caminho + PID + instante de início, e podem ser encerrados
+por stop.ps1 sem tocar nos containers ou volumes.
+
 ### Cliente P0.4
 
 React 19 cuida do HUD; PixiJS 8 renderiza tiles e marcadores; Zustand recebe
