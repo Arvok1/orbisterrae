@@ -13,6 +13,14 @@ jobs:
     name: Gateway and NATS integration
     runs-on: ubuntu-latest
     services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: orbis
+          POSTGRES_PASSWORD: orbis
+          POSTGRES_DB: orbis
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U orbis -d orbis" --health-interval 5s --health-timeout 5s --health-retries 10
       nats:
         image: nats:2
         ports: ["4222:4222"]
@@ -28,13 +36,16 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @orbis/protocol build
       - run: cargo build -p orbis-gateway --bins
+      - run: cargo test -p orbis-gateway --test persistence -- --ignored
       - name: Check 1000 connections through gateway and worker
         run: |
-          target/debug/orbis-shard-worker > worker.log 2>&1 &
-          worker_pid=$!
+          target/debug/orbis-shard-worker --slot 0 > worker0.log 2>&1 &
+          worker0_pid=$!
+          target/debug/orbis-shard-worker --slot 1 > worker1.log 2>&1 &
+          worker1_pid=$!
           target/debug/orbis-gateway > gateway.log 2>&1 &
           gateway_pid=$!
-          trap 'kill "$worker_pid" "$gateway_pid" 2>/dev/null || true' EXIT
+          trap 'kill "$worker0_pid" "$worker1_pid" "$gateway_pid" 2>/dev/null || true' EXIT
           for attempt in {1..30}; do
             if curl -sf http://127.0.0.1:8080/ready; then break; fi
             sleep 1

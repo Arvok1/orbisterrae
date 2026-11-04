@@ -29,6 +29,28 @@
 
 ## Em aberto
 
+### Integração S1.1 em desenvolvimento
+
+Movimento, geografia e fundação são funções determinísticas em core/sim;
+UUIDs e relógio de parede são fornecidos pelos binários. H3o 0.6 é a versão
+prevista no workspace. SQLx/PostGIS persiste atores, eventos e recibos; workers
+separados por células H3 res 3 processam comandos via NATS. Transferências
+mantêm uma única linha autoritativa e uma outbox durável, confirmada pelo
+worker de destino, para recuperação sem perda/duplicação.
+
+Contas locais usam Argon2 0.6 e JWT HS256 via jsonwebtoken 11.1 com backend
+RustCrypto e sem suporte PEM. São dependências exclusivamente de servidor;
+a biblioteca JWT inclui algoritmos adicionais em seu backend, mas o validador
+aceita apenas HS256. Justifica-se usar implementações de criptografia mantidas
+em vez de criar hash de senha ou assinatura JWT próprios. O segredo é local,
+persistente e ignorado pelo Git; não há implantação externa neste passe.
+
+Migrações SQL usam LF via `.gitattributes`. No banco local, o checksum da
+migração inicial correspondia exatamente à variante LF; a cópia Windows
+estava em CRLF. O arquivo foi normalizado sem mudar o SQL e sem editar o
+checksum no banco. O launcher também acompanha mudanças em SQL, balance e
+geografia incorporada ao compilar, evitando executar binários obsoletos.
+
 ### Harness P0.7
 
 Cliente headless TypeScript em `tools/bot`, usando WebSocket nativo do Node

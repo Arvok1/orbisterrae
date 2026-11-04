@@ -6,6 +6,11 @@ version.workspace = true
 [dependencies]
 thiserror.workspace = true
 orbis-protocol = { path = "../protocol" }
+orbis-core = { path = "../core" }
+serde.workspace = true
+serde_json.workspace = true
+h3o.workspace = true
+toml.workspace = true
 
 [dev-dependencies]
-toml.workspace = true
+uuid.workspace = true

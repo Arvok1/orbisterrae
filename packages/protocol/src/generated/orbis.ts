@@ -24,6 +24,8 @@ export interface Command {
   kind?:
     | { $case: "foundCity"; foundCity: FoundCity }
     | { $case: "viewport"; viewport: SetViewport }
+    | { $case: "authenticate"; authenticate: Authenticate }
+    | { $case: "moveRuler"; moveRuler: MoveRuler }
     | { $case: "createDesign"; createDesign: CreateDesign }
     | { $case: "startCraft"; startCraft: StartCraft }
     | { $case: "resolveCheckpoint"; resolveCheckpoint: ResolveCheckpoint }
@@ -40,6 +42,64 @@ export interface SetViewport {
   zoom: number;
   widthPx: number;
   heightPx: number;
+}
+
+export interface Authenticate {
+  token: string;
+}
+
+export interface MoveRuler {
+  destination: LatLon | undefined;
+}
+
+export interface RulerState {
+  id: string;
+  kingdomId: string;
+  pos: LatLon | undefined;
+  supplies: number;
+  journey: MoveSegment | undefined;
+  journeyDueMs: number;
+  foundingUntilMs: number;
+  cityId: string;
+  revision: bigint;
+}
+
+export interface CityState {
+  id: string;
+  kingdomId: string;
+  name: string;
+  pos: LatLon | undefined;
+  tier: number;
+  active: boolean;
+  readyAtMs: number;
+  population: number;
+}
+
+export interface TerritoryCell {
+  h3: string;
+  cityId: string;
+  boundary: LatLon[];
+}
+
+export interface WorldSnapshot {
+  ruler: RulerState | undefined;
+  cities: CityState[];
+  territory: TerritoryCell[];
+  nowMs: number;
+}
+
+export interface EntityHandoff {
+  entityId: string;
+  revision: bigint;
+  fromShard: bigint;
+  toShard: bigint;
+  state: Uint8Array;
+}
+
+export interface HandoffAck {
+  entityId: string;
+  revision: bigint;
+  accepted: boolean;
 }
 
 export interface MoveSegment {
@@ -125,6 +185,7 @@ export interface ServerMsg {
     | { $case: "move"; move: MoveSegment }
     | { $case: "era"; era: EraChanged }
     | { $case: "snapshot"; snapshot: ViewportSnapshot }
+    | { $case: "world"; world: WorldSnapshot }
     | undefined;
 }
 
@@ -289,6 +350,12 @@ export const Command: MessageFns<Command> = {
       case "viewport":
         SetViewport.encode(message.kind.viewport, writer.uint32(90).fork()).join();
         break;
+      case "authenticate":
+        Authenticate.encode(message.kind.authenticate, writer.uint32(98).fork()).join();
+        break;
+      case "moveRuler":
+        MoveRuler.encode(message.kind.moveRuler, writer.uint32(106).fork()).join();
+        break;
       case "createDesign":
         CreateDesign.encode(message.kind.createDesign, writer.uint32(162).fork()).join();
         break;
@@ -331,6 +398,22 @@ export const Command: MessageFns<Command> = {
           }
 
           message.kind = { $case: "viewport", viewport: SetViewport.decode(reader, reader.uint32()) };
+          continue;
+        }
+        case 12: {
+          if (tag !== 98) {
+            break;
+          }
+
+          message.kind = { $case: "authenticate", authenticate: Authenticate.decode(reader, reader.uint32()) };
+          continue;
+        }
+        case 13: {
+          if (tag !== 106) {
+            break;
+          }
+
+          message.kind = { $case: "moveRuler", moveRuler: MoveRuler.decode(reader, reader.uint32()) };
           continue;
         }
         case 20: {
@@ -385,6 +468,18 @@ export const Command: MessageFns<Command> = {
       case "viewport": {
         if (object.kind?.viewport !== undefined && object.kind?.viewport !== null) {
           message.kind = { $case: "viewport", viewport: SetViewport.fromPartial(object.kind.viewport) };
+        }
+        break;
+      }
+      case "authenticate": {
+        if (object.kind?.authenticate !== undefined && object.kind?.authenticate !== null) {
+          message.kind = { $case: "authenticate", authenticate: Authenticate.fromPartial(object.kind.authenticate) };
+        }
+        break;
+      }
+      case "moveRuler": {
+        if (object.kind?.moveRuler !== undefined && object.kind?.moveRuler !== null) {
+          message.kind = { $case: "moveRuler", moveRuler: MoveRuler.fromPartial(object.kind.moveRuler) };
         }
         break;
       }
@@ -552,6 +647,717 @@ export const SetViewport: MessageFns<SetViewport> = {
     message.zoom = object.zoom ?? 0;
     message.widthPx = object.widthPx ?? 0;
     message.heightPx = object.heightPx ?? 0;
+    return message;
+  },
+};
+
+function createBaseAuthenticate(): Authenticate {
+  return { token: "" };
+}
+
+export const Authenticate: MessageFns<Authenticate> = {
+  encode(message: Authenticate, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.token !== "") {
+      writer.uint32(10).string(message.token);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): Authenticate {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAuthenticate();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.token = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<Authenticate>, I>>(base?: I): Authenticate {
+    return Authenticate.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<Authenticate>, I>>(object: I): Authenticate {
+    const message = createBaseAuthenticate();
+    message.token = object.token ?? "";
+    return message;
+  },
+};
+
+function createBaseMoveRuler(): MoveRuler {
+  return { destination: undefined };
+}
+
+export const MoveRuler: MessageFns<MoveRuler> = {
+  encode(message: MoveRuler, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.destination !== undefined) {
+      LatLon.encode(message.destination, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): MoveRuler {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMoveRuler();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.destination = LatLon.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<MoveRuler>, I>>(base?: I): MoveRuler {
+    return MoveRuler.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<MoveRuler>, I>>(object: I): MoveRuler {
+    const message = createBaseMoveRuler();
+    message.destination = (object.destination !== undefined && object.destination !== null)
+      ? LatLon.fromPartial(object.destination)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseRulerState(): RulerState {
+  return {
+    id: "",
+    kingdomId: "",
+    pos: undefined,
+    supplies: 0,
+    journey: undefined,
+    journeyDueMs: 0,
+    foundingUntilMs: 0,
+    cityId: "",
+    revision: 0n,
+  };
+}
+
+export const RulerState: MessageFns<RulerState> = {
+  encode(message: RulerState, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== "") {
+      writer.uint32(10).string(message.id);
+    }
+    if (message.kingdomId !== "") {
+      writer.uint32(18).string(message.kingdomId);
+    }
+    if (message.pos !== undefined) {
+      LatLon.encode(message.pos, writer.uint32(26).fork()).join();
+    }
+    if (message.supplies !== 0) {
+      writer.uint32(32).uint32(message.supplies);
+    }
+    if (message.journey !== undefined) {
+      MoveSegment.encode(message.journey, writer.uint32(42).fork()).join();
+    }
+    if (message.journeyDueMs !== 0) {
+      writer.uint32(49).double(message.journeyDueMs);
+    }
+    if (message.foundingUntilMs !== 0) {
+      writer.uint32(57).double(message.foundingUntilMs);
+    }
+    if (message.cityId !== "") {
+      writer.uint32(66).string(message.cityId);
+    }
+    if (message.revision !== 0n) {
+      if (BigInt.asUintN(64, message.revision) !== message.revision) {
+        throw new globalThis.Error("value provided for field message.revision of type uint64 too large");
+      }
+      writer.uint32(72).uint64(message.revision);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): RulerState {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseRulerState();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.id = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.kingdomId = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.pos = LatLon.decode(reader, reader.uint32());
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.supplies = reader.uint32();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.journey = MoveSegment.decode(reader, reader.uint32());
+          continue;
+        }
+        case 6: {
+          if (tag !== 49) {
+            break;
+          }
+
+          message.journeyDueMs = reader.double();
+          continue;
+        }
+        case 7: {
+          if (tag !== 57) {
+            break;
+          }
+
+          message.foundingUntilMs = reader.double();
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.cityId = reader.string();
+          continue;
+        }
+        case 9: {
+          if (tag !== 72) {
+            break;
+          }
+
+          message.revision = reader.uint64() as bigint;
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<RulerState>, I>>(base?: I): RulerState {
+    return RulerState.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<RulerState>, I>>(object: I): RulerState {
+    const message = createBaseRulerState();
+    message.id = object.id ?? "";
+    message.kingdomId = object.kingdomId ?? "";
+    message.pos = (object.pos !== undefined && object.pos !== null) ? LatLon.fromPartial(object.pos) : undefined;
+    message.supplies = object.supplies ?? 0;
+    message.journey = (object.journey !== undefined && object.journey !== null)
+      ? MoveSegment.fromPartial(object.journey)
+      : undefined;
+    message.journeyDueMs = object.journeyDueMs ?? 0;
+    message.foundingUntilMs = object.foundingUntilMs ?? 0;
+    message.cityId = object.cityId ?? "";
+    message.revision = object.revision ?? 0n;
+    return message;
+  },
+};
+
+function createBaseCityState(): CityState {
+  return { id: "", kingdomId: "", name: "", pos: undefined, tier: 0, active: false, readyAtMs: 0, population: 0 };
+}
+
+export const CityState: MessageFns<CityState> = {
+  encode(message: CityState, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== "") {
+      writer.uint32(10).string(message.id);
+    }
+    if (message.kingdomId !== "") {
+      writer.uint32(18).string(message.kingdomId);
+    }
+    if (message.name !== "") {
+      writer.uint32(26).string(message.name);
+    }
+    if (message.pos !== undefined) {
+      LatLon.encode(message.pos, writer.uint32(34).fork()).join();
+    }
+    if (message.tier !== 0) {
+      writer.uint32(40).uint32(message.tier);
+    }
+    if (message.active !== false) {
+      writer.uint32(48).bool(message.active);
+    }
+    if (message.readyAtMs !== 0) {
+      writer.uint32(57).double(message.readyAtMs);
+    }
+    if (message.population !== 0) {
+      writer.uint32(64).uint32(message.population);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CityState {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCityState();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.id = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.kingdomId = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.name = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.pos = LatLon.decode(reader, reader.uint32());
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.tier = reader.uint32();
+          continue;
+        }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.active = reader.bool();
+          continue;
+        }
+        case 7: {
+          if (tag !== 57) {
+            break;
+          }
+
+          message.readyAtMs = reader.double();
+          continue;
+        }
+        case 8: {
+          if (tag !== 64) {
+            break;
+          }
+
+          message.population = reader.uint32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<CityState>, I>>(base?: I): CityState {
+    return CityState.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<CityState>, I>>(object: I): CityState {
+    const message = createBaseCityState();
+    message.id = object.id ?? "";
+    message.kingdomId = object.kingdomId ?? "";
+    message.name = object.name ?? "";
+    message.pos = (object.pos !== undefined && object.pos !== null) ? LatLon.fromPartial(object.pos) : undefined;
+    message.tier = object.tier ?? 0;
+    message.active = object.active ?? false;
+    message.readyAtMs = object.readyAtMs ?? 0;
+    message.population = object.population ?? 0;
+    return message;
+  },
+};
+
+function createBaseTerritoryCell(): TerritoryCell {
+  return { h3: "", cityId: "", boundary: [] };
+}
+
+export const TerritoryCell: MessageFns<TerritoryCell> = {
+  encode(message: TerritoryCell, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.h3 !== "") {
+      writer.uint32(10).string(message.h3);
+    }
+    if (message.cityId !== "") {
+      writer.uint32(18).string(message.cityId);
+    }
+    for (const v of message.boundary) {
+      LatLon.encode(v!, writer.uint32(26).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): TerritoryCell {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseTerritoryCell();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.h3 = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.cityId = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.boundary.push(LatLon.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<TerritoryCell>, I>>(base?: I): TerritoryCell {
+    return TerritoryCell.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<TerritoryCell>, I>>(object: I): TerritoryCell {
+    const message = createBaseTerritoryCell();
+    message.h3 = object.h3 ?? "";
+    message.cityId = object.cityId ?? "";
+    message.boundary = object.boundary?.map((e) => LatLon.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseWorldSnapshot(): WorldSnapshot {
+  return { ruler: undefined, cities: [], territory: [], nowMs: 0 };
+}
+
+export const WorldSnapshot: MessageFns<WorldSnapshot> = {
+  encode(message: WorldSnapshot, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.ruler !== undefined) {
+      RulerState.encode(message.ruler, writer.uint32(10).fork()).join();
+    }
+    for (const v of message.cities) {
+      CityState.encode(v!, writer.uint32(18).fork()).join();
+    }
+    for (const v of message.territory) {
+      TerritoryCell.encode(v!, writer.uint32(26).fork()).join();
+    }
+    if (message.nowMs !== 0) {
+      writer.uint32(33).double(message.nowMs);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): WorldSnapshot {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseWorldSnapshot();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.ruler = RulerState.decode(reader, reader.uint32());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.cities.push(CityState.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.territory.push(TerritoryCell.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 4: {
+          if (tag !== 33) {
+            break;
+          }
+
+          message.nowMs = reader.double();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<WorldSnapshot>, I>>(base?: I): WorldSnapshot {
+    return WorldSnapshot.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<WorldSnapshot>, I>>(object: I): WorldSnapshot {
+    const message = createBaseWorldSnapshot();
+    message.ruler = (object.ruler !== undefined && object.ruler !== null)
+      ? RulerState.fromPartial(object.ruler)
+      : undefined;
+    message.cities = object.cities?.map((e) => CityState.fromPartial(e)) || [];
+    message.territory = object.territory?.map((e) => TerritoryCell.fromPartial(e)) || [];
+    message.nowMs = object.nowMs ?? 0;
+    return message;
+  },
+};
+
+function createBaseEntityHandoff(): EntityHandoff {
+  return { entityId: "", revision: 0n, fromShard: 0n, toShard: 0n, state: new Uint8Array(0) };
+}
+
+export const EntityHandoff: MessageFns<EntityHandoff> = {
+  encode(message: EntityHandoff, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.entityId !== "") {
+      writer.uint32(10).string(message.entityId);
+    }
+    if (message.revision !== 0n) {
+      if (BigInt.asUintN(64, message.revision) !== message.revision) {
+        throw new globalThis.Error("value provided for field message.revision of type uint64 too large");
+      }
+      writer.uint32(16).uint64(message.revision);
+    }
+    if (message.fromShard !== 0n) {
+      if (BigInt.asUintN(64, message.fromShard) !== message.fromShard) {
+        throw new globalThis.Error("value provided for field message.fromShard of type uint64 too large");
+      }
+      writer.uint32(24).uint64(message.fromShard);
+    }
+    if (message.toShard !== 0n) {
+      if (BigInt.asUintN(64, message.toShard) !== message.toShard) {
+        throw new globalThis.Error("value provided for field message.toShard of type uint64 too large");
+      }
+      writer.uint32(32).uint64(message.toShard);
+    }
+    if (message.state.length !== 0) {
+      writer.uint32(42).bytes(message.state);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): EntityHandoff {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseEntityHandoff();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.entityId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.revision = reader.uint64() as bigint;
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.fromShard = reader.uint64() as bigint;
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.toShard = reader.uint64() as bigint;
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.state = reader.bytes();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<EntityHandoff>, I>>(base?: I): EntityHandoff {
+    return EntityHandoff.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<EntityHandoff>, I>>(object: I): EntityHandoff {
+    const message = createBaseEntityHandoff();
+    message.entityId = object.entityId ?? "";
+    message.revision = object.revision ?? 0n;
+    message.fromShard = object.fromShard ?? 0n;
+    message.toShard = object.toShard ?? 0n;
+    message.state = object.state ?? new Uint8Array(0);
+    return message;
+  },
+};
+
+function createBaseHandoffAck(): HandoffAck {
+  return { entityId: "", revision: 0n, accepted: false };
+}
+
+export const HandoffAck: MessageFns<HandoffAck> = {
+  encode(message: HandoffAck, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.entityId !== "") {
+      writer.uint32(10).string(message.entityId);
+    }
+    if (message.revision !== 0n) {
+      if (BigInt.asUintN(64, message.revision) !== message.revision) {
+        throw new globalThis.Error("value provided for field message.revision of type uint64 too large");
+      }
+      writer.uint32(16).uint64(message.revision);
+    }
+    if (message.accepted !== false) {
+      writer.uint32(24).bool(message.accepted);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): HandoffAck {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseHandoffAck();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.entityId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.revision = reader.uint64() as bigint;
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.accepted = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<HandoffAck>, I>>(base?: I): HandoffAck {
+    return HandoffAck.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<HandoffAck>, I>>(object: I): HandoffAck {
+    const message = createBaseHandoffAck();
+    message.entityId = object.entityId ?? "";
+    message.revision = object.revision ?? 0n;
+    message.accepted = object.accepted ?? false;
     return message;
   },
 };
@@ -1455,6 +2261,9 @@ export const ServerMsg: MessageFns<ServerMsg> = {
       case "snapshot":
         ViewportSnapshot.encode(message.kind.snapshot, writer.uint32(74).fork()).join();
         break;
+      case "world":
+        WorldSnapshot.encode(message.kind.world, writer.uint32(82).fork()).join();
+        break;
     }
     return writer;
   },
@@ -1514,6 +2323,14 @@ export const ServerMsg: MessageFns<ServerMsg> = {
           message.kind = { $case: "snapshot", snapshot: ViewportSnapshot.decode(reader, reader.uint32()) };
           continue;
         }
+        case 10: {
+          if (tag !== 82) {
+            break;
+          }
+
+          message.kind = { $case: "world", world: WorldSnapshot.decode(reader, reader.uint32()) };
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1562,6 +2379,12 @@ export const ServerMsg: MessageFns<ServerMsg> = {
       case "snapshot": {
         if (object.kind?.snapshot !== undefined && object.kind?.snapshot !== null) {
           message.kind = { $case: "snapshot", snapshot: ViewportSnapshot.fromPartial(object.kind.snapshot) };
+        }
+        break;
+      }
+      case "world": {
+        if (object.kind?.world !== undefined && object.kind?.world !== null) {
+          message.kind = { $case: "world", world: WorldSnapshot.fromPartial(object.kind.world) };
         }
         break;
       }

@@ -1,4 +1,7 @@
-//! Esqueleto: implementar conforme docs/ROADMAP.md
+//! I/O adapters; gameplay decisions live in core/sim.
+pub mod auth;
+pub mod handoff;
+pub mod world_service;
 
 #[cfg(test)]
 mod tests {

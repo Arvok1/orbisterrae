@@ -18,7 +18,7 @@ pub fn snapshot(view: &SetViewport, count: usize) -> Result<Vec<EntityUpsert>, V
         || !view.height_px.is_finite()
         || center.lat.abs() > 90.0
         || center.lon.abs() > 180.0
-        || !(0.0..=6.0).contains(&view.zoom)
+        || !(0.0..=16.0).contains(&view.zoom)
         || !(1.0..=8192.0).contains(&view.width_px)
         || !(1.0..=8192.0).contains(&view.height_px)
     {

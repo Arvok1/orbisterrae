@@ -48,4 +48,36 @@ mod tests {
         assert!(Envelope::decode([255].as_slice()).is_err());
         assert!(Envelope::decode([8, 1, 160, 6, 1].as_slice()).is_ok());
     }
+
+    #[test]
+    fn world_state_and_handoff_round_trip_preserve_revisions() {
+        let transfer = EntityHandoff {
+            entity_id: "ruler".into(),
+            revision: u64::MAX,
+            from_shard: 42,
+            to_shard: 43,
+            state: vec![0, 255, 1],
+        };
+        assert_eq!(
+            EntityHandoff::decode(transfer.encode_to_vec().as_slice()).unwrap(),
+            transfer
+        );
+        let snapshot = WorldSnapshot {
+            ruler: Some(RulerState {
+                id: "ruler".into(),
+                revision: u64::MAX,
+                pos: Some(LatLon {
+                    lat: 48.85,
+                    lon: 2.35,
+                }),
+                ..Default::default()
+            }),
+            now_ms: 1_790_000_000_000.0,
+            ..Default::default()
+        };
+        assert_eq!(
+            WorldSnapshot::decode(snapshot.encode_to_vec().as_slice()).unwrap(),
+            snapshot
+        );
+    }
 }

@@ -1,0 +1,19 @@
+# Protótipo local S1.1: viagens aceleradas para validar exploração e fundação.
+[ruler]
+initial_supplies = 100
+travel_speed_mps = 1500.0
+max_trip_m = 250000.0
+minimum_trip_ms = 1500
+path_sample_m = 1000.0
+
+[village]
+cost = 80
+construction_ms = 6000
+minimum_distance_m = 30000.0
+water_distance_m = 30000.0
+founding_reach_m = 1500.0
+initial_population = 24
+
+[spawn]
+lat = 48.8566
+lon = 2.3522

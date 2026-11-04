@@ -1,4 +1,6 @@
-//! Esqueleto: implementar conforme docs/ROADMAP.md
+//! Domain primitives: deterministic, without I/O.
+pub mod time;
+pub mod world;
 
 #[cfg(test)]
 mod tests {
