@@ -4,4 +4,6 @@ Push-Location (Join-Path $PSScriptRoot "../..")
 try {
     docker compose -f tools/world-pipeline/compose.yml run --build --rm world --max-zoom $MaxZoom --resolution $Resolution
     if ($LASTEXITCODE -ne 0) { throw "Falha ao gerar dados do mundo." }
+    docker compose -f tools/world-pipeline/compose.yml run --rm --entrypoint python world tools/world-pipeline/terrain.py
+    if ($LASTEXITCODE -ne 0) { throw "Falha ao gerar detalhes do terreno." }
 } finally { Pop-Location }

@@ -47,3 +47,18 @@ como montanhas e rios, mostrando isso de maneira cartunesca e detalhada sem
 zoom. O continente plano atual não atende esse requisito. Próxima etapa:
 camadas geográficas globais e representação cartográfica dessas feições na
 visão aberta, preservando cobertura e procedência verificáveis.
+
+Implementação: regiões ecológicas em textura Mercator 4096×4096, rios e lagos
+vetoriais, e seis texturas pequenas compartilhadas de árvores, pinheiros,
+dunas, colinas, montanhas e montanhas nevadas. Ícones mantêm tamanho legível
+na visão aberta; não há limiar de zoom para ocultar feições. A textura dos
+biomas é pré-renderizada no pipeline para evitar triangular milhares de
+polígonos complexos ao abrir a página. Não há nova dependência de runtime.
+Cobertura, generalização e atribuições em `DATA_LICENSES.md`.
+
+Validação P0.4b: canvas 1280×720 e 390×844 medidos iguais ao viewport, sem
+overflow horizontal móvel; transição para a vila e retorno ao mundo observados.
+Tour de 296 s com pico 24 tiles, pending 0 e 139 fps final; o tour foi encerrado
+antes do resultado automático de 300 s, portanto esse resultado não é alegado.
+Memória mínima na janela final 35.905.040 B, abaixo da referência 83.851.910 B.
+Regeneração em diretório separado produziu SHA-256 idêntico para JSON e PNG.

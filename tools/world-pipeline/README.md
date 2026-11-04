@@ -40,3 +40,20 @@ Saídas (`data/world/vN/`):
 
 Libs: rasterio, geopandas, h3, numpy, pandas, pyarrow, pillow.
 Comando alvo: `make world`
+
+## Terreno cartunesco P0.4b
+
+`make world` e `build.ps1` também executam `terrain.py` depois dos dados base.
+Para regenerar somente os detalhes com a base P0.3 já presente, use `make terrain`
+ou:
+
+```powershell
+docker compose -f tools/world-pipeline/compose.yml run --rm --entrypoint python world tools/world-pipeline/terrain.py
+```
+
+O primeiro download adicional usa aproximadamente 155 MB; os ZIPs ficam em
+`data/world/v0/terrain-sources`. SHA-256 fixado no código e no JSON de saída.
+Saídas versionadas no cliente: `world-terrain-v1.json` e `world-biomes-v1.png`.
+São dados cartográficos visuais globais; ver limites e licenças em
+`docs/DATA_LICENSES.md`. O clone já traz essas duas saídas, sem precisar baixar
+os dados de biomas para cada inicialização do cliente.

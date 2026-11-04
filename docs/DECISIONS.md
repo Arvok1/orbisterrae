@@ -39,6 +39,18 @@ por uma imagem. O objetivo agora inclui governante que passeia no mapa e
 fundação da primeira vila: representação e movimento mínimos do governante
 entram em S1.1; assembleias, correspondência e moderação continuam em P6.
 
+### Terreno visual P0.4b
+
+O mapa aberto passa a incluir toda a hidrografia exportada de Natural Earth,
+relevo regional ETOPO e regiões ecológicas RESOLVE 2017. A cor dos biomas é
+pré-rasterizada em 4096×4096; água vetorial e seis texturas compartilhadas de
+símbolos permanecem independentes. Isso evita triangulação inicial pesada
+dos polígonos ecológicos e mantém pan/zoom na GPU. O JSON visual foi reduzido
+de 12,1 MB para 1,1 MB, além da textura PNG de 490 kB. Sem novas dependências.
+Os símbolos de bioma e relevo são cartografia ilustrativa, sem efeitos de
+balanceamento. Clima/fertilidade e cobertura atual do solo continuam fora
+desse passe. Licenças, cobertura e hashes em `DATA_LICENSES.md` e `terrain.py`.
+
 ### Rede P0.5
 
 Gateway Axum e worker são binários separados, ligados por request/reply NATS.

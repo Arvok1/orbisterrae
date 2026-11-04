@@ -15,9 +15,9 @@ const pt = {
   controls: 'Arraste para explorar · Role para aproximar · Clique para selecionar',
   keyboard: 'Teclado: setas para mover, +/− para zoom e Enter para selecionar o centro.',
   zoomIn: 'Aproximar', zoomOut: 'Afastar', reset: 'Ver o mundo', map: 'Mapa interativo da Terra',
-  terrain: 'Terreno', grid: 'Coordenadas', source: 'Dados: Natural Earth · NOAA ETOPO',
+  terrain: 'Rios · Lagos · Montanhas · Florestas · Desertos', grid: 'Coordenadas', source: 'Natural Earth · NOAA ETOPO · RESOLVE 2017 (CC BY 4.0)',
   offline: 'ATLAS LOCAL', loading: 'Carregando o mundo…', ready: 'Mundo carregado',
-  error: 'Não foi possível carregar os tiles. Gere os dados do mundo e tente novamente.',
+  error: 'Não foi possível carregar o mapa. Gere os dados do mundo e tente novamente.',
   retry: 'Tentar novamente', phase: 'PRÉVIA DE EXPLORAÇÃO',
   notice: 'Fundação e construção estarão disponíveis quando o servidor de simulação estiver conectado.',
 };
@@ -38,9 +38,9 @@ const en: typeof pt = {
   controls: 'Drag to explore · Scroll to zoom · Click to select',
   keyboard: 'Keyboard: arrows to move, +/− to zoom, Enter to select the center.',
   zoomIn: 'Zoom in', zoomOut: 'Zoom out', reset: 'View the world', map: 'Interactive Earth map',
-  terrain: 'Terrain', grid: 'Coordinates', source: 'Data: Natural Earth · NOAA ETOPO',
+  terrain: 'Rivers · Lakes · Mountains · Forests · Deserts', grid: 'Coordinates', source: 'Natural Earth · NOAA ETOPO · RESOLVE 2017 (CC BY 4.0)',
   offline: 'LOCAL ATLAS', loading: 'Loading the world…', ready: 'World loaded',
-  error: 'Map tiles could not be loaded. Generate the world data and try again.',
+  error: 'The map could not be loaded. Generate the world data and try again.',
   retry: 'Try again', phase: 'EXPLORATION PREVIEW',
   notice: 'Founding and construction will become available when the simulation server is connected.',
 };

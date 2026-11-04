@@ -1,9 +1,12 @@
 import { Application, Assets, ColorMatrixFilter, Container, Graphics, Sprite, type Texture } from 'pixi.js';
 import villageUrl from '../assets/village-concept-v1.png?url';
+import terrainUrl from '../assets/world-terrain-v1.json?url';
+import biomesUrl from '../assets/world-biomes-v1.png?url';
 import land from '../assets/world-land-v1.json' with {type: 'json'};
 import { project, unproject, visibleTiles, type Point } from './projection.js';
 import { useAtlas } from '../state.js';
 import { sceneBlend } from './scene.js';
+import { TerrainLayer, type TerrainData } from './TerrainLayer.js';
 
 /** Rendering only: no React dependency and no simulation results calculated here. */
 export class Atlas {
@@ -18,6 +21,7 @@ export class Atlas {
   private entities = new Graphics();
   private tilesLayer = new Container();
   private coastline = new Graphics();
+  private terrain: TerrainLayer | null = null;
   private coastRings = land.coordinates.flatMap(polygon => polygon.map(ring =>
     ring.map(point => project({lon: point[0], lat: point[1]}))));
   private cityScene: Sprite | null = null;
@@ -48,6 +52,15 @@ export class Atlas {
     ];
     this.tilesLayer.filters = [cartoon];
     this.app.stage.addChild(this.tilesLayer, this.coastline, this.entities, this.marker);
+    const response = await fetch(terrainUrl, {signal: this.abort.signal});
+    if (!response.ok) throw new Error(`Terrain load failed: ${response.status}`);
+    const terrainData = await response.json() as TerrainData;
+    if (this.disposed) return;
+    const biomes = await Assets.load<Texture>(biomesUrl);
+    if (this.disposed) { void Assets.unload(biomesUrl); return; }
+    this.terrain = new TerrainLayer(this.app, terrainData, biomes);
+    this.app.stage.addChildAt(this.terrain, 1);
+    this.app.canvas.dataset.terrain = JSON.stringify(terrainData.stats);
     const village = await Assets.load<Texture>(villageUrl);
     if (this.disposed) { void Assets.unload(villageUrl); return; }
     this.cityScene = new Sprite(village);
@@ -61,6 +74,7 @@ export class Atlas {
         const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
         this.cityScene.alpha += (this.cityTarget - this.cityScene.alpha) * (reduced ? 1 : Math.min(1, ticker.deltaMS / 140));
         this.tilesLayer.alpha = this.marker.alpha = this.entities.alpha = this.coastline.alpha = 1 - this.cityScene.alpha;
+        if (this.terrain) this.terrain.alpha = 1 - this.cityScene.alpha;
       }
       elapsed += ticker.deltaMS;
       frames++;
@@ -232,6 +246,7 @@ export class Atlas {
       }
     }
     this.marker.clear();
+    this.terrain?.updateView(this.center, this.size, width, height);
     this.coastline.clear();
     for (const ring of this.coastRings) {
       const points = ring.flatMap(p => [width / 2 + (p.x - this.center.x) * this.size, height / 2 + (p.y - this.center.y) * this.size]);
@@ -278,6 +293,7 @@ export class Atlas {
     if (this.ready) this.app.destroy(true, {children: true});
     for (const url of this.tiles.keys()) void Assets.unload(url);
     void Assets.unload(villageUrl);
+    void Assets.unload(biomesUrl);
     this.tiles.clear();
   }
 }

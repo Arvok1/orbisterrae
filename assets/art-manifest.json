@@ -19,6 +19,13 @@
       "verification": {"native_scale_reviewed": true, "in_engine_reviewed": true, "technical_checks_passed": true}
     },
     {
+      "id": "world-terrain-v1",
+      "role": "global cartoon hydrography, biome colors and relief glyph locations",
+      "path": "apps/client/src/assets/world-terrain-v1.json",
+      "companion": "apps/client/src/assets/world-biomes-v1.png",
+      "source": {"kind": "derived", "url_or_tool": "tools/world-pipeline/terrain.py", "license": "Natural Earth public domain; NOAA ETOPO; RESOLVE 2017 CC BY 4.0", "prompt_or_source_record": "docs/DATA_LICENSES.md"}
+    },
+    {
       "id": "world-land-v1",
       "role": "geographically accurate cartoon coastline outlines",
       "path": "apps/client/src/assets/world-land-v1.json",

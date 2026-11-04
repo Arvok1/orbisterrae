@@ -98,6 +98,7 @@ dd { margin: 8px 0 0; font-size: 18px; font-weight: 800; font-variant-numeric: t
 .layer-control button { min-height: 32px; padding: 4px 8px; font-size: 9px; box-shadow: 0 2px 0 #9c815a; opacity: .85; }
 .layer-control button[aria-pressed=true] { background: #d5dfa6; }
 footer { position: absolute; bottom: 0; left: 0; right: 0; display: flex; justify-content: space-between; gap: 16px; padding: 8px 24px; color: #4b5d50; font-size: 9px; background: #fff2d5b3; }
+footer a { color: inherit; }
 .city-view footer { background: #fff2d5dc; }
 .error { position: absolute; top: 104px; left: 50%; transform: translateX(-50%); max-width: 80%; background: #ffe0bc; border: 2px solid #ad633b; border-radius: 12px; padding: 16px; font-size: 12px; }
 .error button { margin-left: 16px; }

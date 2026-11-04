@@ -18,6 +18,11 @@ Use `./stop.ps1` para encerrar somente os processos Rust iniciados pelo projeto;
 o cliente encerra com Ctrl+C. Containers e volumes de dados são preservados.
 Logs dos serviços ficam em `.local/`.
 
+O atlas cartunesco ocupa toda a tela. Rios, lagos, relevo, vegetação e desertos
+já aparecem no mapa aberto. Arraste para explorar; selecione um lugar e
+aproxime o zoom para a prévia ilustrada da vila; afaste para retornar ao mundo.
+Fontes e limites da cobertura em `docs/DATA_LICENSES.md`.
+
 1. Abra a pasta no Cursor. O arquivo `AGENTS.md` e as regras em `.cursor/rules/` são carregados automaticamente.
 2. Leia `docs/ARCHITECTURE.md`, `docs/DOMAIN.md` e `docs/CRAFTING.md` uma vez (ou peça ao agente para resumir).
 3. Siga `docs/ROADMAP.md` (passes P0 a P6; o **MVP é o P1**, mundo mínimo completo, descrito em `docs/MVP.md`). As tarefas aprofundadas (`Tn.m`) estão em `docs/BACKLOG.md`. Fluxo de trabalho solo em `docs/CURSOR_WORKFLOW.md`, testes em `docs/TESTING.md`, conteúdo das eras em `docs/CONTENT.md`.

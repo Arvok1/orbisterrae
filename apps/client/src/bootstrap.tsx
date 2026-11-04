@@ -58,9 +58,9 @@ function App() {
         <span>{state.zoom.toFixed(1)}×</span><button aria-label={t.zoomOut} onClick={() => state.command('zoomOut')}>−</button></div>
       <button aria-label={t.reset} onClick={() => state.command('reset')}>⌾</button>
     </div>
-    <div className="map-caption"><span className="terrain-dot" />{t.terrain}<span className="divider" />{t.controls}</div>
+    <div className="map-caption"><span className="terrain-dot" />{t.terrain}</div>
     <div className="layer-control"><button aria-pressed={state.showDiagnostics} onClick={state.toggleDiagnostics}>{t.testLayer}{state.showDiagnostics ? ' ✓' : ''}</button></div>
-    <footer><span>{cityView ? t.artPreview : t.source}</span><span aria-live="polite">{state.error ? t.error : state.loaded ? cityView ? t.zoomBack : t.zoomVillage : t.loading}</span></footer>
+    <footer><span>{cityView ? t.artPreview : <a href="https://ecoregions.appspot.com/" target="_blank" rel="noreferrer">{t.source}</a>}</span><span aria-live="polite">{state.error ? t.error : state.loaded ? cityView ? t.zoomBack : t.zoomVillage : t.loading}</span></footer>
     <span id="keyboard-help" className="sr-only">{t.keyboard}</span>
     {state.error && <div role="alert" className="error">{t.error}<button onClick={() => location.reload()}>{t.retry}</button></div>}
   </main>;
