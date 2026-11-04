@@ -29,6 +29,15 @@
 
 ## Em aberto
 
+### Cliente P0.4
+
+React 19 cuida do HUD; PixiJS 8 renderiza tiles e marcadores; Zustand recebe
+eventos tipados entre os dois. Vite publica somente a pasta de tiles gerados.
+Essas dependências já faziam parte da stack escolhida; PixiJS é o componente
+de maior tamanho, restrito ao cliente e justificado pela renderização do mapa.
+As coordenadas da seleção são informação de interface, sem validar fundação
+ou antecipar resultado do servidor.
+
 ### Pipeline geográfico P0.3
 
 O pipeline roda em container Python 3.12 com dependências de geoprocessamento

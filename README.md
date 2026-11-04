@@ -4,6 +4,16 @@ MMO de estratégia persistente no navegador. Jogadores e reinos IA fundam cidade
 
 ## Como usar este repositório no Cursor
 
+### Abrir a prévia local
+
+No PowerShell, execute `./start.ps1`. O script prepara dependências, gera os
+dados geográficos se necessário e inicia o atlas em http://127.0.0.1:5173.
+Requer Node.js/PNPM; Docker é necessário no primeiro download dos dados do mundo.
+Use `./start.ps1 -NoBrowser` para iniciar sem abrir uma aba.
+
+P0.4 entrega a exploração visual do mapa. A integração com a simulação
+autoritativa e o fluxo jogável ainda está em desenvolvimento.
+
 1. Abra a pasta no Cursor. O arquivo `AGENTS.md` e as regras em `.cursor/rules/` são carregados automaticamente.
 2. Leia `docs/ARCHITECTURE.md`, `docs/DOMAIN.md` e `docs/CRAFTING.md` uma vez (ou peça ao agente para resumir).
 3. Siga `docs/ROADMAP.md` (passes P0 a P6; o **MVP é o P1**, mundo mínimo completo, descrito em `docs/MVP.md`). As tarefas aprofundadas (`Tn.m`) estão em `docs/BACKLOG.md`. Fluxo de trabalho solo em `docs/CURSOR_WORKFLOW.md`, testes em `docs/TESTING.md`, conteúdo das eras em `docs/CONTENT.md`.
