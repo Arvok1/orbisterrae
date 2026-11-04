@@ -1,0 +1,7 @@
+services:
+  world:
+    build:
+      context: ../..
+      dockerfile: tools/world-pipeline/Dockerfile
+    volumes:
+      - ../..:/workspace

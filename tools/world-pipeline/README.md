@@ -1,6 +1,24 @@
 # world-pipeline
 
-Pipeline offline (Python 3.12) que gera os dados do mundo. Ver tarefas T0.4 e T6.1 em `docs/ROADMAP.md`.
+Pipeline Python 3.12 executado em Docker. Ver tarefa P0.3 em `docs/ROADMAP.md`.
+
+Na raiz, execute `make world` ou, no Windows:
+
+```powershell
+./tools/world-pipeline/build.ps1
+```
+
+Use `-MaxZoom 3` para uma geração rápida. O padrão é z0–z6, H3 res 4.
+O ZIP Natural Earth fica em cache em `data/world/v0`. O manifesto inclui SHA-256
+da fonte, projeção e resolução. A camada atual classifica terra/água, sem inventar
+biomas, fertilidade ou relevo. Essas camadas ainda precisam ser implementadas
+antes do aceite completo P0.3.
+
+Testes no mesmo container:
+
+```powershell
+docker compose -f tools/world-pipeline/compose.yml run --rm --entrypoint python world -m unittest discover -s tools/world-pipeline -p "test_*.py"
+```
 
 Fontes sugeridas (verificar licenças antes de usar; registrar em `docs/DATA_LICENSES.md`):
 - Costas e rios: Natural Earth, OpenStreetMap
