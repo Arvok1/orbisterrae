@@ -29,7 +29,7 @@
 
 ## Em aberto
 
-### Integração S1.1 em desenvolvimento
+### Integração S1.1
 
 Movimento, geografia e fundação são funções determinísticas em core/sim;
 UUIDs e relógio de parede são fornecidos pelos binários. H3o 0.6 é a versão
@@ -80,12 +80,10 @@ Reprodução, metas e limites em `BENCHMARKS.md`.
 ### Visual e primeiro loop jogável (2026-11-04)
 
 O usuário escolheu mapa cartunesco de tela inteira e transição pelo zoom entre
-mundo 2D e cidade com volume isométrico. HUD recolhível; arte original gerada
-para prévia, com prompt e procedência em assets/art-manifest.json. Cidades
-interativas deverão preservar essa direção sem substituir dados do servidor
-por uma imagem. O objetivo agora inclui governante que passeia no mapa e
-fundação da primeira vila: representação e movimento mínimos do governante
-entram em S1.1; assembleias, correspondência e moderação continuam em P6.
+mundo 2D e cidade com volume isométrico. A antiga prévia raster foi removida em
+S1.1; governante, vila e território são formas PixiJS alimentadas somente pelo
+estado do servidor. Vegetação próxima é cartografia ilustrativa, sem efeito de
+jogo. Assembleias, correspondência e moderação continuam em P6.
 
 ### Terreno visual P0.4b
 

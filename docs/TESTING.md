@@ -16,7 +16,14 @@ Sem equipe de QA, a rede de segurança é **automação de simulação**. Priori
 P0.7: `pnpm bots:p0` roda `scenarios/p0.toml` por WebSocket real, gateway e
 worker via NATS. Relatório JSON e saída não zero em falhas ou orçamento de
 latência excedido. Detalhes em `tools/bot/README.md`. Login e comandos de jogo
-serão integrados em S1.1; o cenário MVP completo ainda não está disponível.
+foram integrados em S1.1; o cenário MVP completo ainda não está disponível.
+
+S1.1: `pnpm bots:s1.1` cria um banco PostGIS temporário com nome UUID,
+inicia gateway e dois workers isolados, registra 100 contas pelo HTTP real,
+autentica por JWT e funda 100 vilas pelo WebSocket protobuf. O cenário exige
+vilas ativas e únicas, recibo idempotente, governante preservado ao cruzar
+worker e nenhuma transferência pendente; ao terminar, encerra somente os
+processos próprios e remove o banco temporário.
 
 - **Bot headless** (`tools/bot` ou crate `bot`) fala o mesmo protocolo do cliente.
 - **Cenários** em TOML: `scenarios/*.toml` (número de bots, reinos IA, duração simulada, metas).

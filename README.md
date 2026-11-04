@@ -12,16 +12,18 @@ e worker Rust separados e abre o atlas em http://127.0.0.1:5173.
 Requer Node.js/PNPM, Rust via rustup e Docker Desktop aberto.
 Use `./start.ps1 -NoBrowser` para iniciar sem abrir uma aba.
 
-P0.5 entrega a exploração visual conectada a um mundo diagnóstico de 10.000
-entidades. O fluxo de fundação/construção ainda está em desenvolvimento.
+S1.1 entrega conta local, governante móvel, fundação da primeira vila,
+território e persistência, com gateway e dois workers de shard separados.
 Use `./stop.ps1` para encerrar somente os processos Rust iniciados pelo projeto;
 o cliente encerra com Ctrl+C. Containers e volumes de dados são preservados.
 Logs dos serviços ficam em `.local/`.
 
 O atlas cartunesco ocupa toda a tela. Rios, lagos, relevo, vegetação e desertos
-já aparecem no mapa aberto. Arraste para explorar; selecione um lugar e
-aproxime o zoom para a prévia ilustrada da vila; afaste para retornar ao mundo.
-Fontes e limites da cobertura em `docs/DATA_LICENSES.md`.
+já aparecem no mapa aberto. Crie um perfil local, escolha uma região em terra,
+siga o governante, mova-o por WASD ou por um ponto selecionado e funde a primeira
+vila perto de água. A visão aproximada é vetorial e mostra somente o estado
+confirmado pelo servidor; não existe imagem estática de vila. Fontes e limites
+da cobertura em `docs/DATA_LICENSES.md`.
 
 1. Abra a pasta no Cursor. O arquivo `AGENTS.md` e as regras em `.cursor/rules/` são carregados automaticamente.
 2. Leia `docs/ARCHITECTURE.md`, `docs/DOMAIN.md` e `docs/CRAFTING.md` uma vez (ou peça ao agente para resumir).

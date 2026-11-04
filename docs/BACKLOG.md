@@ -35,6 +35,11 @@ Formato: `Tn.m` = tarefa. **Escopo** diz o que fazer; **Aceite** diz como saber 
 - [ ] **T1.5 Fundação de cidades.** Comando `FoundCity` com validações (terra, água próxima, distância mínima, custos por era, limite por região).
 - [ ] **T1.6 Território.** Influência ponderada sobre H3 res 7, atualização incremental, contestação. Delta de território no protocolo e desenho das fronteiras no cliente.
   *Aceite:* teste de propriedade (cada célula tem no máximo um dono; recálculo incremental = recálculo total).
+
+> **Cobertura MVP S1.1 concluída:** T1.1 a T1.6 foram entregues em versão
+> simplificada para o primeiro loop jogável. As caixas permanecem abertas porque
+> representam a profundidade completa: estações, heap recarregado no boot,
+> rebalanceamento de shards e contestação territorial ainda serão aprofundados.
 - [ ] **T1.7 Visibilidade.** Fontes de visão, interest management, neblina de guerra básica.
 - [ ] **T1.8 Filas de construção (v0).** Construir/subir nível de prédio simples via evento agendado.
   *Aceite da fase:* 500 jogadores-bot fundando e expandindo, sem inconsistência entre cliente e servidor.

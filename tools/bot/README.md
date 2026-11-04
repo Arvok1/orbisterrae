@@ -17,9 +17,22 @@ IDs repetidos, dados inválidos, snapshot incompleto ou p95 acima da meta.
 Toda conexão é fechada ao terminar; há somente um pedido em voo por bot.
 
 Este cenário testa o mundo diagnóstico P0: conexão, viewport e rejeição de
-comandos inválidos. Contas/JWT e login de bots entram com S1.1; não se alega
-autenticação neste passe. `mvp_soak.toml` pertence ao fim do P1 e ainda não é
+comandos inválidos. `mvp_soak.toml` pertence ao fim do P1 e ainda não é
 aceito por este executável. O parser TOML leve é exclusivo da ferramenta.
+
+## Primeira vila S1.1
+
+Com Docker, NATS e PowerShell disponíveis, execute na raiz:
+
+```powershell
+pnpm bots:s1.1
+```
+
+O script cria um banco PostGIS temporário, inicia gateway e dois workers,
+registra e autentica 100 jogadores pelo mesmo HTTP/JWT do cliente e envia
+movimento/fundação pelo protocolo binário. O relatório falha se houver vila
+duplicada, fundação incompleta, troca de identidade no handoff ou outbox
+pendente. O banco de teste e apenas os processos de teste são removidos no fim.
 
 CI: o job de rede inicia gateway e worker ligados por NATS, executa o smoke de
 1.000 conexões e depois este cenário. Testes unitários de cenário, tour

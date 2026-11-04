@@ -49,7 +49,7 @@ Meta: eliminar riscos técnicos e montar a base. Referência: `BACKLOG.md` T0.1 
 | P0.3 ✓ | Pipeline de dados v0 (T0.4) em **baixa resolução** (tiles z0–z6, H3 res 4 a 5) | `make world` reproduz tiles e `biome_h3.parquet` |
 | P0.4 ✓ | Cliente: mapa PixiJS (T0.5) | 60 fps pan/zoom; tiles sob demanda; web responsiva e i18n PT-BR/en |
 | P0.5 ✓ | Gateway WebSocket + eco de entidades distribuído (T0.6) | Gateway e workers locais separados via NATS; 10 mil entidades a 60 fps |
-| P0.4a ✓ | Direção cartunesca solicitada: mapa de tela inteira e cidade ilustrada por zoom | HUD recolhível; mundo 2D distante e transição isométrica próxima; desktop/mobile |
+| P0.4a ✓ | Direção cartunesca solicitada: mapa de tela inteira e transição de escala | HUD recolhível; mundo 2D distante e leitura isométrica vetorial próxima; desktop/mobile |
 | P0.4b ✓ | Terreno cartunesco detalhado já na visão aberta, solicitado pelo usuário | Exibir montanhas, rios e demais feições do terreno sem depender do zoom; fontes reais e cobertura documentadas |
 | P0.6 ✓ | **Benchmarks de risco** (T0.7): scheduler, ownership de território, interest management | Metas registradas em `DECISIONS.md` |
 | P0.7 ✓ | **Harness de bots v0**: cliente headless que fala o protocolo | Bot conecta ao mundo diagnóstico, envia comandos e mede latência; login JWT junto com contas em S1.1 |
@@ -64,7 +64,7 @@ Meta: **todos os sistemas em versão simples**, integrados, jogáveis de ponta a
 
 | Sprint | Entrega | Aceite | Tamanho |
 |---|---|---|---|
-| S1.1 | **Mundo servível distribuído:** contas locais com JWT, reino, clã nômade, fundação de cidade e território (T1.1 a T1.6 simplificados), com gateway e workers de shard separados via NATS | 100 bots fundam cidades; territórios sem sobreposição; `EntityHandoff` não perde entidade | 3 a 4 sem |
+| S1.1 ✓ | **Mundo servível distribuído:** contas locais com JWT, reino, clã nômade, fundação de cidade e território (T1.1 a T1.6 simplificados), com gateway e workers de shard separados via NATS | 100 bots fundam cidades; territórios sem sobreposição; `EntityHandoff` não perde entidade | 3 a 4 sem |
 | S1.2 | **Cidade simples:** grade com ruas/zonas/prédios (~15 tipos), fila de construção, população por classes, 3 métricas de layout (água, densidade, defesa), 2 eventos (fome, incêndio) | Layout muda defesa e crescimento de forma mensurável | 3 a 4 sem |
 | S1.3 | **Economia simples:** 8 mercadorias, preço local, caravanas e navios (sem vento ainda), 2 a 3 hubs IA com order book simples, moeda (escambo→metal) | Economia fechada com bots por 7 dias simulados sem hiperinflação | 3 a 4 sem |
 | S1.4 | **IA simples:** Utility AI com 4 objetivos (crescer, comerciar, expandir, defender), nascimento/colapso básicos | 100 reinos IA por 14 dias simulados, trajetórias variadas | 2 a 3 sem |

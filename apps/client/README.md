@@ -11,10 +11,9 @@ Abra http://127.0.0.1:5173. O servidor escuta apenas na máquina local.
 O mapa suporta arraste, roda do mouse, toque com dois dedos, botões de zoom e
 teclado (setas, +/−, Enter). O seletor alterna PT-BR/inglês.
 
-Em P0.5, este é um atlas explorável com seleção de coordenadas e entidades
-de diagnóstico recebidas pelo servidor. Fundação,
-construção e comandos autoritativos serão integrados nas tarefas seguintes.
-Os painéis não apresentam resultados fictícios de simulação.
+Em S1.1, o atlas oferece registro/login local, governante móvel, fundação da
+primeira vila e território recebidos do servidor. Os painéis não apresentam
+resultados fictícios de simulação.
 
 Use o `start.ps1` da raiz para subir todos os serviços locais. O Vite encaminha
 `/ws` ao gateway; gateway e worker se comunicam por NATS. Snapshots substituem
@@ -44,8 +43,8 @@ As fontes tipográficas usam Google Fonts com fallback local Georgia/sans-serif.
 ### Direção cartunesca
 
 O mapa ocupa todo o canvas, com controles flutuantes e painel recolhível.
-Selecione um ponto e aproxime além de 4×: a câmera faz uma transição para uma
-vila isométrica ilustrada. Afaste para retornar ao mapa 2D. Essa imagem é uma
-prévia de arte, não um layout de cidade calculado pelo servidor.
+O zoom é contínuo: a visão aberta preserva o mapa real estilizado e a visão
+próxima desenha governante, território e vila com formas PixiJS baseadas no
+`WorldSnapshot`. Não há imagem estática ou cena falsa de cidade.
 As entidades diagnósticas continuam disponíveis pelo botão Camada de teste.
-Direção, procedência e prompt estão em docs/ART_DIRECTION.md e assets/.
+Direção e procedência estão em `docs/ART_DIRECTION.md` e `assets/`.
