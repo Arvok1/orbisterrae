@@ -29,6 +29,16 @@
 
 ## Em aberto
 
+### Harness P0.7
+
+Cliente headless TypeScript em `tools/bot`, usando WebSocket nativo do Node
+e o protocolo do cliente. Cenários TOML lidos por smol-toml 1.9.1 (dependência
+pequena restrita à ferramenta, sem entrar no bundle web). Seed fixa gera
+viewports repetíveis; um comando em voo por bot permite validar sequência e
+medir RTT. Cenário inicial: 100 bots, 1.000 viewports e 100 rejeições inválidas,
+p95 observado 102,226 ms em debug local, meta 150 ms. Contas/login permanecem
+em S1.1 conforme o roadmap; este passe valida conexão diagnóstica.
+
 ### Benchmarks de risco P0.6
 
 Medida local em release (Rust 1.99.1, Windows): 1.388.174 eventos/s incluindo

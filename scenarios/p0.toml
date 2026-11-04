@@ -1,0 +1,10 @@
+# Protocolo real via gateway -> NATS -> worker diagnóstico; sem contas até S1.1.
+[run]
+seed = 42
+bots = 100
+commands_per_bot = 10
+timeout_ms = 5000
+
+[assertions]
+max_command_latency_p95_ms = 150
+expected_full_snapshot_entities = 10000

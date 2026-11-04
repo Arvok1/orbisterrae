@@ -13,6 +13,11 @@ Sem equipe de QA, a rede de segurança é **automação de simulação**. Priori
 
 ## 2. Harness de bots
 
+P0.7: `pnpm bots:p0` roda `scenarios/p0.toml` por WebSocket real, gateway e
+worker via NATS. Relatório JSON e saída não zero em falhas ou orçamento de
+latência excedido. Detalhes em `tools/bot/README.md`. Login e comandos de jogo
+serão integrados em S1.1; o cenário MVP completo ainda não está disponível.
+
 - **Bot headless** (`tools/bot` ou crate `bot`) fala o mesmo protocolo do cliente.
 - **Cenários** em TOML: `scenarios/*.toml` (número de bots, reinos IA, duração simulada, metas).
 - **Relógio acelerado:** o `Clock` injetado permite avançar dias em segundos nos testes.

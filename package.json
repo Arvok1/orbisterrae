@@ -3,6 +3,7 @@
   "private": true,
   "packageManager": "pnpm@9.12.0",
   "scripts": {
+    "bots:p0": "pnpm --filter @orbis/protocol build && pnpm --filter @orbis/bot build && node tools/bot/dist/cli.js scenarios/p0.toml",
     "protocol:generate": "buf generate && cargo build -p orbis-protocol",
     "lint": "pnpm -r --if-present lint",
     "test": "pnpm -r --if-present test"
