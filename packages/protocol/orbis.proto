@@ -19,6 +19,7 @@ message Command {
     ApplyCityEdits apply_city_edits = 15;
     QueueBuilding queue_building = 16;
     CancelConstruction cancel_construction = 17;
+    AdminSnapshotRequest admin_snapshot = 30;
     CreateDesign create_design = 20;
     StartCraft start_craft = 21;
     ResolveCheckpoint resolve_checkpoint = 22;
@@ -34,6 +35,12 @@ message CityCellEdit { uint32 x = 1; uint32 y = 2; string layer = 3; string valu
 message ApplyCityEdits { string city_id = 1; uint64 expected_revision = 2; repeated CityCellEdit edits = 3; }
 message QueueBuilding { string city_id = 1; uint64 expected_revision = 2; string building_id = 3; uint32 x = 4; uint32 y = 5; uint32 orientation = 6; }
 message CancelConstruction { string city_id = 1; uint64 expected_revision = 2; string order_id = 3; }
+message AdminSnapshotRequest {
+  uint64 after_event_seq = 1; string account_id = 2; string kingdom_id = 3;
+  string city_id = 4; uint64 shard = 5; uint32 event_kind = 6;
+  bool filter_shard = 7; bool filter_event_kind = 8;
+  bool include_world = 9;
+}
 
 message RulerState {
   string id = 1; string kingdom_id = 2; LatLon pos = 3; uint32 supplies = 4;
@@ -79,6 +86,16 @@ message EntityRemove { string id = 1; }
 message ViewportSnapshot { repeated EntityUpsert entities = 1; }
 message CommandResult { string request_id = 1; bool ok = 2; string error = 3; }
 message EraChanged { uint32 era = 1; }
+message AdminEvent {
+  uint64 seq = 1; double at_ms = 2; uint64 shard = 3; uint32 kind = 4;
+  string region = 5; string account_id = 6; string kingdom_id = 7;
+  string city_id = 8; string payload_json = 9;
+}
+message AdminSnapshot {
+  repeated CityState cities = 1; repeated EntityUpsert entities = 2;
+  repeated AdminEvent events = 3; uint64 next_event_seq = 4; double generated_at_ms = 5;
+  repeated TerritoryCell territory = 6;
+}
 
 message DesignParam { string id = 1; double value = 2; string choice = 3; }
 message CurvePoint { double x = 1; double y = 2; }
@@ -98,5 +115,6 @@ message ServerMsg {
     ViewportSnapshot snapshot = 9;
     WorldSnapshot world = 10;
     CitySnapshot city = 11;
+    AdminSnapshot admin = 12;
   }
 }

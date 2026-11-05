@@ -10,8 +10,8 @@ volume isométrico.
 
 ## Sistema visual
 
-- Renderer: PixiJS 8, cenas 2D; o volume próximo é composto por formas vetoriais em tempo real.
-- Mundo distante: projeção Mercator e costas reais Natural Earth, sem deformar a geografia.
+- Renderer: Three.js para globo/camada 3D geográfica; PixiJS para HUD, símbolos e grade urbana vetorial.
+- Mundo distante: esfera com textura cartográfica própria em pergaminho escuro e hachuras; a textura Mercator é reprojetada para latitude/longitude antes de vestir o globo.
 - Escurecimento em tempo real: os PNGs de bioma/relevo permanecem intactos e são
   escurecidos via tint/filtro (ColorMatrixFilter "grim"), preservando a paleta de
   `foliageBiome`, o hash dos assets e a reprodutibilidade do pipeline.
@@ -24,8 +24,9 @@ volume isométrico.
 - Luz/materiais: silhuetas de pergaminho escuro e couro; excluir materiais fotorealistas.
 - HUD: painéis escuros com borda de ferro e acento sangue; controles sobrepostos
   e painel recolhível.
-- Câmera: mundo 2D distante e aproximação contínua até governante, território
-  e vila reais. Não há troca para uma imagem de fundo.
+- Câmera: globo em tela inteira com aproximação contínua; a curvatura e o relevo
+  real continuam visíveis ao aproximar. A camada de cidade vetorial entra no
+  extremo do zoom e a geografia vem de ETOPO/RESOLVE e hidrografia Natural Earth.
 
 ## Contrato técnico e validação
 
@@ -68,3 +69,25 @@ Tour de 296 s com pico 24 tiles, pending 0 e 139 fps final; o tour foi encerrado
 antes do resultado automático de 300 s, portanto esse resultado não é alegado.
 Memória mínima na janela final 35.905.040 B, abaixo da referência 83.851.910 B.
 Regeneração em diretório separado produziu SHA-256 idêntico para JSON e PNG.
+
+## Globo, escala e observatório administrativo (2026-11-05)
+
+O renderer Three.js cria uma esfera com malha deslocada por ETOPO e uma textura
+cartográfica escura, reprojetada deterministicamente do raster Mercator. A
+aproximação usa três faixas contínuas de câmera. Cidades aparecem como grupos
+de edifícios em miniatura; governantes e unidades usam silhuetas 3D autorais.
+PixiJS permanece como camada de interface e grade urbana local. A textura não
+é uma imagem de vila nem asset artístico de terceiros.
+
+A cidade começa em 256×256 células de 10 m (2,56 km). Layouts menores são
+ampliados mantendo coordenadas normalizadas e IDs de construção; o acesso ao
+layout persiste a migração. Território atual é H3 res8, delimitado por raio
+configurado em metros, mantendo `territory_cells` res7 durante o rollback.
+
+A conta administrativa é um papel distinto de jogador. O gateway relê o papel
+no banco para cada consulta global e registra filtros em `admin_audit`; o
+cliente só recebe todas as cidades, entidades e territórios nesse caminho.
+Conceder/revogar o papel é operação de banco controlada e não faz parte do
+cadastro público. A inspeção é somente leitura. Inspeção visual em 1280×720,
+390×844, rotação contínua do globo e soak de cinco minutos ainda são pendências
+antes de fechar esse marco.

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { CitySnapshot, EntityHandoff, WorldSnapshot } from '../dist/orbis.js';
+import { AdminSnapshot, AdminSnapshotRequest, CitySnapshot, EntityHandoff, WorldSnapshot } from '../dist/orbis.js';
 test('game snapshot and handoff retain full revisions and binary payload',()=>{
   const transfer=EntityHandoff.fromPartial({entityId:'ruler',revision:2n**64n-1n,fromShard:42n,toShard:43n,state:new Uint8Array([0,255,1])});
   assert.deepEqual(EntityHandoff.decode(EntityHandoff.encode(transfer).finish()),transfer);
@@ -17,4 +17,11 @@ test('city snapshot retains revision, RLE layers and authoritative state',()=>{
     definitions:[{id:'house',nameKey:'building.house',width:2,height:2,zones:['residential']}]
   });
   assert.deepEqual(CitySnapshot.decode(CitySnapshot.encode(snapshot).finish()),snapshot);
+});
+
+test('admin filters and live events retain 64-bit cursors',()=>{
+  const request=AdminSnapshotRequest.fromPartial({afterEventSeq:2n**64n-1n,accountId:'account',cityId:'city',shard:8n,eventKind:3,filterShard:true,filterEventKind:true,includeWorld:true});
+  assert.deepEqual(AdminSnapshotRequest.decode(AdminSnapshotRequest.encode(request).finish()),request);
+  const snapshot=AdminSnapshot.fromPartial({nextEventSeq:2n**64n-1n,events:[{seq:2n**64n-1n,shard:8n,kind:3,region:'alpes',payloadJson:'{}'}]});
+  assert.deepEqual(AdminSnapshot.decode(AdminSnapshot.encode(snapshot).finish()),snapshot);
 });

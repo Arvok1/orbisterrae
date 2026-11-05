@@ -131,3 +131,12 @@ Formato: `Tn.m` = tarefa. **Escopo** diz o que fazer; **Aceite** diz como saber 
   *Aceite:* mensagem entre cidades só chega após o mensageiro completar a rota; jogador fora da cidade não participa da assembleia local.
 - [ ] **T7.13 Moderação e privacidade de comunicação.** Bloqueio e denúncia de usuários, auditoria administrativa, retenção limitada de mensagens e fluxos de exportação/exclusão antes de aceitar usuários externos.
   *Aceite:* denúncias são revisáveis por administrador; exportação e exclusão respeitam a política de retenção documentada.
+
+## Aditivo S1.2b — globo, escala e observatório (2026-11-05)
+
+- [ ] **T1.9 Globo 3D e cartografia própria.** Three.js + HUD PixiJS; textura e hachuras autorais reprojetadas dos dados geográficos, relevo ETOPO, marcadores desenhados para cidades/governantes/unidades, LOD contínuo e seleção geográfica por raycast.
+  *Aceite:* 1280×720 e 390×844; zoom sem borrões relevantes, pan/seleção no globo, 60 fps desktop e 30 fps mobile; soak de cinco minutos.
+- [ ] **T1.10 Escala e migração.** H3 res8 com raios configurados em metros; cidade 256×256 a 10 m; expansão por tier; migração de layouts 96×96 preservando IDs e coordenadas normalizadas, com rollback res7.
+  *Aceite:* layout legado e construções sobrevivem à migração; limites/colisões continuam válidos; distribuição preserva o raio físico configurado.
+- [ ] **T1.11 Observatório administrativo.** Papel admin separado no banco, papel relido em cada requisição, snapshot sem fog, feed incremental filtrável e trilha `admin_audit`; revogação imediata.
+  *Aceite:* player recebe `admin_required`; admin obtém mapa/eventos globais; leitura auditada e filtros/cursor funcionam após reconexão.

@@ -3,7 +3,7 @@ import type { CitySnapshot } from '@orbis/protocol';
 import { project, type Point } from './projection.js';
 
 const WORLD_METERS=40_075_017;
-const CELL_METERS=4;
+const CELL_METERS=10;
 
 export function decodeRle(encoded:Uint8Array,expected:number) {
   const result:number[]=[];

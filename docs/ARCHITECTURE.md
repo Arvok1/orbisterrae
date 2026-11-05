@@ -3,7 +3,7 @@
 ## 1. Visão geral
 
 ```
-Navegador (TS/PixiJS/React)
+Navegador (TS/React/Three.js + PixiJS)
         │ WebSocket binário (protobuf)
         ▼
    Gateway (Rust) ── auth, rate limit, interest management
@@ -21,7 +21,7 @@ Navegador (TS/PixiJS/React)
 
 ## 2. Shards espaciais
 
-- Índice espacial: **H3**. Shard = conjunto de células H3 de resolução 3 (~41 mil células globais; agrupar em workers). Interesse/visibilidade usa resolução 5. Células de território usam resolução 7.
+- Índice espacial: **H3**. Shard = conjunto de células H3 de resolução 3 (~41 mil células globais; agrupar em workers). Interesse/visibilidade usa resolução 5. Células de território usam resolução 8; resolução 7 permanece disponível para rollback.
 - Cada shard tem **um dono (worker)** por vez. Estado em memória + persistência assíncrona (snapshot + log de eventos).
 - Entidades que cruzam fronteira (exército, navio, caravana) são **transferidas por mensagem** (`EntityHandoff`) com confirmação.
 - Combate na fronteira: resolvido pelo shard que contém o ponto do combate.
@@ -40,7 +40,7 @@ Navegador (TS/PixiJS/React)
 ## 4. Território (Voronoi ponderado sobre H3)
 
 - Cidade tem posição livre (lat/lon). Influência `I(c, cell) = base(c) * falloff(dist(c, cell)) * terrain_cost(cell)`.
-- Cada célula H3 res 7 (esparsa, só células reivindicadas) pertence à cidade de maior influência acima de um limiar. Atualização **incremental**: ao criar/alterar uma cidade, recalcule apenas células dentro do raio máximo.
+- Cada célula H3 res 8 (esparsa, só células reivindicadas) pertence à cidade de maior influência acima de um limiar. Raios são definidos em metros e comparados com distância geodésica; atualizações incrementais recalculam as células afetadas.
 - Disputa: célula com diferença de influência pequena entre duas cidades é "contestada" (custo extra, evento de fronteira).
 - O cliente desenha fronteiras a partir do contorno das células do dono, suavizado.
 
@@ -51,9 +51,16 @@ Navegador (TS/PixiJS/React)
 - **Neblina de guerra:** fontes de visão (cidade, exército, navio, torre, farol, aliado) com raio dependente de tecnologia. O gateway assina o cliente nas células H3 res 5 visíveis ∩ viewport e envia deltas.
 - Zoom aberto: dados agregados (fronteiras, ícones, rotas principais). Zoom fechado: entidades individuais.
 
+## 5b. Globo e visibilidade administrativa
+
+- Three.js desenha a esfera terrestre e o relevo 3D; raster de biomas/relevo é reprojetado para textura esférica com hachuras determinísticas. PixiJS permanece transparente para HUD e grade urbana. A câmera ocupa a tela nas faixas de zoom.
+- Governantes, cidades e unidades são marcadores 3D derivados do estado recebido. Movimento usa segmentos autoritativos ou snapshots amostrados pelo gateway.
+- Uma conta com `role='admin'` pode solicitar `AdminSnapshot`. O gateway relê o papel no banco a cada chamada, retorna todas as cidades/entidades/territórios sem fog e audita filtros em `admin_audit`. Jogadores recebem apenas dados do próprio reino até a implementação da visibilidade completa.
+- O feed administrativo filtra eventos por conta, reino, cidade, shard e tipo, usando cursor monotônico. Administração é observacional; congelar shards ou forçar eventos segue fora do escopo.
+
 ## 6. Cidades (grade livre + simulação probabilística)
 
-- Grade por cidade (inicia 96x96, cresce por era até 512x512). Armazenamento compacto (RLE por camada: terreno, ruas, zonas, prédios).
+- Grade por cidade (inicia 256×256, células de 10 m; tiers expansíveis por configuração). Layouts 96×96 legados são redimensionados deterministicamente mantendo posições relativas e IDs; armazenamento RLE por camada.
 - Ao mudar o layout, o servidor reconstrói o **grafo da cidade** e recalcula métricas (cache): tempo casa→trabalho, cobertura de serviços (água, saúde, religião, segurança), densidade, risco de incêndio, acesso a porto/mercado, defesa (muralhas, portões, torres, cidadela).
 - População por **classes/profissões** com taxas (nascimento, morte, produtividade, felicidade, fé). Doença, incêndio, fome, crime, revolta = **eventos probabilísticos** com chance = f(métricas).
 - O cliente mostra amostra de agentes animados gerada localmente a partir dos dados estatísticos (não vem do servidor).

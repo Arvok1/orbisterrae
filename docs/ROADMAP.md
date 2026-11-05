@@ -195,3 +195,9 @@ Isso é uma recomendação de redução de risco. A decisão de lançar sem paco
 - Harness de bots roda o cenário padrão do passe sem erros.
 - `DECISIONS.md` e docs afetados atualizados.
 - Retrospectiva curta (1 página): estimativa vs. real, dívidas técnicas, mudanças de escopo.
+
+## Aditivo de implementação — S1.2b (2026-11-05)
+
+**Globo, escala e observatório:** Three.js desenha a Terra em tela inteira com textura autoral hachurada e relevo ETOPO; PixiJS mantém cidade/HUD. Território migra para H3 res8 com raios em metros; grade urbana inicial passa a 256×256 células de 10 m, com expansão determinística de layouts existentes. O papel admin acessa snapshots sem fog e feed filtrável auditado.
+
+A base de escala, protocolo, migração aditiva, papel/auditoria e renderer já foi implementada. S1.2b permanece aberto até conferir layout legado em PostGIS, globo e movimentação em 1280×720/390×844, além de soak de cinco minutos. S1.3 fica para depois da validação deste aditivo.

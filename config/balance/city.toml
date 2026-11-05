@@ -1,6 +1,6 @@
 [grid]
-size_by_tier = [96, 160, 256, 512]
-cell_m = 4.0
+size_by_tier = [256, 384, 512, 768]
+cell_m = 10.0
 
 [simulation]
 tick_ms = 10000

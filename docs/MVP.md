@@ -6,9 +6,9 @@ Objetivo: validar o **loop completo** do jogo com todos os sistemas em versão s
 
 | Sistema | Inclui no MVP | Fica para depois |
 |---|---|---|
-| Mapa | Mundo global em baixa resolução (tiles z0–z6, H3 res 4/5), camadas terreno/água/fronteiras | Alta resolução, relevo detalhado |
-| Fundação e território | Cidade em posição livre, influência ponderada sobre H3 res 7, 4 tiers | Contestação avançada, regras regionais finas |
-| Cidade | Grade 96×96, ruas/zonas/~15 prédios, fila de construção, 3 métricas (água, densidade, defesa) | Grafo completo, 8+ métricas, agentes visuais |
+| Mapa | Globo de tela inteira, cartografia medieval sombria e relevo 3D progressivo; Three.js + HUD PixiJS | Otimização de tiles e alta densidade continuam nos passes seguintes |
+| Fundação e território | Cidade em posição livre, influência ponderada sobre H3 res 8 e raios em metros, 4 tiers | Contestação avançada, regras regionais finas |
+| Cidade | Grade inicial 256×256 com células de 10 m, ruas/zonas/~15 prédios, fila de construção, 3 métricas | Grafo completo, 8+ métricas, agentes visuais |
 | População | 4 classes, crescimento e fome, 2 eventos (fome, incêndio) | Doenças, crime, revolta |
 | Economia | 8 mercadorias, preço local, caravanas e navios, 2 a 3 hubs IA com order book simples, escambo→metal | Moeda cunhada, bancos, mercado de itens únicos completo |
 | Itens únicos | Genoma simples: cadeia de madeira em 3 etapas (abate, secagem, serragem), navio com ~8 parâmetros, lâmina com ~6, `evaluate()` simples, hash único | 40 parâmetros, metalurgia completa, inspeção, estilo, cópia |
@@ -18,7 +18,7 @@ Objetivo: validar o **loop completo** do jogo com todos os sistemas em versão s
 | Tech/eras | ~40 nós até a Idade do Bronze, domínio gradual, `civ_index` e portal de era | Difusão, perda, 9 eras completas |
 | Religião | 3 dogmas, favor básico, difusão por comércio/missão | Cismas, milagres complexos, perseguição |
 | Eventos | 5 eventos naturais, director com orçamento de adversidade básico | Narrativos e globais |
-| Rede | Gateway WebSocket, interest management por viewport, neblina de guerra básica | Distribuição multi-worker |
+| Rede | Gateway e workers separados via NATS, interest management e neblina de guerra básica; visão administrativa sem fog protegida por papel/auditoria | Operação multi-região |
 
 ## 2. Conteúdo mínimo
 

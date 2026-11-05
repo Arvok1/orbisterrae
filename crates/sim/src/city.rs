@@ -181,6 +181,54 @@ pub fn decode_rle(encoded: &[u8], expected_len: usize) -> Result<Vec<u8>, CityEr
     Ok(decoded)
 }
 
+/// Resizes an existing layout while keeping roads, zones, and buildings at the
+/// same normalized position in the city. This is used for the 96x96 -> 256x256
+/// rollout and remains deterministic for any supported grid size.
+pub fn resize_layout(layout: &mut CityLayout, target_size: u16) -> Result<(), CityError> {
+    if target_size == 0 || layout.width == 0 || layout.height == 0 {
+        return Err(CityError("invalid_city_size"));
+    }
+    if layout.width == target_size && layout.height == target_size {
+        return Ok(());
+    }
+    let old_width = usize::from(layout.width);
+    let old_height = usize::from(layout.height);
+    let old_len = old_width.saturating_mul(old_height);
+    if layout.terrain.len() != old_len
+        || layout.roads.len() != old_len
+        || layout.zones.len() != old_len
+    {
+        return Err(CityError("invalid_city_layout"));
+    }
+    let new_width = usize::from(target_size);
+    let new_len = new_width * new_width;
+    let mut terrain = vec![1; new_len];
+    let mut roads = vec![0; new_len];
+    let mut zones = vec![0; new_len];
+    for y in 0..old_height {
+        for x in 0..old_width {
+            let new_x = x * new_width / old_width;
+            let new_y = y * new_width / old_height;
+            let old = y * old_width + x;
+            let new = new_y * new_width + new_x;
+            terrain[new] = layout.terrain[old];
+            roads[new] = layout.roads[old];
+            zones[new] = layout.zones[old];
+        }
+    }
+    for building in &mut layout.buildings {
+        building.x = (usize::from(building.x) * new_width / old_width).min(new_width - 1) as u16;
+        building.y = (usize::from(building.y) * new_width / old_height).min(new_width - 1) as u16;
+    }
+    layout.width = target_size;
+    layout.height = target_size;
+    layout.terrain = terrain;
+    layout.roads = roads;
+    layout.zones = zones;
+    layout.revision += 1;
+    Ok(())
+}
+
 pub fn initial_layout(
     city: &City,
     catalog: &Catalog,
@@ -559,7 +607,7 @@ fn zone_code(zone: &str) -> Option<u8> {
 }
 
 fn index(x: u16, y: u16, width: u16) -> Result<usize, CityError> {
-    if x >= width || y >= CITY_SIZE as u16 {
+    if x >= width {
         return Err(CityError("city_cell_out_of_bounds"));
     }
     Ok(usize::from(y) * usize::from(width) + usize::from(x))
@@ -700,6 +748,27 @@ mod tests {
             layout.roads.iter().filter(|cell| **cell == 1).count(),
             CITY_SIZE
         );
+    }
+
+    #[test]
+    fn legacy_grid_expansion_preserves_building_identity_and_relative_cell() {
+        let mut layout = initial_layout(&city(), &catalog(), &balance()).expect("layout");
+        layout.width = 96;
+        layout.height = 96;
+        layout.terrain = vec![1; 96 * 96];
+        layout.roads = vec![0; 96 * 96];
+        layout.zones = vec![0; 96 * 96];
+        layout.roads[48 * 96 + 48] = 1;
+        let id = layout.buildings[0].id;
+        layout.buildings.truncate(1);
+        layout.buildings[0].x = 48;
+        layout.buildings[0].y = 47;
+        resize_layout(&mut layout, 256).expect("expand legacy grid");
+        assert_eq!((layout.width, layout.height), (256, 256));
+        assert_eq!(layout.roads[128 * 256 + 128], 1);
+        assert_eq!((layout.buildings[0].x, layout.buildings[0].y), (128, 125));
+        assert_eq!(layout.buildings[0].id, id);
+        assert_eq!(layout.revision, 2);
     }
 
     #[test]
@@ -892,8 +961,8 @@ mod tests {
         let balance = balance();
         let mut layout = initial_layout(&city(), &catalog, &balance).expect("layout");
         for index in 0..12_u128 {
-            let x = 52 + (index % 4) as u16 * 3;
-            let y = 45 + (index / 4) as u16 * 3;
+            let x = 131 + (index % 4) as u16;
+            let y = 124 + (index / 4) as u16;
             layout.buildings.push(building(100 + index, "forge", x, y));
         }
         recompute_metrics(&mut layout, &catalog).expect("metrics");
@@ -944,7 +1013,7 @@ mod tests {
             apply_edits(
                 &layout,
                 layout.revision,
-                &[edit(96, 0, "road", "road")],
+                &[edit(CITY_SIZE as u16, 0, "road", "road")],
                 &catalog
             ),
             Err(CityError("city_cell_out_of_bounds"))

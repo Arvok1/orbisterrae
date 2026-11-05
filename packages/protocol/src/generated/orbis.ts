@@ -30,6 +30,7 @@ export interface Command {
     | { $case: "applyCityEdits"; applyCityEdits: ApplyCityEdits }
     | { $case: "queueBuilding"; queueBuilding: QueueBuilding }
     | { $case: "cancelConstruction"; cancelConstruction: CancelConstruction }
+    | { $case: "adminSnapshot"; adminSnapshot: AdminSnapshotRequest }
     | { $case: "createDesign"; createDesign: CreateDesign }
     | { $case: "startCraft"; startCraft: StartCraft }
     | { $case: "resolveCheckpoint"; resolveCheckpoint: ResolveCheckpoint }
@@ -86,6 +87,18 @@ export interface CancelConstruction {
   cityId: string;
   expectedRevision: bigint;
   orderId: string;
+}
+
+export interface AdminSnapshotRequest {
+  afterEventSeq: bigint;
+  accountId: string;
+  kingdomId: string;
+  cityId: string;
+  shard: bigint;
+  eventKind: number;
+  filterShard: boolean;
+  filterEventKind: boolean;
+  includeWorld: boolean;
 }
 
 export interface RulerState {
@@ -244,6 +257,27 @@ export interface EraChanged {
   era: number;
 }
 
+export interface AdminEvent {
+  seq: bigint;
+  atMs: number;
+  shard: bigint;
+  kind: number;
+  region: string;
+  accountId: string;
+  kingdomId: string;
+  cityId: string;
+  payloadJson: string;
+}
+
+export interface AdminSnapshot {
+  cities: CityState[];
+  entities: EntityUpsert[];
+  events: AdminEvent[];
+  nextEventSeq: bigint;
+  generatedAtMs: number;
+  territory: TerritoryCell[];
+}
+
 export interface DesignParam {
   id: string;
   value: number;
@@ -295,6 +329,7 @@ export interface ServerMsg {
     | { $case: "snapshot"; snapshot: ViewportSnapshot }
     | { $case: "world"; world: WorldSnapshot }
     | { $case: "city"; city: CitySnapshot }
+    | { $case: "admin"; admin: AdminSnapshot }
     | undefined;
 }
 
@@ -477,6 +512,9 @@ export const Command: MessageFns<Command> = {
       case "cancelConstruction":
         CancelConstruction.encode(message.kind.cancelConstruction, writer.uint32(138).fork()).join();
         break;
+      case "adminSnapshot":
+        AdminSnapshotRequest.encode(message.kind.adminSnapshot, writer.uint32(242).fork()).join();
+        break;
       case "createDesign":
         CreateDesign.encode(message.kind.createDesign, writer.uint32(162).fork()).join();
         break;
@@ -569,6 +607,17 @@ export const Command: MessageFns<Command> = {
           message.kind = {
             $case: "cancelConstruction",
             cancelConstruction: CancelConstruction.decode(reader, reader.uint32()),
+          };
+          continue;
+        }
+        case 30: {
+          if (tag !== 242) {
+            break;
+          }
+
+          message.kind = {
+            $case: "adminSnapshot",
+            adminSnapshot: AdminSnapshotRequest.decode(reader, reader.uint32()),
           };
           continue;
         }
@@ -668,6 +717,15 @@ export const Command: MessageFns<Command> = {
           message.kind = {
             $case: "cancelConstruction",
             cancelConstruction: CancelConstruction.fromPartial(object.kind.cancelConstruction),
+          };
+        }
+        break;
+      }
+      case "adminSnapshot": {
+        if (object.kind?.adminSnapshot !== undefined && object.kind?.adminSnapshot !== null) {
+          message.kind = {
+            $case: "adminSnapshot",
+            adminSnapshot: AdminSnapshotRequest.fromPartial(object.kind.adminSnapshot),
           };
         }
         break;
@@ -1313,6 +1371,164 @@ export const CancelConstruction: MessageFns<CancelConstruction> = {
     message.cityId = object.cityId ?? "";
     message.expectedRevision = object.expectedRevision ?? 0n;
     message.orderId = object.orderId ?? "";
+    return message;
+  },
+};
+
+function createBaseAdminSnapshotRequest(): AdminSnapshotRequest {
+  return {
+    afterEventSeq: 0n,
+    accountId: "",
+    kingdomId: "",
+    cityId: "",
+    shard: 0n,
+    eventKind: 0,
+    filterShard: false,
+    filterEventKind: false,
+    includeWorld: false,
+  };
+}
+
+export const AdminSnapshotRequest: MessageFns<AdminSnapshotRequest> = {
+  encode(message: AdminSnapshotRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.afterEventSeq !== 0n) {
+      if (BigInt.asUintN(64, message.afterEventSeq) !== message.afterEventSeq) {
+        throw new globalThis.Error("value provided for field message.afterEventSeq of type uint64 too large");
+      }
+      writer.uint32(8).uint64(message.afterEventSeq);
+    }
+    if (message.accountId !== "") {
+      writer.uint32(18).string(message.accountId);
+    }
+    if (message.kingdomId !== "") {
+      writer.uint32(26).string(message.kingdomId);
+    }
+    if (message.cityId !== "") {
+      writer.uint32(34).string(message.cityId);
+    }
+    if (message.shard !== 0n) {
+      if (BigInt.asUintN(64, message.shard) !== message.shard) {
+        throw new globalThis.Error("value provided for field message.shard of type uint64 too large");
+      }
+      writer.uint32(40).uint64(message.shard);
+    }
+    if (message.eventKind !== 0) {
+      writer.uint32(48).uint32(message.eventKind);
+    }
+    if (message.filterShard !== false) {
+      writer.uint32(56).bool(message.filterShard);
+    }
+    if (message.filterEventKind !== false) {
+      writer.uint32(64).bool(message.filterEventKind);
+    }
+    if (message.includeWorld !== false) {
+      writer.uint32(72).bool(message.includeWorld);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AdminSnapshotRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAdminSnapshotRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.afterEventSeq = reader.uint64() as bigint;
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.accountId = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.kingdomId = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.cityId = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.shard = reader.uint64() as bigint;
+          continue;
+        }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.eventKind = reader.uint32();
+          continue;
+        }
+        case 7: {
+          if (tag !== 56) {
+            break;
+          }
+
+          message.filterShard = reader.bool();
+          continue;
+        }
+        case 8: {
+          if (tag !== 64) {
+            break;
+          }
+
+          message.filterEventKind = reader.bool();
+          continue;
+        }
+        case 9: {
+          if (tag !== 72) {
+            break;
+          }
+
+          message.includeWorld = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<AdminSnapshotRequest>, I>>(base?: I): AdminSnapshotRequest {
+    return AdminSnapshotRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<AdminSnapshotRequest>, I>>(object: I): AdminSnapshotRequest {
+    const message = createBaseAdminSnapshotRequest();
+    message.afterEventSeq = object.afterEventSeq ?? 0n;
+    message.accountId = object.accountId ?? "";
+    message.kingdomId = object.kingdomId ?? "";
+    message.cityId = object.cityId ?? "";
+    message.shard = object.shard ?? 0n;
+    message.eventKind = object.eventKind ?? 0;
+    message.filterShard = object.filterShard ?? false;
+    message.filterEventKind = object.filterEventKind ?? false;
+    message.includeWorld = object.includeWorld ?? false;
     return message;
   },
 };
@@ -3214,6 +3430,273 @@ export const EraChanged: MessageFns<EraChanged> = {
   },
 };
 
+function createBaseAdminEvent(): AdminEvent {
+  return {
+    seq: 0n,
+    atMs: 0,
+    shard: 0n,
+    kind: 0,
+    region: "",
+    accountId: "",
+    kingdomId: "",
+    cityId: "",
+    payloadJson: "",
+  };
+}
+
+export const AdminEvent: MessageFns<AdminEvent> = {
+  encode(message: AdminEvent, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.seq !== 0n) {
+      if (BigInt.asUintN(64, message.seq) !== message.seq) {
+        throw new globalThis.Error("value provided for field message.seq of type uint64 too large");
+      }
+      writer.uint32(8).uint64(message.seq);
+    }
+    if (message.atMs !== 0) {
+      writer.uint32(17).double(message.atMs);
+    }
+    if (message.shard !== 0n) {
+      if (BigInt.asUintN(64, message.shard) !== message.shard) {
+        throw new globalThis.Error("value provided for field message.shard of type uint64 too large");
+      }
+      writer.uint32(24).uint64(message.shard);
+    }
+    if (message.kind !== 0) {
+      writer.uint32(32).uint32(message.kind);
+    }
+    if (message.region !== "") {
+      writer.uint32(42).string(message.region);
+    }
+    if (message.accountId !== "") {
+      writer.uint32(50).string(message.accountId);
+    }
+    if (message.kingdomId !== "") {
+      writer.uint32(58).string(message.kingdomId);
+    }
+    if (message.cityId !== "") {
+      writer.uint32(66).string(message.cityId);
+    }
+    if (message.payloadJson !== "") {
+      writer.uint32(74).string(message.payloadJson);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AdminEvent {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAdminEvent();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.seq = reader.uint64() as bigint;
+          continue;
+        }
+        case 2: {
+          if (tag !== 17) {
+            break;
+          }
+
+          message.atMs = reader.double();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.shard = reader.uint64() as bigint;
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.kind = reader.uint32();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.region = reader.string();
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.accountId = reader.string();
+          continue;
+        }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.kingdomId = reader.string();
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.cityId = reader.string();
+          continue;
+        }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.payloadJson = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<AdminEvent>, I>>(base?: I): AdminEvent {
+    return AdminEvent.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<AdminEvent>, I>>(object: I): AdminEvent {
+    const message = createBaseAdminEvent();
+    message.seq = object.seq ?? 0n;
+    message.atMs = object.atMs ?? 0;
+    message.shard = object.shard ?? 0n;
+    message.kind = object.kind ?? 0;
+    message.region = object.region ?? "";
+    message.accountId = object.accountId ?? "";
+    message.kingdomId = object.kingdomId ?? "";
+    message.cityId = object.cityId ?? "";
+    message.payloadJson = object.payloadJson ?? "";
+    return message;
+  },
+};
+
+function createBaseAdminSnapshot(): AdminSnapshot {
+  return { cities: [], entities: [], events: [], nextEventSeq: 0n, generatedAtMs: 0, territory: [] };
+}
+
+export const AdminSnapshot: MessageFns<AdminSnapshot> = {
+  encode(message: AdminSnapshot, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.cities) {
+      CityState.encode(v!, writer.uint32(10).fork()).join();
+    }
+    for (const v of message.entities) {
+      EntityUpsert.encode(v!, writer.uint32(18).fork()).join();
+    }
+    for (const v of message.events) {
+      AdminEvent.encode(v!, writer.uint32(26).fork()).join();
+    }
+    if (message.nextEventSeq !== 0n) {
+      if (BigInt.asUintN(64, message.nextEventSeq) !== message.nextEventSeq) {
+        throw new globalThis.Error("value provided for field message.nextEventSeq of type uint64 too large");
+      }
+      writer.uint32(32).uint64(message.nextEventSeq);
+    }
+    if (message.generatedAtMs !== 0) {
+      writer.uint32(41).double(message.generatedAtMs);
+    }
+    for (const v of message.territory) {
+      TerritoryCell.encode(v!, writer.uint32(50).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AdminSnapshot {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAdminSnapshot();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.cities.push(CityState.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.entities.push(EntityUpsert.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.events.push(AdminEvent.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.nextEventSeq = reader.uint64() as bigint;
+          continue;
+        }
+        case 5: {
+          if (tag !== 41) {
+            break;
+          }
+
+          message.generatedAtMs = reader.double();
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.territory.push(TerritoryCell.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<AdminSnapshot>, I>>(base?: I): AdminSnapshot {
+    return AdminSnapshot.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<AdminSnapshot>, I>>(object: I): AdminSnapshot {
+    const message = createBaseAdminSnapshot();
+    message.cities = object.cities?.map((e) => CityState.fromPartial(e)) || [];
+    message.entities = object.entities?.map((e) => EntityUpsert.fromPartial(e)) || [];
+    message.events = object.events?.map((e) => AdminEvent.fromPartial(e)) || [];
+    message.nextEventSeq = object.nextEventSeq ?? 0n;
+    message.generatedAtMs = object.generatedAtMs ?? 0;
+    message.territory = object.territory?.map((e) => TerritoryCell.fromPartial(e)) || [];
+    return message;
+  },
+};
+
 function createBaseDesignParam(): DesignParam {
   return { id: "", value: 0, choice: "" };
 }
@@ -3723,6 +4206,9 @@ export const ServerMsg: MessageFns<ServerMsg> = {
       case "city":
         CitySnapshot.encode(message.kind.city, writer.uint32(90).fork()).join();
         break;
+      case "admin":
+        AdminSnapshot.encode(message.kind.admin, writer.uint32(98).fork()).join();
+        break;
     }
     return writer;
   },
@@ -3798,6 +4284,14 @@ export const ServerMsg: MessageFns<ServerMsg> = {
           message.kind = { $case: "city", city: CitySnapshot.decode(reader, reader.uint32()) };
           continue;
         }
+        case 12: {
+          if (tag !== 98) {
+            break;
+          }
+
+          message.kind = { $case: "admin", admin: AdminSnapshot.decode(reader, reader.uint32()) };
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -3858,6 +4352,12 @@ export const ServerMsg: MessageFns<ServerMsg> = {
       case "city": {
         if (object.kind?.city !== undefined && object.kind?.city !== null) {
           message.kind = { $case: "city", city: CitySnapshot.fromPartial(object.kind.city) };
+        }
+        break;
+      }
+      case "admin": {
+        if (object.kind?.admin !== undefined && object.kind?.admin !== null) {
+          message.kind = { $case: "admin", admin: AdminSnapshot.fromPartial(object.kind.admin) };
         }
         break;
       }

@@ -5,11 +5,11 @@ use orbis_gateway::{
     world_service::Context,
 };
 use orbis_protocol::{
-    command, server_msg, ApplyCityEdits, CancelConstruction, CityCellEdit, Command, FoundCity,
-    InspectCity, LatLon, MoveRuler, QueueBuilding, SetViewport,
+    command, server_msg, AdminSnapshotRequest, ApplyCityEdits, CancelConstruction, CityCellEdit,
+    Command, FoundCity, InspectCity, LatLon, MoveRuler, QueueBuilding, SetViewport,
 };
 use orbis_sim::world;
-use sqlx::{postgres::PgConnectOptions, types::Json, Row};
+use sqlx::{postgres::PgConnectOptions, types::Json, ConnectOptions, Row};
 use std::{str::FromStr, sync::Arc};
 use uuid::Uuid;
 
@@ -49,14 +49,8 @@ async fn restart_replays_pending_actions_once_and_handoff_preserves_entity(
     sqlx::query(&format!("CREATE DATABASE {name}"))
         .execute(&admin)
         .await?;
-    let pool = sqlx::postgres::PgPoolOptions::new()
-        .max_connections(8)
-        .connect_with(options.database(&name))
-        .await?;
-    sqlx::migrate!("../../infra/migrations").run(&pool).await?;
-    let mut context = Context::connect().await?;
-    context.pool.close().await;
-    context.pool = pool;
+    let test_url = options.database(&name).to_url_lossy().to_string();
+    let mut context = Context::connect_url(&test_url).await?;
     let result = std::panic::AssertUnwindSafe(exercise(&mut context))
         .catch_unwind()
         .await;
@@ -271,7 +265,7 @@ async fn exercise(context: &mut Context) -> Result<(), Box<dyn std::error::Error
         panic!("missing city snapshot")
     };
     assert!(initial_city.editable);
-    assert_eq!(initial_city.width, 96);
+    assert_eq!(initial_city.width, 256);
     assert_eq!(initial_city.buildings.len(), 3);
     let initial_total = initial_city
         .population
@@ -630,5 +624,65 @@ async fn exercise(context: &mut Context) -> Result<(), Box<dyn std::error::Error
         .fetch_one(&context.pool)
         .await?;
     assert!(logs >= 4, "world and city actions are logged: {logs}");
+
+    let denied = context
+        .admin_snapshot(
+            account,
+            &AdminSnapshotRequest {
+                include_world: true,
+                ..Default::default()
+            },
+            3_072_000,
+        )
+        .await;
+    assert!(matches!(
+        denied,
+        Err(orbis_gateway::world_service::ServiceError::Unauthorized)
+    ));
+    sqlx::query("UPDATE accounts SET role='admin' WHERE id=$1")
+        .bind(account.0)
+        .execute(&context.pool)
+        .await?;
+    let admin = context
+        .admin_snapshot(
+            account,
+            &AdminSnapshotRequest {
+                include_world: true,
+                ..Default::default()
+            },
+            3_072_001,
+        )
+        .await?;
+    let Some(server_msg::Kind::Admin(snapshot)) = admin.kind else {
+        panic!("admin snapshot missing")
+    };
+    assert!(!snapshot.cities.is_empty(), "admin sees global city state");
+    let audited: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM admin_audit WHERE account_id=$1 AND action='world_snapshot'",
+    )
+    .bind(account.0)
+    .fetch_one(&context.pool)
+    .await?;
+    assert_eq!(audited, 1, "successful no-fog query is audited");
+    sqlx::query("UPDATE accounts SET role='player' WHERE id=$1")
+        .bind(account.0)
+        .execute(&context.pool)
+        .await?;
+    let revoked = context
+        .admin_snapshot(
+            account,
+            &AdminSnapshotRequest {
+                ..Default::default()
+            },
+            3_072_002,
+        )
+        .await;
+    assert!(
+        matches!(
+            revoked,
+            Err(orbis_gateway::world_service::ServiceError::Unauthorized)
+        ),
+        "revoked role takes effect on the next query"
+    );
     Ok(())
 }

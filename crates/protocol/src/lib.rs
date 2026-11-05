@@ -86,4 +86,43 @@ mod tests {
             snapshot
         );
     }
+
+    #[test]
+    fn administrative_snapshot_and_filters_round_trip() {
+        let request = AdminSnapshotRequest {
+            after_event_seq: u64::MAX,
+            account_id: "account".into(),
+            kingdom_id: "kingdom".into(),
+            city_id: "city".into(),
+            shard: 8,
+            event_kind: 3,
+            filter_shard: true,
+            filter_event_kind: true,
+            include_world: true,
+        };
+        assert_eq!(
+            AdminSnapshotRequest::decode(request.encode_to_vec().as_slice()).unwrap(),
+            request
+        );
+        let snapshot = AdminSnapshot {
+            events: vec![AdminEvent {
+                seq: u64::MAX,
+                at_ms: 1_790_000_000_000.0,
+                shard: 8,
+                kind: 3,
+                region: "alpes".into(),
+                account_id: "account".into(),
+                kingdom_id: "kingdom".into(),
+                city_id: "city".into(),
+                payload_json: "{}".into(),
+            }],
+            next_event_seq: u64::MAX,
+            generated_at_ms: 1_790_000_000_000.0,
+            ..Default::default()
+        };
+        assert_eq!(
+            AdminSnapshot::decode(snapshot.encode_to_vec().as_slice()).unwrap(),
+            snapshot
+        );
+    }
 }

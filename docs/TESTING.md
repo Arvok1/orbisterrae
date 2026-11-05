@@ -64,3 +64,7 @@ produção permanece o de `config/balance/city.toml`.
 - Jobs: `fmt`, `clippy -D warnings`, `cargo test --workspace`, `pnpm lint/test`, validadores de dados (`tech`, `craft`, `balance`).
 - **Nightly:** soak de 7 dias simulados (200 bots + 100 IA) com relatório de métricas; falha se sair dos limites.
 - Benchmarks (criterion) com limite de regressão (alerta se piorar > 20%).
+
+## S1.2b: globo, escala e permissões administrativas
+
+Round-trip de `AdminSnapshotRequest`/`AdminSnapshot` em Rust/TypeScript; teste de expansão 96→256 preserva IDs/posições; teste H3 confirma res8 e limites por distância em metros. O teste PostGIS ignorado verifica negação de player, leitura global pelo admin, gravação em `admin_audit` e revogação imediata. Conferência visual desktop/mobile e soak de cinco minutos são aceites manuais.

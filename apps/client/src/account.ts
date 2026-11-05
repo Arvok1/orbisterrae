@@ -1,5 +1,5 @@
 import type { Coordinate } from './map/projection.js';
-export interface LocalSession {token:string;username:string;accountId:string}
+export interface LocalSession {token:string;username:string;accountId:string;role:'player'|'admin'}
 export function storedSession(): LocalSession | null {
   if (typeof window==='undefined') return null;
   try {
@@ -10,7 +10,8 @@ export function storedSession(): LocalSession | null {
 function sessionValue(value:unknown): LocalSession | null {
   if (!value || typeof value!=='object') return null;
   if ('token' in value && typeof value.token==='string' && 'username' in value && typeof value.username==='string'
-      && 'accountId' in value && typeof value.accountId==='string') return {token:value.token,username:value.username,accountId:value.accountId};
+      && 'accountId' in value && typeof value.accountId==='string') return {token:value.token,username:value.username,accountId:value.accountId,
+        role:'role' in value && value.role==='admin'?'admin':'player'};
   return null;
 }
 export async function enterWorld(username:string,password:string,register:boolean,start:Coordinate|null): Promise<LocalSession> {

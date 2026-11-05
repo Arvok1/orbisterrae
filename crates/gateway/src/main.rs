@@ -149,14 +149,42 @@ async fn session(mut socket: WebSocket, app: App) {
                 let response = if let Some(command::Kind::Authenticate(auth)) = &command.kind {
                     account = None;
                     match app.auth.tokens.verify(&auth.token) {
-                        Ok(id) if app.world.actor_shard(id).await.is_ok() => {
-                            account = Some(id);
-                            result(&command.request_id, true, "")
+                        Ok(id) => {
+                            let role: Option<String> =
+                                sqlx::query_scalar("SELECT role FROM accounts WHERE id=$1")
+                                    .bind(id.0)
+                                    .fetch_optional(&app.world.pool)
+                                    .await
+                                    .ok()
+                                    .flatten();
+                            if role.as_deref() == Some("admin")
+                                || (role.as_deref() == Some("player")
+                                    && app.world.actor_shard(id).await.is_ok())
+                            {
+                                account = Some(id);
+                                result(&command.request_id, true, "")
+                            } else {
+                                result(&command.request_id, false, "authentication_required")
+                            }
                         }
                         _ => result(&command.request_id, false, "authentication_required"),
                     }
                 } else if let Some(id) = account {
-                    forward(&app, id, &data, command).await
+                    if let Some(command::Kind::AdminSnapshot(request)) = &command.kind {
+                        app.world
+                            .admin_snapshot(id, request, now_ms())
+                            .await
+                            .unwrap_or_else(|error| {
+                                if matches!(&error, ServiceError::Unauthorized) {
+                                    result(&command.request_id, false, "admin_required")
+                                } else {
+                                    tracing::error!(%error, "admin snapshot failed");
+                                    result(&command.request_id, false, "admin_unavailable")
+                                }
+                            })
+                    } else {
+                        forward(&app, id, &data, command).await
+                    }
                 } else if matches!(command.kind, Some(command::Kind::Viewport(_))) {
                     match tokio::time::timeout(
                         Duration::from_secs(3),

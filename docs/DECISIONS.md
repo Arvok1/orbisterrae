@@ -2,8 +2,8 @@
 
 | # | Data | Decisão | Motivo | Status |
 |---|---|---|---|---|
-| 1 | 2026-11-02 | Mapa 2D estilizado em PixiJS, terreno derivado de dados reais | Controle visual e desempenho com muitas entidades | Aceita |
-| 2 | 2026-11-02 | Cidades em posição livre, território por influência ponderada (Voronoi) sobre H3 res 7 | Fronteiras orgânicas, cálculo incremental barato | Aceita |
+| 1 | 2026-11-02 | Mapa 2D estilizado em PixiJS, terreno derivado de dados reais | Controle visual e desempenho com muitas entidades | Substituída pela decisão 25 |
+| 2 | 2026-11-02 | Cidades em posição livre, território por influência ponderada (Voronoi) sobre H3 res 7 | Fronteiras orgânicas, cálculo incremental barato | Escala atualizada pela decisão 26 |
 | 3 | 2026-11-02 | Mundo persistente, calendário acelerado, eras globais por índice civilizacional + tempo mínimo | Lentidão deliberada e interdependência | Aceita |
 | 4 | 2026-11-02 | Economia local física + hubs com order book + hubs IA iniciais | Liquidez inicial e risco de rota | Aceita |
 | 5 | 2026-11-02 | IA com simulação completa, mesma API de comandos, Utility AI | Justiça e consistência | Aceita |
@@ -26,6 +26,9 @@
 | 22 | 2026-11-03 | Mundos de desenvolvimento e alpha podem ser reiniciados; primeiro mundo persistente começa no beta fechado | Permite evolução rápida sem prometer persistência antes da validação | Aceita |
 | 23 | 2026-11-03 | Antes do beta: governante móvel, assembleias locais, correspondência por mensageiros físicos e moderação com bloqueio, denúncia e auditoria | Comunicação é parte da simulação e precisa de proteção antes de usuários externos | Aceita |
 | 24 | 2026-11-03 | Guildas/federações e monetização ficam pós-beta | Mantém o beta focado no loop estratégico e na retenção | Aceita |
+| 25 | 2026-11-05 | Three.js renderiza globo e relevo 3D; PixiJS continua responsável por HUD e símbolos; textura escura autoral é reprojetada do raster geográfico | Curvatura contínua, maior leitura ao aproximar e preservação do cliente atual | Aceita |
+| 26 | 2026-11-05 | Território muda para H3 res8 com raios em metros; cidade inicial mede 256×256 células de 10 m, com migração normalizada e rollback H3 res7 | Mais células de ocupação sem reduzir a referência física do território; layouts antigos continuam recuperáveis | Aceita |
+| 27 | 2026-11-05 | Visão global sem fog exige papel `admin` lido do banco em cada consulta, feed filtrável e auditoria persistente | Separar observabilidade privilegiada da visão do jogador e permitir revogação imediata | Aceita |
 
 ## Em aberto
 

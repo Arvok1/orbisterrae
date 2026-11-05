@@ -133,6 +133,15 @@ CREATE TABLE item_knowledge (             -- o que cada reino sabe sobre as prop
 CREATE TABLE world_state (key TEXT PRIMARY KEY, value JSONB NOT NULL);  -- era atual, civ_index, versões de dados
 ```
 
+Territórios novos usam `territory_cells_res8` (H3 res8); `territory_cells`
+permanece durante a janela de retorno da migração. A grade urbana inicial é
+256×256 com célula de 10 m. Layouts 96×96 existentes são ampliados de forma
+determinística no primeiro acesso ao layout, conservando IDs e posições normalizadas.
+
+Contas têm papel `player` por padrão. Conceder/revogar acesso administrativo é
+uma operação controlada no banco (`UPDATE accounts SET role='admin' WHERE id=...`);
+cada consulta global grava filtros e identidade em `admin_audit`.
+
 ## Protobuf (esboço, `packages/protocol/orbis.proto`)
 
 ```proto
@@ -174,3 +183,5 @@ message ServerMsg {
   }
 }
 ```
+
+Layouts antigos são ampliados deterministicamente no primeiro acesso, não na instalação da migração. IDs e posições normalizadas permanecem, enquanto `grid_version` registra a versão do layout.

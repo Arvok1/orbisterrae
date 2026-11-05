@@ -352,22 +352,22 @@ pub struct TerritoryBalance {
 pub struct Influence {
     pub base_by_tier: Vec<f64>,
     pub falloff_exponent: f64,
-    pub max_radius_cells: Vec<u32>,
+    pub max_radius_m: Vec<f64>,
     pub min_owner_influence: f64,
 }
 impl TerritoryBalance {
     pub fn validate(&self) -> Result<(), GameError> {
         let influence = &self.influence;
         if influence.base_by_tier.len() != 4
-            || influence.max_radius_cells.len() != 4
+            || influence.max_radius_m.len() != 4
             || influence
                 .base_by_tier
                 .iter()
                 .any(|v| !v.is_finite() || *v <= 0.0)
             || influence
-                .max_radius_cells
+                .max_radius_m
                 .iter()
-                .any(|v| *v == 0 || *v > 100)
+                .any(|v| !v.is_finite() || *v <= 0.0)
             || !influence.falloff_exponent.is_finite()
             || influence.falloff_exponent <= 0.0
             || !influence.min_owner_influence.is_finite()
@@ -382,20 +382,24 @@ impl TerritoryBalance {
 pub fn footprint(city: &City, balance: &TerritoryBalance, geo: &Geography) -> Vec<(u64, f64)> {
     let center = LatLng::new(city.pos.lat, city.pos.lon)
         .expect("valid city")
-        .to_cell(Resolution::Seven);
+        .to_cell(Resolution::Eight);
     let tier = city.tier.min(balance.influence.base_by_tier.len() - 1);
+    let radius_m = balance.influence.max_radius_m[tier];
+    let radius_cells = (radius_m / Resolution::Eight.edge_length_m()).ceil() as u32;
     center
-        .grid_disk::<Vec<_>>(balance.influence.max_radius_cells[tier])
+        .grid_disk::<Vec<_>>(radius_cells)
         .into_iter()
         .filter_map(|cell| {
             let p = LatLng::from(cell);
-            if !geo.is_land(Position {
+            let position = Position {
                 lat: p.lat(),
                 lon: p.lng(),
-            }) {
+            };
+            let distance_m = city.pos.distance_m(position);
+            if distance_m > radius_m || !geo.is_land(position) {
                 return None;
             }
-            let distance = center.grid_distance(cell).ok()? as f64;
+            let distance = distance_m / Resolution::Seven.edge_length_m();
             let influence = balance.influence.base_by_tier[tier]
                 / (1.0 + distance).powf(balance.influence.falloff_exponent);
             (influence >= balance.influence.min_owner_influence)
@@ -427,19 +431,30 @@ pub fn territory(
         let candidates = if let Some(cells) = &affected_land {
             let center = LatLng::new(city.pos.lat, city.pos.lon)
                 .expect("valid city")
-                .to_cell(Resolution::Seven);
+                .to_cell(Resolution::Eight);
             let tier = city.tier.min(balance.influence.base_by_tier.len() - 1);
+            let radius_m = balance.influence.max_radius_m[tier];
             cells
                 .iter()
                 .filter_map(|id| {
                     let distance = center
                         .grid_distance(CellIndex::try_from(*id).expect("validated H3 cell"))
                         .ok()?;
-                    if distance < 0 || distance as u32 > balance.influence.max_radius_cells[tier] {
+                    if distance < 0 {
                         return None;
                     }
+                    let cell = CellIndex::try_from(*id).ok()?;
+                    let p = LatLng::from(cell);
+                    let distance_m = city.pos.distance_m(Position {
+                        lat: p.lat(),
+                        lon: p.lng(),
+                    });
+                    if distance_m > radius_m {
+                        return None;
+                    }
+                    let distance = distance_m / Resolution::Seven.edge_length_m();
                     let influence = balance.influence.base_by_tier[tier]
-                        / (1.0 + distance as f64).powf(balance.influence.falloff_exponent);
+                        / (1.0 + distance).powf(balance.influence.falloff_exponent);
                     (influence >= balance.influence.min_owner_influence).then_some((*id, influence))
                 })
                 .collect::<Vec<_>>()
@@ -465,4 +480,49 @@ pub fn boundary(cell: u64) -> Vec<Position> {
             lon: p.lng(),
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use uuid::Uuid;
+
+    #[test]
+    fn territory_uses_resolution_eight_and_obeys_meter_radius() {
+        let geography = Geography::from_json(
+            r#"{"coordinates":[[[[-15,-15],[15,-15],[15,15],[-15,15],[-15,-15]]]]}"#,
+            r#"{"rivers":[],"lakes":[]}"#,
+        )
+        .expect("geography");
+        let city = City {
+            id: CityId(Uuid::from_u128(1)),
+            kingdom: orbis_core::world::KingdomId(Uuid::from_u128(2)),
+            name: "Vila de teste".into(),
+            pos: Position { lat: 0.0, lon: 0.0 },
+            tier: 0,
+            ready_at_ms: 0,
+            active: true,
+            population: 10,
+        };
+        let balance = TerritoryBalance {
+            influence: Influence {
+                base_by_tier: vec![2.0, 4.0, 8.0, 16.0],
+                falloff_exponent: 1.5,
+                max_radius_m: vec![7_000.0, 14_000.0, 29_000.0, 58_000.0],
+                min_owner_influence: 0.05,
+            },
+        };
+        let cells = footprint(&city, &balance, &geography);
+        assert!(!cells.is_empty());
+        for (cell, _) in cells {
+            let index = CellIndex::try_from(cell).expect("H3 index");
+            assert_eq!(index.resolution(), Resolution::Eight);
+            let center = LatLng::from(index);
+            let position = Position {
+                lat: center.lat(),
+                lon: center.lng(),
+            };
+            assert!(city.pos.distance_m(position) <= 7_000.0);
+        }
+    }
 }

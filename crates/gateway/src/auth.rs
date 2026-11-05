@@ -93,6 +93,7 @@ pub struct Session {
     pub token: String,
     pub username: String,
     pub account_id: Uuid,
+    pub role: String,
 }
 
 pub struct Auth {
@@ -130,7 +131,7 @@ impl Auth {
             .acquire_owned()
             .await
             .map_err(|_| ServiceError::Unauthorized)?;
-        let account = if register {
+        let (account, role) = if register {
             let position = credentials.start.unwrap_or(context.balance.spawn);
             if !context.geo.is_land(position) {
                 return Err(ServiceError::BadInput("land_required"));
@@ -193,9 +194,9 @@ impl Auth {
             .execute(&mut *tx)
             .await?;
             tx.commit().await?;
-            account
+            (account, "player".to_owned())
         } else {
-            let row = sqlx::query("SELECT id,password_hash FROM accounts WHERE username=$1")
+            let row = sqlx::query("SELECT id,password_hash,role FROM accounts WHERE username=$1")
                 .bind(&username)
                 .fetch_optional(&context.pool)
                 .await?
@@ -215,12 +216,13 @@ impl Auth {
             if !valid {
                 return Err(ServiceError::Unauthorized);
             }
-            AccountId(row.try_get("id")?)
+            (AccountId(row.try_get("id")?), row.try_get("role")?)
         };
         Ok(Session {
             token: self.tokens.issue(account, now_ms / 1000)?,
             username,
             account_id: account.0,
+            role,
         })
     }
 }

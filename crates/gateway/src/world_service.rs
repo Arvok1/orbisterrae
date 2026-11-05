@@ -4,15 +4,15 @@ use orbis_core::{
     world::{AccountId, Action, City, CityId, Position, Ruler},
 };
 use orbis_protocol::{
-    command, server_msg, BuildingDefinition as WireBuildingDefinition, BuildingState,
-    CityEventState, CityMetrics, CitySnapshot, CityState, Command, CommandResult,
-    ConstructionState, LatLon, MoveSegment, PopulationState, RulerState, ServerMsg, TerritoryCell,
-    WorldSnapshot,
+    command, server_msg, AdminEvent, AdminSnapshot, AdminSnapshotRequest,
+    BuildingDefinition as WireBuildingDefinition, BuildingState, CityEventState, CityMetrics,
+    CitySnapshot, CityState, Command, CommandResult, ConstructionState, LatLon, MoveSegment,
+    PopulationState, RulerState, ServerMsg, TerritoryCell, WorldSnapshot,
 };
 use orbis_sim::city::{self, Catalog as CityCatalog};
 use orbis_sim::world::{self, Balance, GameError, Geography, TerritoryBalance, VillageOrder};
 use prost::Message;
-use sqlx::{types::Json, PgConnection, PgPool, Row};
+use sqlx::{types::Json, PgConnection, PgPool, QueryBuilder, Row};
 use std::{collections::BTreeSet, sync::Arc};
 use uuid::Uuid;
 
@@ -128,11 +128,22 @@ impl Context {
                     .map_err(|_| ServiceError::BadInput("invalid_viewport"))?;
             }
             let cities = load_cities(&mut tx).await?;
-            let rows=sqlx::query("SELECT t.h3_res7,t.city_id FROM territory_cells t JOIN cities c ON c.id=t.city_id WHERE c.kingdom_id=$1").bind(ruler.kingdom.0).fetch_all(&mut *tx).await?;
+            let has_res8: bool =
+                sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM territory_cells_res8)")
+                    .fetch_one(&mut *tx)
+                    .await?;
+            if !has_res8 {
+                let ownership = world::territory(&cities, &self.territory, &self.geo, None);
+                for (cell, (city, influence)) in ownership {
+                    sqlx::query("INSERT INTO territory_cells_res8(h3_res8,city_id,influence) VALUES($1,$2,$3) ON CONFLICT(h3_res8) DO UPDATE SET city_id=EXCLUDED.city_id,influence=EXCLUDED.influence")
+                        .bind(cell as i64).bind(city.0).bind(influence).execute(&mut *tx).await?;
+                }
+            }
+            let rows=sqlx::query("SELECT t.h3_res8,t.city_id FROM territory_cells_res8 t JOIN cities c ON c.id=t.city_id WHERE c.kingdom_id=$1").bind(ruler.kingdom.0).fetch_all(&mut *tx).await?;
             let cells = rows
                 .into_iter()
                 .map(|row| {
-                    let cell: i64 = row.get("h3_res7");
+                    let cell: i64 = row.get("h3_res8");
                     let city: Uuid = row.get("city_id");
                     TerritoryCell {
                         h3: format!("{:x}", cell),
@@ -147,7 +158,11 @@ impl Context {
             return Ok(ServerMsg {
                 kind: Some(server_msg::Kind::World(WorldSnapshot {
                     ruler: Some(ruler_state(&ruler)),
-                    cities: cities.iter().map(city_state).collect(),
+                    cities: cities
+                        .iter()
+                        .filter(|city| city.kingdom == ruler.kingdom)
+                        .map(city_state)
+                        .collect(),
                     territory: cells,
                     now_ms: now_ms as f64,
                     village_cost: self.balance.village.cost,
@@ -257,6 +272,202 @@ impl Context {
         tx.commit().await?;
         Ok(response)
     }
+
+    pub async fn admin_snapshot(
+        &self,
+        admin: AccountId,
+        request: &AdminSnapshotRequest,
+        now_ms: u64,
+    ) -> Result<ServerMsg, ServiceError> {
+        let mut tx = self.pool.begin().await?;
+        let role: Option<String> =
+            sqlx::query_scalar("SELECT role FROM accounts WHERE id=$1 FOR SHARE")
+                .bind(admin.0)
+                .fetch_optional(&mut *tx)
+                .await?;
+        if role.as_deref() != Some("admin") {
+            return Err(ServiceError::Unauthorized);
+        }
+        let filters = serde_json::json!({
+            "afterEventSeq": request.after_event_seq.to_string(), "accountId": request.account_id,
+            "kingdomId": request.kingdom_id, "cityId": request.city_id,
+            "shard": request.shard, "eventKind": request.event_kind,
+            "filterShard": request.filter_shard, "filterEventKind": request.filter_event_kind,
+        });
+        sqlx::query(
+            "INSERT INTO admin_audit(account_id,action,filters) VALUES($1,'world_snapshot',$2)",
+        )
+        .bind(admin.0)
+        .bind(Json(filters))
+        .execute(&mut *tx)
+        .await?;
+
+        let city_rows = if request.include_world {
+            sqlx::query("SELECT state FROM cities WHERE state IS NOT NULL ORDER BY founded_at,id")
+                .fetch_all(&mut *tx)
+                .await?
+        } else {
+            Vec::new()
+        };
+        let cities: Vec<City> = city_rows
+            .into_iter()
+            .filter_map(|row| {
+                row.try_get::<Json<City>, _>("state")
+                    .ok()
+                    .map(|Json(city)| city)
+            })
+            .collect();
+        if request.include_world {
+            let has_res8: bool =
+                sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM territory_cells_res8)")
+                    .fetch_one(&mut *tx)
+                    .await?;
+            if !has_res8 {
+                for (cell, (city, influence)) in
+                    world::territory(&cities, &self.territory, &self.geo, None)
+                {
+                    sqlx::query("INSERT INTO territory_cells_res8(h3_res8,city_id,influence) VALUES($1,$2,$3) ON CONFLICT(h3_res8) DO UPDATE SET city_id=EXCLUDED.city_id,influence=EXCLUDED.influence")
+                        .bind(cell as i64).bind(city.0).bind(influence).execute(&mut *tx).await?;
+                }
+            }
+        }
+        let cities: Vec<CityState> = cities.iter().map(city_state).collect();
+        let entity_rows = if request.include_world {
+            sqlx::query("SELECT id,kind,kingdom_id,state FROM entities ORDER BY id")
+                .fetch_all(&mut *tx)
+                .await?
+        } else {
+            Vec::new()
+        };
+        let entities = entity_rows
+            .into_iter()
+            .filter_map(|row| {
+                let state: Json<serde_json::Value> = row.try_get("state").ok()?;
+                let kind: i16 = row.try_get("kind").ok()?;
+                let (lat, lon) = if kind == 0 {
+                    let ruler: Ruler = serde_json::from_value(state.0.clone()).ok()?;
+                    let position = ruler
+                        .journey
+                        .as_ref()
+                        .map(|journey| journey.position(now_ms))
+                        .unwrap_or(ruler.pos);
+                    (position.lat, position.lon)
+                } else {
+                    let position = state.0.get("pos")?;
+                    (
+                        position.get("lat")?.as_f64()?,
+                        position.get("lon")?.as_f64()?,
+                    )
+                };
+                Some(orbis_protocol::EntityUpsert {
+                    id: row.try_get::<Uuid, _>("id").ok()?.to_string(),
+                    kind: kind as u32,
+                    pos: Some(LatLon { lat, lon }),
+                    kingdom_id: row.try_get::<Uuid, _>("kingdom_id").ok()?.to_string(),
+                })
+            })
+            .collect();
+        let territory_rows = if request.include_world {
+            sqlx::query("SELECT h3_res8,city_id FROM territory_cells_res8 ORDER BY h3_res8")
+                .fetch_all(&mut *tx)
+                .await?
+        } else {
+            Vec::new()
+        };
+        let territory = territory_rows
+            .into_iter()
+            .filter_map(|row| {
+                let cell = row.try_get::<i64, _>("h3_res8").ok()? as u64;
+                Some(TerritoryCell {
+                    h3: format!("{cell:x}"),
+                    city_id: row.try_get::<Uuid, _>("city_id").ok()?.to_string(),
+                    boundary: world::boundary(cell).into_iter().map(latlon).collect(),
+                })
+            })
+            .collect();
+
+        let mut query = QueryBuilder::<sqlx::Postgres>::new("SELECT e.seq,(extract(epoch from e.at)::float8)*1000 AS at_ms,e.shard,e.kind,e.payload,e.account_id::text AS account_id,e.kingdom_id::text AS kingdom_id,e.city_id::text AS city_id,CASE WHEN c.id IS NULL THEN '' ELSE concat(round(ST_Y(c.pos::geometry)::numeric,2),', ',round(ST_X(c.pos::geometry)::numeric,2)) END AS region FROM event_log e LEFT JOIN cities c ON c.id=e.city_id WHERE e.seq > ");
+        query.push_bind(request.after_event_seq as i64);
+        if !request.account_id.is_empty() {
+            query.push(" AND e.account_id::text = ");
+            query.push_bind(&request.account_id);
+        }
+        if !request.kingdom_id.is_empty() {
+            query.push(" AND e.kingdom_id::text = ");
+            query.push_bind(&request.kingdom_id);
+        }
+        if !request.city_id.is_empty() {
+            query.push(" AND e.city_id::text = ");
+            query.push_bind(&request.city_id);
+        }
+        if request.filter_shard {
+            query.push(" AND e.shard = ");
+            query.push_bind(request.shard as i64);
+        }
+        if request.filter_event_kind {
+            query.push(" AND e.kind = ");
+            query.push_bind(request.event_kind as i16);
+        }
+        if request.after_event_seq == 0 {
+            query.push(" ORDER BY e.seq DESC LIMIT 200");
+        } else {
+            query.push(" ORDER BY e.seq LIMIT 200");
+        }
+        let event_rows = query.build().fetch_all(&mut *tx).await?;
+        let mut next_event_seq = request.after_event_seq;
+        let mut events: Vec<AdminEvent> = event_rows
+            .into_iter()
+            .filter_map(|row| {
+                let seq = row.try_get::<i64, _>("seq").ok()? as u64;
+                next_event_seq = next_event_seq.max(seq);
+                let payload: Json<serde_json::Value> = row.try_get("payload").ok()?;
+                let at_ms: f64 = row.try_get("at_ms").ok()?;
+                Some(AdminEvent {
+                    seq,
+                    at_ms,
+                    shard: row.try_get::<i64, _>("shard").ok()? as u64,
+                    kind: row.try_get::<i16, _>("kind").ok()? as u32,
+                    region: row.try_get::<String, _>("region").unwrap_or_default(),
+                    account_id: row
+                        .try_get::<Option<String>, _>("account_id")
+                        .ok()
+                        .flatten()
+                        .unwrap_or_default(),
+                    kingdom_id: row
+                        .try_get::<Option<String>, _>("kingdom_id")
+                        .ok()
+                        .flatten()
+                        .unwrap_or_default(),
+                    city_id: row
+                        .try_get::<Option<String>, _>("city_id")
+                        .ok()
+                        .flatten()
+                        .unwrap_or_default(),
+                    payload_json: payload.0.to_string(),
+                })
+            })
+            .collect();
+        if request.after_event_seq == 0 {
+            events.reverse();
+        }
+        if events.len() < 200 {
+            let latest: i64 = sqlx::query_scalar("SELECT COALESCE(MAX(seq),0) FROM event_log")
+                .fetch_one(&mut *tx)
+                .await?;
+            next_event_seq = next_event_seq.max(latest as u64);
+        }
+        tx.commit().await?;
+        Ok(ServerMsg {
+            kind: Some(server_msg::Kind::Admin(AdminSnapshot {
+                cities,
+                entities,
+                events,
+                territory,
+                next_event_seq,
+                generated_at_ms: now_ms as f64,
+            })),
+        })
+    }
     /// Consume indexed due events only. Effects and done_at commit together.
     pub async fn process_due(&self, slot: u16, now_ms: u64) -> Result<bool, ServiceError> {
         let mut tx = self.pool.begin().await?;
@@ -271,11 +482,12 @@ impl Context {
             Action::CompleteConstruction { .. } | Action::CityTick { .. }
         ) {
             self.process_city_action(&mut tx, &action.0, now_ms).await?;
-            sqlx::query("INSERT INTO event_log(shard,kind,payload) VALUES($1,1,$2)")
-                .bind(old_shard)
-                .bind(Json(&action.0))
-                .execute(&mut *tx)
-                .await?;
+            let city_id = match &action.0 {
+                Action::CompleteConstruction { city, .. } | Action::CityTick { city, .. } => city.0,
+                _ => unreachable!(),
+            };
+            sqlx::query("INSERT INTO event_log(shard,kind,payload,account_id,kingdom_id,city_id) SELECT $1,1,$2,k.owner_account,c.kingdom_id,c.id FROM cities c JOIN kingdoms k ON k.id=c.kingdom_id WHERE c.id=$3")
+                .bind(old_shard).bind(Json(&action.0)).bind(city_id).execute(&mut *tx).await?;
             sqlx::query("UPDATE scheduled_events SET done_at=now() WHERE id=$1")
                 .bind(event_id)
                 .execute(&mut *tx)
@@ -318,14 +530,14 @@ impl Context {
                 let owners = world::territory(&cities, &self.territory, &self.geo, Some(&affected));
                 if !owners.is_empty() {
                     let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(
-                        "INSERT INTO territory_cells(h3_res7,city_id,influence) ",
+                        "INSERT INTO territory_cells_res8(h3_res8,city_id,influence) ",
                     );
                     query.push_values(owners.iter(), |mut row, (cell, (owner, influence))| {
                         row.push_bind(*cell as i64)
                             .push_bind(owner.0)
                             .push_bind(*influence);
                     });
-                    query.push(" ON CONFLICT(h3_res7) DO UPDATE SET city_id=EXCLUDED.city_id,influence=EXCLUDED.influence");
+                    query.push(" ON CONFLICT(h3_res8) DO UPDATE SET city_id=EXCLUDED.city_id,influence=EXCLUDED.influence");
                     query.build().execute(&mut *tx).await?;
                 }
             }
@@ -334,11 +546,12 @@ impl Context {
                 sqlx::query("INSERT INTO entity_handoffs(entity_id,revision,from_shard,to_shard,source_worker,state) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING")
                     .bind(next.id.0).bind(next.revision as i64).bind(old_shard).bind(new_shard as i64).bind(slot as i16).bind(serde_json::to_vec(&next)?).execute(&mut *tx).await?;
             }
-            sqlx::query("INSERT INTO event_log(shard,kind,payload) VALUES($1,0,$2)")
-                .bind(old_shard)
-                .bind(Json(&action.0))
-                .execute(&mut *tx)
-                .await?;
+            let city_id = match &action.0 {
+                Action::CompleteVillage { city, .. } => Some(city.0),
+                _ => None,
+            };
+            sqlx::query("INSERT INTO event_log(shard,kind,payload,account_id,kingdom_id,city_id) SELECT $1,0,$2,k.owner_account,k.id,$4 FROM kingdoms k JOIN entities e ON e.kingdom_id=k.id WHERE e.id=$3")
+                .bind(old_shard).bind(Json(&action.0)).bind(next.id.0).bind(city_id).execute(&mut *tx).await?;
         }
         sqlx::query("UPDATE scheduled_events SET done_at=now() WHERE id=$1")
             .bind(event_id)
@@ -631,6 +844,13 @@ async fn ensure_layout(
     balance: &city::Balance,
 ) -> Result<CityLayout, ServiceError> {
     if let Some(mut layout) = load_layout(conn, town.id, true).await? {
+        if layout.width != balance.grid.size_by_tier[0]
+            || layout.height != balance.grid.size_by_tier[0]
+        {
+            city::resize_layout(&mut layout, balance.grid.size_by_tier[0])?;
+            city::recompute_metrics(&mut layout, catalog)?;
+            save_layout(conn, &layout).await?;
+        }
         if layout.baseline_food_capacity == 0
             && layout
                 .buildings
@@ -664,10 +884,11 @@ async fn ensure_layout(
 }
 
 async fn save_layout(conn: &mut PgConnection, layout: &CityLayout) -> Result<(), sqlx::Error> {
-    sqlx::query("INSERT INTO city_layouts(city_id,state,version) VALUES($1,$2,$3) ON CONFLICT(city_id) DO UPDATE SET state=EXCLUDED.state,version=EXCLUDED.version,updated_at=now()")
+    sqlx::query("INSERT INTO city_layouts(city_id,state,version,grid_version) VALUES($1,$2,$3,$4) ON CONFLICT(city_id) DO UPDATE SET state=EXCLUDED.state,version=EXCLUDED.version,grid_version=EXCLUDED.grid_version,updated_at=now()")
         .bind(layout.city.0)
         .bind(Json(layout))
         .bind(layout.revision as i64)
+        .bind(if layout.width >= orbis_core::city::CITY_SIZE as u16 {2_i16} else {1_i16})
         .execute(conn)
         .await?;
     Ok(())

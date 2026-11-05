@@ -62,7 +62,7 @@ export class GameLayer extends Container {
     return this.texture(g);
   }
   sync(world:WorldSnapshot|null) {
-    this.snapshot=world;this.visible=world?.ruler!==undefined&&world?.ruler!==null;
+    this.snapshot=world;this.visible=Boolean(world&&(world.ruler||world.cities.length));
     if (!world) return;
     const desired=new Set(world.cities.map(city=>city.id));
     for (const [id,town] of this.towns) if (!desired.has(id)) {town.node.destroy({children:true});this.towns.delete(id);}
@@ -86,15 +86,19 @@ export class GameLayer extends Container {
     }
   }
   frame(center:Point,size:number,width:number,height:number,nowMs:number) {
-    const ruler=this.snapshot?.ruler;if (!ruler) return;
+    const snapshot=this.snapshot;if (!snapshot) return;
     const zoom=Math.log2(size/256);
     this.ground.visible=zoom>9;this.ground.alpha=Math.min(0.6,(zoom-9)/6);
     this.ground.width=width;this.ground.height=height;this.ground.tilePosition.set(width/2-center.x*size,height/2-center.y*size);
     this.border.position.set(width/2-center.x*size,height/2-center.y*size);this.border.scale.set(size/BASIS);
-    const position=rulerPosition(ruler,nowMs),p=project(position);
-    this.hero.position.set(width/2+(p.x-center.x)*size,height/2+(p.y-center.y)*size);
-    this.hero.width=zoom>9?32:22;this.hero.scale.y=Math.abs(this.hero.scale.x)*(ruler.journey?1+Math.sin(nowMs/90)*0.035:1);
-    for (const city of this.snapshot?.cities??[]) this.placeTown(city,center,size,width,height,zoom);
+    const ruler=snapshot.ruler;
+    this.hero.visible=Boolean(ruler);
+    if(ruler){
+      const position=rulerPosition(ruler,nowMs),p=project(position);
+      this.hero.position.set(width/2+(p.x-center.x)*size,height/2+(p.y-center.y)*size);
+      this.hero.width=zoom>9?32:22;this.hero.scale.y=Math.abs(this.hero.scale.x)*(ruler.journey?1+Math.sin(nowMs/90)*0.035:1);
+    }
+    for (const city of snapshot.cities) this.placeTown(city,center,size,width,height,zoom);
   }
   private placeTown(city:CityState,center:Point,size:number,width:number,height:number,zoom:number) {
     const town=this.towns.get(city.id);if (!town||!city.pos) return;

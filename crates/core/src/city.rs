@@ -2,7 +2,8 @@ use crate::world::{CityId, KingdomId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-pub const CITY_SIZE: usize = 96;
+/// Grid size used for newly created cities. Persisted layouts are upgraded lazily.
+pub const CITY_SIZE: usize = 256;
 pub const CELL_COUNT: usize = CITY_SIZE * CITY_SIZE;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
