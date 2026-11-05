@@ -2,21 +2,28 @@
 
 ## Referência e intenção
 
-Direção escolhida pelo usuário em 2026-11-04: mapa cartunesco em tela inteira,
-com transição contínua pelo zoom para uma cidade próxima com volume isométrico.
-A referência fornecida é uma vila ilustrada com contornos de tinta, telhados
-verdes, chão amarelo e árvores arredondadas em tons quentes. Ela orienta o estilo;
-não é distribuída como asset do jogo.
+Direção escolhida pelo usuário em 2026-11-04 e revisada na mesma data: visual
+**medieval sombrio** em tela inteira, substituindo o mapa cartunesco pastel.
+A referência é um atlas antigo desgastado — pergaminho escuro, couro, ferro e
+vermelho-sangue — com transição contínua pelo zoom até uma cidade próxima com
+volume isométrico.
 
 ## Sistema visual
 
 - Renderer: PixiJS 8, cenas 2D; o volume próximo é composto por formas vetoriais em tempo real.
 - Mundo distante: projeção Mercator e costas reais Natural Earth, sem deformar a geografia.
-- Formas: silhuetas arredondadas, casas robustas, detalhes legíveis, contorno marrom/oliva.
-- Paleta: papel #fff2d5, tinta #493d2c, verde #506e3e, oceano #7eb8be,
-  terra quente amarelada e árvores outonais laranja/ocre.
-- Luz: superior esquerda, sombras curtas e suaves; excluir materiais fotorealistas.
-- HUD: papel claro e botões verdes; controles sobrepostos e painel recolhível.
+- Escurecimento em tempo real: os PNGs de bioma/relevo permanecem intactos e são
+  escurecidos via tint/filtro (ColorMatrixFilter "grim"), preservando a paleta de
+  `foliageBiome`, o hash dos assets e a reprodutibilidade do pipeline.
+- Formas: cantos retos (0–2 px), bordas grossas (2 px) e sombras duras sem blur.
+- Paleta: vazio #0c0b09, painel #1a1611, painel elevado #221c15, texto #d8cdb2,
+  texto apagado #8f8572, ferro #3a332a, sangue #9c3424, brasa #b8562f,
+  latão #a98a4f, oceano #0b0f12.
+- Tipografia: Cormorant Garamond para títulos/brand e DM Sans para UI, com
+  labels em caixa alta e letter-spacing amplo.
+- Luz/materiais: silhuetas de pergaminho escuro e couro; excluir materiais fotorealistas.
+- HUD: painéis escuros com borda de ferro e acento sangue; controles sobrepostos
+  e painel recolhível.
 - Câmera: mundo 2D distante e aproximação contínua até governante, território
   e vila reais. Não há troca para uma imagem de fundo.
 

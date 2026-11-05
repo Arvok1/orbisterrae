@@ -1,4 +1,4 @@
-import { Application, Container, Graphics, Sprite, Texture } from 'pixi.js';
+import { Application, ColorMatrixFilter, Container, Graphics, Sprite, Texture } from 'pixi.js';
 import { project, type Point } from './projection.js';
 import type { Coordinate as Location } from './projection.js';
 import { decoration,foliageBiome } from './scenery.js';
@@ -36,11 +36,20 @@ export class TerrainLayer extends Container {
     super();
     const regions = new Sprite(biomes);
     regions.width = regions.height = BASIS;
-    regions.alpha=0.82;
+    regions.alpha=0.92;
+    regions.tint='#6d6455';
+    const grim = new ColorMatrixFilter();
+    grim.matrix = [
+      0.30, 0.32, 0.08, 0, -0.04,
+      0.24, 0.27, 0.07, 0, -0.03,
+      0.17, 0.20, 0.06, 0, -0.02,
+      0, 0, 0, 1, 0,
+    ];
+    regions.filters=[grim];
     this.relief=new Sprite(reliefTexture);
     this.relief.width=this.relief.height=BASIS;
     this.relief.blendMode='multiply';
-    this.relief.alpha=0.72;
+    this.relief.alpha=0.5;
     this.detailTextures={forest:this.texture('forest'),pineForest:this.texture('pineForest'),dunes:this.texture('dunes'),autumnForest:this.texture('autumnForest')};
     const resource:unknown=biomes.source.resource;
     if (resource instanceof HTMLImageElement || resource instanceof ImageBitmap || resource instanceof HTMLCanvasElement) {
@@ -65,13 +74,13 @@ export class TerrainLayer extends Container {
         previous=point;
       }
       const pixels=Math.max(0.65,river.width*widthFactor);
-      this.rivers.stroke({color:'#679db1',width:pixels/scale,alpha:0.92});
+      this.rivers.stroke({color:'#4f6a70',width:pixels/scale,alpha:0.92});
     }
     for (const lake of this.data.lakes) for (const polygon of lake.polygons) {
       if (!polygon[0]?.length) continue;
-      this.lakes.poly(polygon[0].flatMap(xy)).fill('#78aebe');
+      this.lakes.poly(polygon[0].flatMap(xy)).fill('#38505a');
       for (const hole of polygon.slice(1)) this.lakes.poly(hole.flatMap(xy)).cut();
-      this.lakes.poly(polygon[0].flatMap(xy)).stroke({color:'#4f8392',width:1.15/scale,alpha:0.9});
+      this.lakes.poly(polygon[0].flatMap(xy)).stroke({color:'#243a42',width:1.15/scale,alpha:0.9});
     }
     this.lastHydroScale=scale;this.lastLod=lod;
   }
@@ -79,11 +88,11 @@ export class TerrainLayer extends Container {
   private texture(kind:string) {
     const g = new Graphics();
     if(kind==='dunes') {
-      g.ellipse(60,32,58,22).fill({color:'#d6bb72',alpha:0.65});
-      for(let row=0;row<5;row++) g.moveTo(6,18+row*8).bezierCurveTo(34,1+row*8,72,38+row*3,116,16+row*7).stroke({color:'#aa8a4e',width:2,alpha:0.5});
+      g.ellipse(60,32,58,22).fill({color:'#5d4e34',alpha:0.7});
+      for(let row=0;row<5;row++) g.moveTo(6,18+row*8).bezierCurveTo(34,1+row*8,72,38+row*3,116,16+row*7).stroke({color:'#7a643c',width:2,alpha:0.55});
     } else {
       const autumn=kind==='autumnForest',pine=kind==='pineForest';
-      const dark=autumn?'#7d673c':pine?'#315845':'#3e6b42',middle=autumn?'#aa7a3d':pine?'#47725a':'#59834c',light=autumn?'#d2a44f':pine?'#72917b':'#7fa45f';
+      const dark=autumn?'#4a3c28':pine?'#25302d':'#2c3028',middle=autumn?'#6d5530':pine?'#33433b':'#3c4034',light=autumn?'#8a6a38':pine?'#43594f':'#4a4f3e';
       g.ellipse(64,38,60,27).fill({color:dark,alpha:0.4});
       const crowns=[[14,35,18,13],[30,24,23,17],[53,31,25,18],[76,20,24,16],[96,34,26,18],[43,46,28,17],[78,45,30,18]];
       for(const [x,y,rx,ry] of crowns) g.ellipse(x,y,rx,ry).fill(middle);
@@ -96,7 +105,6 @@ export class TerrainLayer extends Container {
     const scale = size/BASIS,zoom=Math.log2(size/256),lod=zoom<8?0:zoom<15?1:2;
     this.position.set(width/2-center.x*size,height/2-center.y*size);
     this.scale.set(scale);
-    this.relief.alpha=lod===0?0.72:lod===1?0.84:0.64;
     if(lod!==this.lastLod||!this.lastHydroScale||Math.max(scale/this.lastHydroScale,this.lastHydroScale/scale)>1.25) this.renderHydro(scale,lod);
     this.updateScenery(center,size,width,height,clearings);
   }
