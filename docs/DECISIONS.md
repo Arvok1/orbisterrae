@@ -29,6 +29,9 @@
 | 25 | 2026-11-05 | Three.js renderiza globo e relevo 3D; PixiJS continua responsável por HUD e símbolos; textura escura autoral é reprojetada do raster geográfico | Curvatura contínua, maior leitura ao aproximar e preservação do cliente atual | Aceita |
 | 26 | 2026-11-05 | Território muda para H3 res8 com raios em metros; cidade inicial mede 256×256 células de 10 m, com migração normalizada e rollback H3 res7 | Mais células de ocupação sem reduzir a referência física do território; layouts antigos continuam recuperáveis | Aceita |
 | 27 | 2026-11-05 | Visão global sem fog exige papel `admin` lido do banco em cada consulta, feed filtrável e auditoria persistente | Separar observabilidade privilegiada da visão do jogador e permitir revogação imediata | Aceita |
+| 28 | 2026-11-05 | Mundo, cidade, construções, governantes e tropas usam somente Three.js; React/HTML mantém HUD acima do canvas | Elimina dois renderizadores, corrige captura de eventos da HUD e permite escala física/LOD contínuo | Aceita |
+| 29 | 2026-11-05 | Terra usa raio de referência 6.371.000 m; cidade inicia em grade tangente de 256×256 células de 10 m | Mantém uma única referência geodésica ao passar de globo para construção urbana | Aceita |
+| 30 | 2026-11-05 | Estilos Relevo 3D e Carta manuscrita são materiais locais alternáveis sobre a mesma geometria e dados | Permite testar direção visual sem transformar arte em estado de jogo ou copiar a referência | Aceita |
 
 ## Em aberto
 

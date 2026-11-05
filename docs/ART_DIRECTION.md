@@ -10,7 +10,7 @@ volume isométrico.
 
 ## Sistema visual
 
-- Renderer: Three.js para globo/camada 3D geográfica; PixiJS para HUD, símbolos e grade urbana vetorial.
+- Renderer: Three.js para todo o conteúdo do mundo; React/HTML somente para HUD, formulários e controles acessíveis.
 - Mundo distante: esfera com textura cartográfica própria em pergaminho escuro e hachuras; a textura Mercator é reprojetada para latitude/longitude antes de vestir o globo.
 - Escurecimento em tempo real: os PNGs de bioma/relevo permanecem intactos e são
   escurecidos via tint/filtro (ColorMatrixFilter "grim"), preservando a paleta de
@@ -76,7 +76,14 @@ O renderer Three.js cria uma esfera com malha deslocada por ETOPO e uma textura
 cartográfica escura, reprojetada deterministicamente do raster Mercator. A
 aproximação usa três faixas contínuas de câmera. Cidades aparecem como grupos
 de edifícios em miniatura; governantes e unidades usam silhuetas 3D autorais.
-PixiJS permanece como camada de interface e grade urbana local. A textura não
+O estilo alternável local é **Relevo 3D** (materiais escuros e luz suave) ou
+**Carta manuscrita** (pergaminho envelhecido, tinta, hachuras e massas de bosque
+autorais). O segundo é uma interpretação independente das propriedades da
+referência fornecida, e nunca copia sua composição, nomes, símbolos ou texturas.
+Ambos usam a mesma malha e os mesmos dados; não alteram fog, terreno ou simulação.
+
+A textura global anterior de 2048×1024 foi removida: o shader amostra os rasters
+4096 diretamente e o LOD urbano usa buffers de GPU para a grade. A textura não
 é uma imagem de vila nem asset artístico de terceiros.
 
 A cidade começa em 256×256 células de 10 m (2,56 km). Layouts menores são

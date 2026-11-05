@@ -3,7 +3,7 @@
 ## 1. Visão geral
 
 ```
-Navegador (TS/React/Three.js + PixiJS)
+Navegador (TS/React HUD + Three.js)
         │ WebSocket binário (protobuf)
         ▼
    Gateway (Rust) ── auth, rate limit, interest management
@@ -51,10 +51,13 @@ Navegador (TS/React/Three.js + PixiJS)
 - **Neblina de guerra:** fontes de visão (cidade, exército, navio, torre, farol, aliado) com raio dependente de tecnologia. O gateway assina o cliente nas células H3 res 5 visíveis ∩ viewport e envia deltas.
 - Zoom aberto: dados agregados (fronteiras, ícones, rotas principais). Zoom fechado: entidades individuais.
 
-## 5b. Globo e visibilidade administrativa
+## 5b. Globo 3D, cidade física e visibilidade administrativa
 
-- Three.js desenha a esfera terrestre e o relevo 3D; raster de biomas/relevo é reprojetado para textura esférica com hachuras determinísticas. PixiJS permanece transparente para HUD e grade urbana. A câmera ocupa a tela nas faixas de zoom.
-- Governantes, cidades e unidades são marcadores 3D derivados do estado recebido. Movimento usa segmentos autoritativos ou snapshots amostrados pelo gateway.
+- Um único canvas Three.js desenha esfera, patches regionais e cidade; React/HTML é exclusivamente HUD acima dele. Não há canvas Pixi transparente nem renderização 2D do mundo.
+- A esfera usa WGS84 com raio de referência de 6.371.000 m. Ao aproximar, a cidade troca para um plano tangente local em metros: grade inicial 256×256, célula de 10 m. A troca é de representação, não de autoridade ou de coordenadas.
+- O cliente recebe `WorldSnapshot`/`CitySnapshot` e forma um `WorldRenderSnapshot` efêmero. Governantes, cidades, tropas, terreno, ruas, zonas e construções são malhas Three.js; o cliente apenas interpola posições autorizadas.
+- Global, regional e urbano usam LOD 0–7, 8–14 e 15–19. Culling de horizonte/frustum, instancing e buffers sujos são obrigatórios; a cena não é reconstruída por frame.
+- A visão global usa fontes versionadas em `data/world/v1/manifest.json`: ETOPO 60″, Natural Earth e biomas determinísticos. Pacotes regionais de 30 m entram depois, sem mudar a referência geodésica.
 - Uma conta com `role='admin'` pode solicitar `AdminSnapshot`. O gateway relê o papel no banco a cada chamada, retorna todas as cidades/entidades/territórios sem fog e audita filtros em `admin_audit`. Jogadores recebem apenas dados do próprio reino até a implementação da visibilidade completa.
 - O feed administrativo filtra eventos por conta, reino, cidade, shard e tipo, usando cursor monotônico. Administração é observacional; congelar shards ou forçar eventos segue fora do escopo.
 

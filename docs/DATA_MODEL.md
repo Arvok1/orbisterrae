@@ -142,6 +142,20 @@ Contas têm papel `player` por padrão. Conceder/revogar acesso administrativo �
 uma operação controlada no banco (`UPDATE accounts SET role='admin' WHERE id=...`);
 cada consulta global grava filtros e identidade em `admin_audit`.
 
+## Dados de renderização 3D (não autoritativos)
+
+`data/world/v1/manifest.json` fixa raio terrestre, fontes, hashes e faixas de
+LOD. O cliente centraliza as conversões WGS84/unidade/matriz local com
+`EARTH_RADIUS_M = 6_371_000`. `WorldRenderSnapshot` é uma adaptação efêmera de
+`WorldSnapshot`, `CitySnapshot` e entidades já visíveis; não é salvo e não pode
+produzir eventos de jogo. A preferência local `relief|manuscript` vive somente
+no navegador. Grade, prédios, rios, tropas e terreno permanecem derivados do
+estado e dos dados versionados, não de imagens estáticas de cidade.
+
+Cartas de jogador são tarefa futura P4.9: cada artefato será `ItemGenome`, terá
+cobertura, precisão, projeção, data e simbologia no genoma/projeto manual, e
+transferirá propriedade pela mesma trilha persistente dos itens únicos.
+
 ## Protobuf (esboço, `packages/protocol/orbis.proto`)
 
 ```proto

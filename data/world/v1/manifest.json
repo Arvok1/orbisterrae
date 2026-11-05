@@ -1,0 +1,17 @@
+{
+  "version": "v1",
+  "format": "orbis-terrain-3d",
+  "earth_radius_m": 6371000,
+  "projection": "WGS84 globe with local tangent metre patches",
+  "sources": {
+    "relief": {"name": "ETOPO 2022 bed elevation", "resolution_arc_seconds": 60, "asset": "apps/client/src/assets/world-relief-v2.png", "sha256": "8f48ce19ee4354ad8b6504528969612a80f6f992cb4361c54939734e8afb502d"},
+    "biomes": {"name": "RESOLVE ecoregions rasterized deterministically", "asset": "apps/client/src/assets/world-biomes-v1.png", "sha256": "50c871f9e9ae7922bf0ca374eeb08b072079146c8e8fa93b0c15aa2297a159c5"},
+    "hydrography": "Natural Earth, rivers clipped before lake masks"
+  },
+  "lod": {
+    "global": {"zoom": [0, 7], "asset_pixels": [4096, 4096], "mode": "globe"},
+    "regional": {"zoom": [8, 14], "mode": "relief patches and vector hydrography"},
+    "city": {"zoom": [15, 19], "cell_m": 10, "initial_grid": [256, 256], "mode": "local metre patch"}
+  },
+  "limitations": ["The first detailed relief is ETOPO 60 arc-seconds; regional 30 m packages are a later data delivery.", "Vegetation is deterministic visual dressing and has no simulation collision or resource value."]
+}

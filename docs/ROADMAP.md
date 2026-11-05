@@ -66,6 +66,7 @@ Meta: **todos os sistemas em versão simples**, integrados, jogáveis de ponta a
 |---|---|---|---|
 | S1.1 ✓ | **Mundo servível distribuído:** contas locais com JWT, reino, clã nômade, fundação de cidade e território (T1.1 a T1.6 simplificados), com gateway e workers de shard separados via NATS | 100 bots fundam cidades; territórios sem sobreposição; `EntityHandoff` não perde entidade | 3 a 4 sem |
 | S1.2 ✓ | **Cidade simples:** grade com ruas/zonas/prédios (~15 tipos), fila de construção, população por classes, 3 métricas de layout (água, densidade, defesa), 2 eventos (fome, incêndio) | Layout muda defesa e crescimento de forma mensurável (testes de sim + cenário `bots:s1.2`) | 3 a 4 sem |
+| S1.2c | **Mundo 3D, cidade física e cartografia:** substituir Pixi por Three.js; globo WGS84, LOD global/regional/urbano, cidade 256×256 de 10 m, materiais Relevo/Carta locais e HUD HTML independente | Um canvas 3D; raycast de globo/cidade; nenhum evento da HUD move a câmera; dados `world/v1` reprodutíveis; alvo 60/30 fps | 2 a 3 sem |
 | S1.3 | **Economia simples:** 8 mercadorias, preço local, caravanas e navios (sem vento ainda), 2 a 3 hubs IA com order book simples, moeda (escambo→metal) | Economia fechada com bots por 7 dias simulados sem hiperinflação | 3 a 4 sem |
 | S1.4 | **IA simples:** Utility AI com 4 objetivos (crescer, comerciar, expandir, defender), nascimento/colapso básicos | 100 reinos IA por 14 dias simulados, trajetórias variadas | 2 a 3 sem |
 | S1.5 | **Ventos e navegação simples:** campo mensal em baixa resolução, polar por tipo de vela (3 tipos), camada animada | Navio contra o vento é mais lento; rota sazonal muda | 1 a 2 sem |
@@ -89,7 +90,7 @@ Referência: `BACKLOG.md` T2.1 a T2.9, T3.1 a T3.8.
 |---|---|---|
 | P2.1 | Grade livre completa (ruas, zonas, muralhas, desfazer) e cotas de prédios especiais | T2.1, T2.4 |
 | P2.2 | Grafo da cidade e todas as métricas (deslocamento, cobertura, incêndio, ventilação, defesa) | T2.2 |
-| P2.3 | População completa (classes, doenças, crime, revolta) e agentes visuais | T2.3, T2.6 |
+| P2.3 | População completa (classes, doenças, crime, revolta) e agentes visuais 3D em cidade física | T2.3, T2.6 |
 | P2.4 | Cadeias produtivas completas e armazenamento (perecibilidade, manutenção) | T2.5 |
 | P2.5 | Craft: operações por dados, envelhecimento ligado ao layout, Oficina completa | T2.7, T2.8, T2.9 |
 | P2.6 | Navio projetável completo (40 parâmetros, polar real, estrutura, durabilidade) | T3.8 |
@@ -104,7 +105,7 @@ Referência: T4.1 a T4.5, T5.1 a T5.9.
 
 | ID | Tarefa |
 |---|---|
-| P3.1 | Logística e atrito completos; cerco com brechas, fome, sabotagem e defesas do layout (T5.1, T5.3) |
+| P3.1 | Logística e atrito completos; tropas, navios e cerco como entidades 3D sobre relevo transitável; brechas, fome, sabotagem e defesas do layout (T5.1, T5.3) |
 | P3.2 | `resolve_battle` completo com fases, líderes, clima (T5.4) |
 | P3.3 | Marinha: abordagem, bloqueio, pirataria, escolta (T5.5) |
 | P3.4 | Diplomacia completa: tributo, embargo, alianças, rota protegida (T5.2) |
@@ -128,6 +129,7 @@ Referência: T6.1 a T6.8, T7.1 a T7.3, T7.7 a T7.10.
 | P4.6 | Director completo (eventos naturais, narrativos, globais) (T7.3) |
 | P4.7 | Mestres, escolas, estilo e obras-primas; cópia/espionagem de projetos; itens com história (T7.7 a T7.9) |
 | P4.8 | IA projetista evolutiva e métricas de diversidade (T7.10) |
+| P4.9 | **Cartografia e biblioteca (não prioritário):** mapas únicos `ItemGenome`, projeto manual e etapas agendadas; cobertura/precisão/projeção/simbologia por era; revelam fog somente na área registrada, entram na biblioteca e podem ser comercializados, presenteados, saqueados ou roubados | Todo mapa tem histórico persistente e transferência autoritativa de item; a revelação respeita cobertura e qualidade do artefato |
 
 **Linha de corte:** itens com história (P4.7) e cismas (P4.5) saem primeiro.
 
@@ -144,7 +146,7 @@ Meta: produzir **9 pacotes de conteúdo** (Paleolítico a Industrial inicial), c
 | P5.5 | Medieval | 70 técnicas, 20 materiais, 35 operações |
 | P5.6 | Navegações | 70 técnicas, 20 materiais, 35 operações |
 | P5.7 | Industrial inicial | 80 técnicas, 25 materiais, 40 operações |
-| P5.8 | Balanceamento transversal (curvas de custo, ritmo de eras, simulação acelerada de 2 anos) | metas de `config/balance` atingidas |
+| P5.8 | Balanceamento transversal (curvas de custo, ritmo de eras, simulação acelerada de 2 anos), incluindo materiais, instrumentos e convenções cartográficas por era | metas de `config/balance` atingidas |
 
 **Marco de ritmo:** pelos valores de `time.toml`, o mundo leva ≥ **~19 meses reais** para chegar à Era Industrial (tempo mínimo por era). Isso permite um **modo de corte seguro** descrito em §3.
 
@@ -161,6 +163,7 @@ Meta: produzir **9 pacotes de conteúdo** (Paleolítico a Industrial inicial), c
 | P6.7 | Modo tático opcional (T7.4) |
 | P6.8 | Testes de carga (milhares de conexões), soak de 30 dias simulados |
 | P6.9 | Beta fechado, balanceamento com dados reais (T7.11); iniciar o primeiro mundo persistente |
+| P6.10 | Qualidade gráfica e acessibilidade: orçamento de GPU, matriz de navegadores, telemetria de frame time e revisão visual dos dois estilos antes do beta | 60 fps desktop/30 fps mobile medidos nas rotas críticas; regressões acionáveis por telemetria |
 
 **Linha de corte:** modo tático (P6.7) é o primeiro a sair. Guildas/federações e monetização ficam pós-beta.
 
@@ -196,8 +199,8 @@ Isso é uma recomendação de redução de risco. A decisão de lançar sem paco
 - `DECISIONS.md` e docs afetados atualizados.
 - Retrospectiva curta (1 página): estimativa vs. real, dívidas técnicas, mudanças de escopo.
 
-## Aditivo de implementação — S1.2b (2026-11-05)
+## Aditivo de implementação — S1.2c (2026-11-05)
 
-**Globo, escala e observatório:** Three.js desenha a Terra em tela inteira com textura autoral hachurada e relevo ETOPO; PixiJS mantém cidade/HUD. Território migra para H3 res8 com raios em metros; grade urbana inicial passa a 256×256 células de 10 m, com expansão determinística de layouts existentes. O papel admin acessa snapshots sem fog e feed filtrável auditado.
+**Mundo 3D, HUD web:** Three.js desenha a Terra, terreno, cidade, construções, governantes e tropas em tela inteira; React mantém somente HUD e controles. Território usa H3 res8 com raios em metros; cidade começa em 256×256 células de 10 m e layouts existentes permanecem migráveis. O papel admin acessa snapshots sem fog e feed filtrável auditado.
 
-A base de escala, protocolo, migração aditiva, papel/auditoria e renderer já foi implementada. S1.2b permanece aberto até conferir layout legado em PostGIS, globo e movimentação em 1280×720/390×844, além de soak de cinco minutos. S1.3 fica para depois da validação deste aditivo.
+A base de escala, protocolo, migração aditiva e papel/auditoria já existe. S1.2c troca o renderer pela cena única Three.js, registra `data/world/v1` e adiciona seleção isolada do canvas, LOD e estilos locais. S1.3 só retoma após os testes geodésicos, visual desktop/mobile e soak de cinco minutos deste aditivo.

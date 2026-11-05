@@ -68,3 +68,13 @@ produção permanece o de `config/balance/city.toml`.
 ## S1.2b: globo, escala e permissões administrativas
 
 Round-trip de `AdminSnapshotRequest`/`AdminSnapshot` em Rust/TypeScript; teste de expansão 96→256 preserva IDs/posições; teste H3 confirma res8 e limites por distância em metros. O teste PostGIS ignorado verifica negação de player, leitura global pelo admin, gravação em `admin_audit` e revogação imediata. Conferência visual desktop/mobile e soak de cinco minutos são aceites manuais.
+
+## S1.2c: mundo 3D e cidade física
+
+Testes TypeScript cobrem round-trip geodésico WGS84↔vetor unitário e metros
+locais, limites LOD 0–7/8–14/15–19 e decoder RLE independente do renderer.
+Antes de fechar o sprint, conferir por raycast terreno, cidade, prédio e célula;
+confirmar que cada controle HTML recebe clique sem arrastar o globo; alternar os
+dois estilos sem enviar comando; repetir visualmente Alpes, Himalaia, Amazônia,
+Saara, Paris e Porto do Loire em 1280×720 e 390×844. O soak de cinco minutos é
+manual e deve registrar FPS, DPR e LOD no relatório da página.

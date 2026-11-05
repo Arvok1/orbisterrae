@@ -132,11 +132,15 @@ Formato: `Tn.m` = tarefa. **Escopo** diz o que fazer; **Aceite** diz como saber 
 - [ ] **T7.13 Moderação e privacidade de comunicação.** Bloqueio e denúncia de usuários, auditoria administrativa, retenção limitada de mensagens e fluxos de exportação/exclusão antes de aceitar usuários externos.
   *Aceite:* denúncias são revisáveis por administrador; exportação e exclusão respeitam a política de retenção documentada.
 
-## Aditivo S1.2b — globo, escala e observatório (2026-11-05)
+## Aditivo S1.2c — mundo 3D, cidade física e cartografia (2026-11-05)
 
-- [ ] **T1.9 Globo 3D e cartografia própria.** Three.js + HUD PixiJS; textura e hachuras autorais reprojetadas dos dados geográficos, relevo ETOPO, marcadores desenhados para cidades/governantes/unidades, LOD contínuo e seleção geográfica por raycast.
-  *Aceite:* 1280×720 e 390×844; zoom sem borrões relevantes, pan/seleção no globo, 60 fps desktop e 30 fps mobile; soak de cinco minutos.
+- [ ] **T1.9 Mundo 3D e cartografia própria.** Cena Three.js única; HUD React/HTML sem Pixi; textura 4K amostrada sem raster intermediário, globo WGS84 e LOD global/regional/urbano. Relevo ETOPO, hidrografia Natural Earth e vegetação determinística ficam versionados em `data/world/v1`.
+  *Aceite:* 1280×720 e 390×844; zoom sem borrões relevantes, pan/seleção por raycast no canvas, 60 fps desktop e 30 fps mobile; soak de cinco minutos.
 - [ ] **T1.10 Escala e migração.** H3 res8 com raios configurados em metros; cidade 256×256 a 10 m; expansão por tier; migração de layouts 96×96 preservando IDs e coordenadas normalizadas, com rollback res7.
   *Aceite:* layout legado e construções sobrevivem à migração; limites/colisões continuam válidos; distribuição preserva o raio físico configurado.
 - [ ] **T1.11 Observatório administrativo.** Papel admin separado no banco, papel relido em cada requisição, snapshot sem fog, feed incremental filtrável e trilha `admin_audit`; revogação imediata.
   *Aceite:* player recebe `admin_required`; admin obtém mapa/eventos globais; leitura auditada e filtros/cursor funcionam após reconexão.
+- [ ] **T1.12 Cidade física e entrada isolada.** Grade 256×256 de 10 m vira patch tangente local; terreno, vias, zonas, edifícios, governantes e tropas são malhas. Instancing/buffers sujos substituem 65.536 desenhos individuais. Apenas o canvas inicia gesto de câmera após limiar; HUD recebe cliques normalmente.
+  *Aceite:* raycast seleciona terreno, cidade, prédio e célula após quatro rotações; botões HUD não alteram câmera; layout preserva IDs e coordenadas.
+- [ ] **T1.13 Dois materiais visuais locais.** Preferência persistida apenas no navegador: Relevo 3D e Carta manuscrita autoral. Os materiais alteram cor, hachura, decalque e tipografia, nunca escala, fog ou estado do servidor.
+  *Aceite:* alternância não emite comando, não muda snapshot e ambos os estilos ficam legíveis nos três LODs.
