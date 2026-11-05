@@ -39,6 +39,8 @@
 
 O cliente principal passa a ser Unity 6 nativo em Windows/macOS; o cliente web continua como referência até paridade. A troca facilita ferramentas 3D, mas o globo, streaming geográfico e câmera contínua são implementações próprias. Os serviços Rust e `orbis.v1` mantêm autoridade e contrato. Dados visuais usam Copernicus GLO-90 e LC100 2019, sem transferir propriedades de terreno ao cliente. A meta de 40 GB é uma hipótese de produto a validar por lote piloto, não um tamanho já medido.
 
+O projeto usa o template URP oficial e mantém os assemblies de core, mundo, UI e bootstrap separados. Input System substitui leitura direta de teclas; UI Toolkit isola a HUD da câmera; Localization e Unity Test Framework são dependências oficiais resolvidas pelo Package Manager. São dependências justificadas pela paridade PT-BR/en, roteamento consistente de entrada e validação automatizada do cliente. Google.Protobuf será adicionado somente na fatia de rede, junto à geração C# do contrato compartilhado.
+
 ### Integração S1.1
 
 Movimento, geografia e fundação são funções determinísticas em core/sim;

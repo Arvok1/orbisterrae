@@ -1,0 +1,17 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <Style src="WorldHud.uss" />
+    <ui:VisualElement name="hud-root" class="hud-root" picking-mode="Ignore">
+        <ui:VisualElement name="top-bar" class="top-bar input-surface">
+            <ui:Label name="world-title" class="world-title" text="ORBIS TERRAE" />
+            <ui:Label name="connection-status" class="connection-status" text="Fundação Unity" />
+            <ui:VisualElement class="top-spacer" />
+            <ui:Button name="style-toggle" class="hud-button" text="Carta manuscrita" />
+            <ui:Button name="locale-toggle" class="hud-button compact" text="EN" />
+        </ui:VisualElement>
+        <ui:VisualElement name="world-info" class="world-info input-surface">
+            <ui:Label name="coordinates" class="coordinates" text="00.0000°, 000.0000°" />
+            <ui:Label name="altitude" class="altitude" text="Altitude: 18.000 km" />
+        </ui:VisualElement>
+        <ui:Label name="camera-hint" class="camera-hint input-surface" text="Arraste para mover · botão direito para orbitar · roda para aproximar" />
+    </ui:VisualElement>
+</ui:UXML>

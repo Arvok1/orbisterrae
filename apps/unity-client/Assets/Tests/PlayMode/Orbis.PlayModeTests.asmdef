@@ -1,0 +1,22 @@
+{
+    "name": "Orbis.PlayModeTests",
+    "rootNamespace": "Orbis.Tests.PlayMode",
+    "references": [
+        "Orbis.Bootstrap",
+        "Orbis.World"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false,
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ]
+}

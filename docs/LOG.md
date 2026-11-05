@@ -1,5 +1,12 @@
 # Diário de bordo
 
+## 2026-11-05 — S1.2c, fundação Unity URP
+
+- Substituído o scaffold Built-in pelo projeto URP do Unity `6000.6.7f1`, com assemblies separados, geodesia em `double`, escala 1 unidade = 1 km, globo procedural, câmera contínua pelo Input System, pós-processamento ACES e HUD UI Toolkit responsiva.
+- Configuração aceita endpoints HTTP/WS, raiz de pacotes, idioma, qualidade e cache por linha de comando; preferências de idioma e estilo Relevo/Carta são locais. A HUD bloqueia pan/órbita ao receber o ponteiro.
+- Localization `1.5.14` e Test Framework `1.8.0` foram resolvidos pelo Package Manager oficial. A compilação Unity passou, 8/8 testes EditMode e 2/2 PlayMode passaram. O build Windows Development produziu um player de 148.741.934 bytes; smoke D3D11 de 20 s permaneceu ativo sem exceções ou warnings de tema/ICU. O cliente ainda não conecta ao servidor: protobuf, JWT/WebSocket, mundo em tiles, gameplay, cidade/admin e cutover pertencem às próximas branches de S1.2c.
+- O projeto original manteve um `Temp/UnityLockfile` preso pelo ambiente sincronizado; a validação foi feita numa cópia descartável dentro do workspace, removida após sincronizar apenas `Packages/manifest.json` e `packages-lock.json`.
+
 ## 2026-11-05 — S1.2c, primeiro corte de pacotes leves
 
 - Criado `pack_region.py` para empacotar GLO-90/LC100 locais em patches de até 100 m, com SHA-256, bounds e resolução efetiva; dois testes sintéticos passaram no Docker.

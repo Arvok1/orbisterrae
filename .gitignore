@@ -15,3 +15,4 @@ apps/unity-client/Build/
 apps/unity-client/UserSettings/
 apps/unity-client/.vsconfig
 apps/unity-client/*.slnx
+apps/unity-client/*.csproj

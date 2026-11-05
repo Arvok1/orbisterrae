@@ -73,6 +73,8 @@ Round-trip de `AdminSnapshotRequest`/`AdminSnapshot` em Rust/TypeScript; teste d
 
 O primeiro corte dos pacotes leves usa `docker compose -f tools/world-pipeline/compose.yml run --rm --entrypoint python world -m unittest discover -s tools/world-pipeline -p test_pack_region.py`. GeoTIFFs sintéticos verificam determinismo, layout binário, hashes e limites geográficos. O teste não prova cobertura global nem execução no Unity; esses aceites continuam abertos.
 
+A fundação Unity é validada com o Editor `6000.6.7f1` em modo batch. EditMode cobre round-trip geodésico em `double`, escala de 1 unidade Unity por quilômetro e parsing/validação de endpoints, idioma, qualidade e cache. PlayMode verifica bootstrap do globo/câmera/HUD e o bloqueio de input pela HUD. Build Windows Development valida o player; smoke com o gateway entra na fatia de rede de S1.2c.
+
 Testes TypeScript cobrem round-trip geodésico WGS84↔vetor unitário e metros
 locais, limites LOD 0–7/8–14/15–19 e decoder RLE independente do renderer.
 Antes de fechar o sprint, conferir por raycast terreno, cidade, prédio e célula;
