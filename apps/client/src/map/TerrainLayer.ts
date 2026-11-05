@@ -7,11 +7,9 @@ type Coordinate = [number, number];
 type Polygon = Coordinate[][];
 export interface TerrainData {
   version: number;
-  rivers: {name: string; lines: Coordinate[][]}[];
+  rivers: {name: string;rank:number;width:number;lines: Coordinate[][]}[];
   lakes: {name: string; polygons: Polygon[]}[];
   biomes: {biome: number; name: string}[];
-  relief: [number, number, number][];
-  symbols: [number, number, number][];
   stats: Record<string, number>;
 }
 const BASIS = 4096;
@@ -21,146 +19,114 @@ function xy([lon, lat]: Coordinate): [number, number] {
   return [p.x * BASIS, p.y * BASIS];
 }
 
-/** Static real geographic geometry plus shared cartographic glyphs.
- * Every source feature is present at every zoom; only the viewport clips it.
- */
+/** Continuous, data-anchored landscape for all three LODs. */
 export class TerrainLayer extends Container {
-  private symbols: {sprite: Sprite; mountain: boolean}[] = [];
   private ownedTextures: Texture[] = [];
-  private previousSize = 0;
   private closeScenery=new Container();
   private detailSprites:Sprite[]=[];
   private biomePixels:Uint8ClampedArray|null=null;
   private detailTextures:Record<string,Texture>={};
+  private rivers=new Graphics();
+  private lakes=new Graphics();
+  private relief:Sprite;
+  private lastHydroScale=0;
+  private lastLod=-1;
 
-  constructor(app: Application, data: TerrainData, biomes: Texture) {
+  constructor(private app: Application,private data: TerrainData,biomes: Texture,reliefTexture:Texture) {
     super();
     const regions = new Sprite(biomes);
     regions.width = regions.height = BASIS;
-    this.addChild(regions);
-
-    const trees = this.texture(app, 'tree');
-    const pines = this.texture(app, 'pine');
-    const dunes = this.texture(app, 'dune');
-    const mountains = this.texture(app, 'mountain');
-    const snow = this.texture(app, 'snow');
-    const hills = this.texture(app, 'hill');
-    this.detailTextures={trees,pines,dunes,autumn:this.texture(app,'autumn')};
+    regions.alpha=0.82;
+    this.relief=new Sprite(reliefTexture);
+    this.relief.width=this.relief.height=BASIS;
+    this.relief.blendMode='multiply';
+    this.relief.alpha=0.72;
+    this.detailTextures={forest:this.texture('forest'),pineForest:this.texture('pineForest'),dunes:this.texture('dunes'),autumnForest:this.texture('autumnForest')};
     const resource:unknown=biomes.source.resource;
     if (resource instanceof HTMLImageElement || resource instanceof ImageBitmap || resource instanceof HTMLCanvasElement) {
       const canvas=document.createElement('canvas');canvas.width=canvas.height=512;
       const context=canvas.getContext('2d');
-      if (context) {context.imageSmoothingEnabled=false;context.drawImage(resource,0,0,512,512);this.biomePixels=context.getImageData(0,0,512,512).data;}
+      if (context) {context.imageSmoothingEnabled=true;context.drawImage(resource,0,0,512,512);this.biomePixels=context.getImageData(0,0,512,512).data;}
     }
-    const landmarks = new Container();
-    const entries = [
-      ...data.symbols.map(([lon,lat,biome]) => ({lon,lat,texture:biome===13?dunes:biome===3||biome===5||biome===6?pines:trees,mountain:false})),
-      ...data.relief.map(([lon,lat,height]) => ({lon,lat,texture:height>2800?snow:height>1200?mountains:hills,mountain:true})),
-    ].sort((a,b) => b.lat-a.lat);
-    for (const entry of entries) {
-      const sprite = new Sprite(entry.texture);
-      sprite.anchor.set(0.5, 0.8);
-      sprite.position.set(...xy([entry.lon,entry.lat]));
-      landmarks.addChild(sprite);
-      this.symbols.push({sprite,mountain:entry.mountain});
-    }
-    this.addChild(landmarks);
-
-    const water = new Graphics();
-    for (const lake of data.lakes) {
-      for (const polygon of lake.polygons) this.polygon(water,polygon,'#80b5c4');
-    }
-    const riverBody=new Graphics();
-    for (const river of data.rivers) for (const line of river.lines) {
-      let previous: [number,number] | null = null;
-      for (const coordinate of line) {
-        const point = xy(coordinate);
-        if (!previous || Math.abs(point[0]-previous[0])>BASIS/2) {water.moveTo(...point);riverBody.moveTo(...point);}
-        else {water.lineTo(...point);riverBody.lineTo(...point);}
-        previous=point;
-      }
-      water.stroke({color:'#568ca3',pixelLine:true});
-      riverBody.stroke({color:'#80b5c4',width:0.006});
-    }
-    this.addChild(water,riverBody,this.closeScenery);
+    this.addChild(regions,this.relief,this.rivers,this.lakes,this.closeScenery);
+    this.renderHydro(1,0);
     this.eventMode = 'none';
   }
 
-  private polygon(graphics: Graphics, polygon: Polygon, color: string) {
-    if (!polygon[0]?.length) return;
-    graphics.poly(polygon[0].flatMap(xy)).fill(color);
-    for (const hole of polygon.slice(1)) graphics.poly(hole.flatMap(xy)).cut();
+  private renderHydro(scale:number,lod:number) {
+    this.rivers.clear();this.lakes.clear();
+    const widthFactor=[0.38,0.68,1][lod]??1;
+    for (const river of this.data.rivers) for (const line of river.lines) {
+      let previous: [number,number] | null = null;
+      for (const coordinate of line) {
+        const point = xy(coordinate);
+        if (!previous || Math.abs(point[0]-previous[0])>BASIS/2) this.rivers.moveTo(...point);
+        else this.rivers.lineTo(...point);
+        previous=point;
+      }
+      const pixels=Math.max(0.65,river.width*widthFactor);
+      this.rivers.stroke({color:'#679db1',width:pixels/scale,alpha:0.92});
+    }
+    for (const lake of this.data.lakes) for (const polygon of lake.polygons) {
+      if (!polygon[0]?.length) continue;
+      this.lakes.poly(polygon[0].flatMap(xy)).fill('#78aebe');
+      for (const hole of polygon.slice(1)) this.lakes.poly(hole.flatMap(xy)).cut();
+      this.lakes.poly(polygon[0].flatMap(xy)).stroke({color:'#4f8392',width:1.15/scale,alpha:0.9});
+    }
+    this.lastHydroScale=scale;this.lastLod=lod;
   }
 
-  private texture(app: Application, kind: string) {
+  private texture(kind:string) {
     const g = new Graphics();
-    if (kind==='tree'||kind==='autumn') {
-      g.ellipse(11,21,9,3).fill({color:'#56683b',alpha:0.2});
-      g.rect(10,11,3,11).fill('#8a6940');
-      g.circle(7,10,6).circle(15,10,6).circle(11,5,6).fill(kind==='autumn'?'#c3904e':'#577f45').stroke({color:'#465e39',width:0.8});
-      g.circle(7,7,3).fill(kind==='autumn'?'#e6bb6e':'#91af5d');
-    } else if (kind==='pine') {
-      g.rect(10,14,2,9).fill('#8a6940');
-      g.poly([11,0,3,12,6,12,0,19,22,19,16,12,19,12]).fill('#527764').stroke({color:'#3b5f4a',width:0.8});
-      g.poly([11,2,6,11,11,9]).fill('#82a77f');
-    } else if (kind==='dune') {
-      g.moveTo(0,16).quadraticCurveTo(6,4,13,15).quadraticCurveTo(19,7,25,16).stroke({color:'#b89954',width:1.2});
-      g.moveTo(5,19).quadraticCurveTo(12,13,21,20).stroke({color:'#c3a565',width:0.8});
-    } else if (kind==='hill') {
-      g.moveTo(0,19).quadraticCurveTo(11,-1,22,19).fill('#b3ac78').stroke({color:'#918b60',width:0.8});
-      g.moveTo(1,18).quadraticCurveTo(9,2,11,7).lineTo(10,18).fill('#c9bd88');
+    if(kind==='dunes') {
+      g.ellipse(60,32,58,22).fill({color:'#d6bb72',alpha:0.65});
+      for(let row=0;row<5;row++) g.moveTo(6,18+row*8).bezierCurveTo(34,1+row*8,72,38+row*3,116,16+row*7).stroke({color:'#aa8a4e',width:2,alpha:0.5});
     } else {
-      g.poly([1,24,12,1,27,24]).fill('#a59678').stroke({color:'#746d56',width:1});
-      g.poly([12,2,11,24,26,24]).fill('#8b826a');
-      g.poly([12,2,6,13,10,11,13,14,16,11,20,14]).fill(kind==='snow'?'#f4eed8':'#d5c7a4');
+      const autumn=kind==='autumnForest',pine=kind==='pineForest';
+      const dark=autumn?'#7d673c':pine?'#315845':'#3e6b42',middle=autumn?'#aa7a3d':pine?'#47725a':'#59834c',light=autumn?'#d2a44f':pine?'#72917b':'#7fa45f';
+      g.ellipse(64,38,60,27).fill({color:dark,alpha:0.4});
+      const crowns=[[14,35,18,13],[30,24,23,17],[53,31,25,18],[76,20,24,16],[96,34,26,18],[43,46,28,17],[78,45,30,18]];
+      for(const [x,y,rx,ry] of crowns) g.ellipse(x,y,rx,ry).fill(middle);
+      for(const [x,y,rx,ry] of crowns.filter((_,index)=>index%2===0)) g.ellipse(x-3,y-5,rx*0.6,ry*0.5).fill({color:light,alpha:0.72});
     }
-    const texture = app.renderer.generateTexture({target:g,resolution:2});
-    g.destroy();
-    this.ownedTextures.push(texture);
-    return texture;
+    const texture=this.app.renderer.generateTexture({target:g,resolution:2});g.destroy();this.ownedTextures.push(texture);return texture;
   }
 
   updateView(center: Point, size: number, width: number, height: number,clearings:Location[]=[]) {
-    const scale = size/BASIS;
+    const scale = size/BASIS,zoom=Math.log2(size/256),lod=zoom<8?0:zoom<15?1:2;
     this.position.set(width/2-center.x*size,height/2-center.y*size);
     this.scale.set(scale);
-    if (size!==this.previousSize) {
-      for (const {sprite,mountain} of this.symbols) {
-        const pixels = mountain ? Math.max(8,Math.min(22,size/120)) : Math.max(5,Math.min(16,size/180));
-        sprite.scale.set(pixels/sprite.texture.width/scale);
-      }
-      this.previousSize=size;
-    }
+    this.relief.alpha=lod===0?0.72:lod===1?0.84:0.64;
+    if(lod!==this.lastLod||!this.lastHydroScale||Math.max(scale/this.lastHydroScale,this.lastHydroScale/scale)>1.25) this.renderHydro(scale,lod);
     this.updateScenery(center,size,width,height,clearings);
   }
 
   private updateScenery(center:Point,size:number,width:number,height:number,clearings:Location[]) {
-    const zoom=Math.log2(size/256);this.closeScenery.visible=zoom>9&&this.biomePixels!==null;
+    const zoom=Math.log2(size/256);this.closeScenery.visible=zoom>=8&&this.biomePixels!==null;
     if (!this.closeScenery.visible) return;
-    this.closeScenery.alpha=Math.min(1,(zoom-9)/3);
-    const level=Math.min(18,Math.max(1,Math.floor(Math.log2(size/40)))),n=2**level,scale=size/BASIS;
+    this.closeScenery.alpha=Math.min(0.92,(zoom-8)/3);
+    const level=Math.min(17,Math.max(1,Math.floor(Math.log2(size/100)))),n=2**level,scale=size/BASIS;
     const left=Math.floor((center.x-width/size/2)*n)-1,right=Math.ceil((center.x+width/size/2)*n)+1;
     const top=Math.floor((center.y-height/size/2)*n)-1,bottom=Math.ceil((center.y+height/size/2)*n)+1;
     const towns=clearings.map(project);let used=0;
     for (let y=top;y<=bottom;y++) for (let x=left;x<=right;x++) {
       const {point,variant}=decoration(x,y,level,42);
-      if (variant%4!==0||point.x<0||point.x>=1||point.y<0||point.y>=1) continue;
-      if (towns.some(town=>Math.hypot(town.x-point.x,town.y-point.y)*size<85)) continue;
+      if (variant%3===1||point.x<0||point.x>=1||point.y<0||point.y>=1) continue;
+      if (towns.some(town=>Math.hypot(town.x-point.x,town.y-point.y)*size<130)) continue;
       const index=(Math.floor(point.y*512)*512+Math.floor(point.x*512))*4,pixels=this.biomePixels!;
       const biome=foliageBiome(pixels[index],pixels[index+1],pixels[index+2],pixels[index+3]);
       if (!biome) continue;
-      const texture=biome===13?this.detailTextures.dunes:[3,5,6].includes(biome)?this.detailTextures.pines:biome===4&&variant%3===0?this.detailTextures.autumn:this.detailTextures.trees;
+      const texture=biome===13?this.detailTextures.dunes:[3,5,6].includes(biome)?this.detailTextures.pineForest:biome===4&&variant%3===0?this.detailTextures.autumnForest:this.detailTextures.forest;
       let sprite=this.detailSprites[used++];
-      if (!sprite) {sprite=new Sprite(texture);sprite.anchor.set(0.5,0.85);this.closeScenery.addChild(sprite);this.detailSprites.push(sprite);}
+      if (!sprite) {sprite=new Sprite(texture);sprite.anchor.set(0.5);this.closeScenery.addChild(sprite);this.detailSprites.push(sprite);}
       sprite.texture=texture;sprite.visible=true;sprite.position.set(point.x*BASIS,point.y*BASIS);
-      sprite.scale.set((32+variant%15)/texture.width/scale);
+      const pixelsWide=120+variant%90;sprite.scale.set(pixelsWide/texture.width/scale);
+      sprite.rotation=((variant%9)-4)*0.025;
     }
-    for(let i=used;i<this.detailSprites.length;i++)this.detailSprites[i].visible=false;
+    for(let index=used;index<this.detailSprites.length;index++)this.detailSprites[index]!.visible=false;
   }
 
   override destroy(options?: Parameters<Container['destroy']>[0]) {
-    super.destroy(options);
-    for (const texture of this.ownedTextures) texture.destroy(true);
-    this.symbols=[];
+    super.destroy(options);for (const texture of this.ownedTextures) texture.destroy(true);
   }
 }

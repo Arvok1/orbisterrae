@@ -1,6 +1,7 @@
 import { Application, Assets, ColorMatrixFilter, Container, Graphics, Sprite, type Texture } from 'pixi.js';
 import terrainUrl from '../assets/world-terrain-v1.json?url';
 import biomesUrl from '../assets/world-biomes-v1.png?url';
+import reliefUrl from '../assets/world-relief-v2.png?url';
 import land from '../assets/world-land-v1.json' with {type: 'json'};
 import { project, unproject, visibleTiles, type Point } from './projection.js';
 import { useAtlas } from '../state.js';
@@ -8,6 +9,7 @@ import { TerrainLayer, type TerrainData } from './TerrainLayer.js';
 import { GameLayer } from './GameLayer.js';
 import { rulerPosition } from './gameScene.js';
 import { sendGame } from '../network.js';
+import { anchorCity, CityLayer } from './CityLayer.js';
 
 /** Rendering only: no React dependency and no simulation results calculated here. */
 export class Atlas {
@@ -24,6 +26,7 @@ export class Atlas {
   private coastline = new Graphics();
   private terrain: TerrainLayer | null = null;
   private game:GameLayer|null=null;
+  private city:CityLayer|null=null;
   private following=false;
   private coastRings = land.coordinates.flatMap(polygon => polygon.map(ring =>
     ring.map(point => project({lon: point[0], lat: point[1]}))));
@@ -58,12 +61,13 @@ export class Atlas {
     if (!response.ok) throw new Error(`Terrain load failed: ${response.status}`);
     const terrainData = await response.json() as TerrainData;
     if (this.disposed) return;
-    const biomes = await Assets.load<Texture>(biomesUrl);
+    const [biomes,relief] = await Promise.all([Assets.load<Texture>(biomesUrl),Assets.load<Texture>(reliefUrl)]);
     if (this.disposed) { void Assets.unload(biomesUrl); return; }
-    this.terrain = new TerrainLayer(this.app, terrainData, biomes);
+    this.terrain = new TerrainLayer(this.app, terrainData, biomes,relief);
     this.app.stage.addChildAt(this.terrain, 1);
     this.app.canvas.dataset.terrain = JSON.stringify(terrainData.stats);
     this.game=new GameLayer(this.app);this.game.sync(useAtlas.getState().world);this.app.stage.addChild(this.game);
+    this.city=new CityLayer();this.syncCity();this.app.stage.addChild(this.city);
     let elapsed = 0;
     let frames = 0;
     this.app.ticker.add((ticker) => {
@@ -73,6 +77,7 @@ export class Atlas {
         if (Math.hypot(center.x-this.center.x,center.y-this.center.y)>1e-12) {this.center=center;this.draw();}
       }
       this.game?.frame(this.center,this.size,this.host.clientWidth,this.host.clientHeight,now);
+      this.city?.frame(ticker.deltaMS);
       elapsed += ticker.deltaMS;
       frames++;
       if (elapsed >= 1000) {
@@ -114,7 +119,23 @@ export class Atlas {
     this.host.addEventListener('pointerup', (e) => {
       if (!this.moved && this.pointers.size === 1) {
         const box = this.host.getBoundingClientRect();
-        useAtlas.getState().select(unproject(this.worldAt({x: e.clientX - box.left, y: e.clientY - box.top})));
+        const screen={x:e.clientX-box.left,y:e.clientY-box.top},state=useAtlas.getState();
+        const cell=this.city?.cellAt(screen);
+        if(cell&&state.city?.editable&&!state.commandPending) {
+          const tool=state.cityTool;
+          if(tool.kind==='road') sendGame({$case:'applyCityEdits',applyCityEdits:{cityId:state.city.cityId,expectedRevision:state.city.revision,edits:[{x:cell.x,y:cell.y,layer:'road',value:this.city?.roadAt(cell.x,cell.y)?'none':'road'}]}});
+          else if(tool.kind==='zone') sendGame({$case:'applyCityEdits',applyCityEdits:{cityId:state.city.cityId,expectedRevision:state.city.revision,edits:[{x:cell.x,y:cell.y,layer:'zone',value:tool.value}]}});
+          else sendGame({$case:'queueBuilding',queueBuilding:{cityId:state.city.cityId,expectedRevision:state.city.revision,buildingId:tool.value,x:cell.x,y:cell.y,orientation:state.cityRotation}});
+        } else {
+          const nearest=state.world?.cities.map(city=>{
+            const p=city.pos?project(city.pos):null;
+            return {city,distance:p?Math.hypot(box.width/2+(p.x-this.center.x)*this.size-screen.x,box.height/2+(p.y-this.center.y)*this.size-screen.y):Infinity};
+          }).sort((a,b)=>a.distance-b.distance)[0];
+          if(nearest&&nearest.distance<28) {
+            state.selectCity(nearest.city.id);
+            sendGame({$case:'inspectCity',inspectCity:{cityId:nearest.city.id}});
+          } else state.select(unproject(this.worldAt(screen)));
+        }
       }
       this.pointers.delete(e.pointerId);
     }, options);
@@ -132,6 +153,9 @@ export class Atlas {
         }
         return;
       }
+      if((e.key.toLowerCase()==='q'||e.key.toLowerCase()==='e')&&state.city&&state.zoom>=15) {
+        e.preventDefault();state.rotateCity(e.key.toLowerCase()==='q'?-1:1);return;
+      }
       const step = 80 / this.size;
       const actions: Record<string, () => void> = {
         ArrowLeft: () => { this.center.x -= step; }, ArrowRight: () => { this.center.x += step; },
@@ -145,18 +169,20 @@ export class Atlas {
       if (state.action !== before.action && state.action) {
         if (state.action.kind === 'reset') {
           this.following=false;
+          state.selectCity(null);
           this.center = project({lat: 14, lon: 8});
           this.size = Math.max(this.host.clientWidth * 0.95, 800);
         } else if (state.action.kind === 'follow') {
           if (state.world?.ruler) {this.following=true;this.center=project(rulerPosition(state.world.ruler,Date.now()+state.serverOffsetMs));this.size=8_388_608;}
         } else if (state.action.kind === 'city') {
           const city=state.world?.cities.find(city=>city.id===state.world?.ruler?.cityId);
-          if (city?.pos) {this.following=false;this.center=project(city.pos);this.size=8_388_608;}
+          if (city?.pos) {this.following=false;this.center=project(city.pos);this.size=33_554_432;state.selectCity(city.id);sendGame({$case:'inspectCity',inspectCity:{cityId:city.id}});}
           else if (!state.world&&state.selected) { this.center = project(state.selected); this.size = 16384; }
         } else this.zoom(state.action.kind === 'zoomIn' ? 1.5 : 1 / 1.5);
       }
       if (state.world!==before.world) this.game?.sync(state.world);
-      if (state.selected !== before.selected || state.action !== before.action || state.entities !== before.entities || state.showDiagnostics !== before.showDiagnostics || state.world!==before.world) this.draw();
+      if(state.city!==before.city||state.cityRotation!==before.cityRotation||state.world!==before.world) this.syncCity();
+      if (state.selected !== before.selected || state.action !== before.action || state.entities !== before.entities || state.showDiagnostics !== before.showDiagnostics || state.world!==before.world||state.city!==before.city||state.cityRotation!==before.cityRotation) this.draw();
     });
     this.observer = new ResizeObserver(() => {
       this.app.renderer.resize(this.host.clientWidth, this.host.clientHeight);
@@ -216,7 +242,7 @@ export class Atlas {
   }
   private zoom(factor: number, point = {x: this.host.clientWidth / 2, y: this.host.clientHeight / 2}) {
     const before = this.worldAt(point);
-    this.size = Math.max(600, Math.min(useAtlas.getState().world?.ruler?16_777_216:16384, this.size * factor));
+    this.size = Math.max(600, Math.min(134_217_728, this.size * factor));
     const after = this.worldAt(point);
     this.center.x += before.x - after.x;
     this.center.y += before.y - after.y;
@@ -262,6 +288,7 @@ export class Atlas {
     }
     this.marker.clear();
     this.terrain?.updateView(this.center, this.size, width, height,useAtlas.getState().world?.cities.flatMap(city=>city.pos?[city.pos]:[])??[]);
+    this.city?.updateView(this.center,this.size,width,height);
     this.coastline.position.set(width/2-this.center.x*this.size,height/2-this.center.y*this.size);
     this.coastline.scale.set(this.size/4096);
     this.entities.clear();
@@ -295,6 +322,14 @@ export class Atlas {
       this.app.canvas.dataset.cities=String(world.cities.filter(city=>city.active).length);
     }
   }
+  private syncCity() {
+    const state=useAtlas.getState(),snapshot=state.city;
+    if(snapshot) {
+      const town=state.world?.cities.find(city=>city.id===snapshot.cityId);
+      if(town?.pos) anchorCity(snapshot,project(town.pos));
+    }
+    this.city?.sync(snapshot,state.cityRotation);
+  }
   destroy() {
     this.disposed = true;
     this.abort.abort();
@@ -304,6 +339,7 @@ export class Atlas {
     if (this.ready) this.app.destroy(true, {children: true});
     for (const url of this.tiles.keys()) void Assets.unload(url);
     void Assets.unload(biomesUrl);
+    void Assets.unload(reliefUrl);
     this.tiles.clear();
   }
 }

@@ -615,10 +615,23 @@ async fn ensure_layout(
     catalog: &CityCatalog,
     balance: &city::Balance,
 ) -> Result<CityLayout, ServiceError> {
-    if let Some(layout) = load_layout(conn, town.id, true).await? {
+    if let Some(mut layout) = load_layout(conn, town.id, true).await? {
+        if layout.baseline_food_capacity == 0
+            && layout
+                .buildings
+                .iter()
+                .all(|building| building.kind == "house")
+        {
+            layout.baseline_food_capacity = balance.simulation.initial_food_capacity;
+            layout.natural_water_coverage = balance.simulation.initial_natural_water_coverage;
+            layout.events.retain(|event| event.kind != "famine");
+            city::recompute_metrics(&mut layout, catalog)?;
+            layout.revision += 1;
+            save_layout(conn, &layout).await?;
+        }
         return Ok(layout);
     }
-    let layout = city::initial_layout(town, catalog)?;
+    let layout = city::initial_layout(town, catalog, balance)?;
     save_layout(conn, &layout).await?;
     let tick = 1;
     schedule_action(

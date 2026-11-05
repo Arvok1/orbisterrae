@@ -8,6 +8,8 @@ event_duration_ms = 20000
 base_growth_per_tick = 1
 base_fire_per_million = 25000
 maximum_pending_construction = 8
+initial_food_capacity = 32
+initial_natural_water_coverage = 1.0
 
 [special_buildings]
 # cota = floor(base + a*ln(pop) + b*importance + c*era_index)

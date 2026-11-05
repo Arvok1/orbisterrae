@@ -67,6 +67,10 @@ pub struct CityLayout {
     pub population: Population,
     pub metrics: Metrics,
     pub events: Vec<CityEvent>,
+    #[serde(default)]
+    pub baseline_food_capacity: u32,
+    #[serde(default)]
+    pub natural_water_coverage: f64,
     pub revision: u64,
     pub tick: u64,
 }

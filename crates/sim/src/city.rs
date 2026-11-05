@@ -98,6 +98,8 @@ pub struct SimulationBalance {
     pub base_growth_per_tick: u32,
     pub base_fire_per_million: u32,
     pub maximum_pending_construction: usize,
+    pub initial_food_capacity: u32,
+    pub initial_natural_water_coverage: f64,
 }
 
 impl Balance {
@@ -112,6 +114,8 @@ impl Balance {
             || self.simulation.tick_ms == 0
             || self.simulation.event_duration_ms == 0
             || self.simulation.maximum_pending_construction == 0
+            || !self.simulation.initial_natural_water_coverage.is_finite()
+            || !(0.0..=1.0).contains(&self.simulation.initial_natural_water_coverage)
         {
             return Err(CityError("invalid_city_balance"));
         }
@@ -177,7 +181,11 @@ pub fn decode_rle(encoded: &[u8], expected_len: usize) -> Result<Vec<u8>, CityEr
     Ok(decoded)
 }
 
-pub fn initial_layout(city: &City, catalog: &Catalog) -> Result<CityLayout, CityError> {
+pub fn initial_layout(
+    city: &City,
+    catalog: &Catalog,
+    balance: &Balance,
+) -> Result<CityLayout, CityError> {
     catalog.validate()?;
     let mut layout = CityLayout {
         city: city.id,
@@ -196,6 +204,8 @@ pub fn initial_layout(city: &City, catalog: &Catalog) -> Result<CityLayout, City
         },
         metrics: Metrics::default(),
         events: Vec::new(),
+        baseline_food_capacity: balance.simulation.initial_food_capacity,
+        natural_water_coverage: balance.simulation.initial_natural_water_coverage,
         revision: 1,
         tick: 0,
     };
@@ -432,7 +442,7 @@ pub fn recompute_metrics(layout: &mut CityLayout, catalog: &Catalog) -> Result<(
     let mut max_x = 0_u16;
     let mut max_y = 0_u16;
     let mut housing = 0_u32;
-    let mut food = 0_u32;
+    let mut food = layout.baseline_food_capacity;
     let mut defense = 0_u32;
     let mut fire = 0.0;
     let mut wells = Vec::new();
@@ -484,9 +494,9 @@ pub fn recompute_metrics(layout: &mut CityLayout, catalog: &Catalog) -> Result<(
         occupied as f64 / developed as f64
     };
     let water = if occupied == 0 {
-        0.0
+        layout.natural_water_coverage
     } else {
-        covered as f64 / occupied as f64
+        (covered as f64 / occupied as f64 + layout.natural_water_coverage).min(1.0)
     };
     layout.metrics = Metrics {
         water,
@@ -680,7 +690,7 @@ mod tests {
 
     #[test]
     fn initial_village_has_three_houses_and_central_road() {
-        let layout = initial_layout(&city(), &catalog()).expect("layout");
+        let layout = initial_layout(&city(), &catalog(), &balance()).expect("layout");
         assert_eq!(layout.buildings.len(), 3);
         assert!(layout
             .buildings
@@ -696,7 +706,7 @@ mod tests {
     fn revisions_zones_collision_and_completion_are_authoritative() {
         let catalog = catalog();
         let balance = balance();
-        let layout = initial_layout(&city(), &catalog).expect("layout");
+        let layout = initial_layout(&city(), &catalog, &balance).expect("layout");
         let layout = apply_edits(
             &layout,
             layout.revision,
@@ -772,7 +782,7 @@ mod tests {
     #[test]
     fn placement_changes_density_and_defense_with_same_buildings() {
         let catalog = catalog();
-        let base = initial_layout(&city(), &catalog).expect("layout");
+        let base = initial_layout(&city(), &catalog, &balance()).expect("layout");
         let mut compact = base.clone();
         let mut spread = base.clone();
         let tower = |id, x, y| Building {
@@ -797,7 +807,7 @@ mod tests {
     fn same_seeded_tick_is_deterministic_and_idempotent() {
         let catalog = catalog();
         let balance = balance();
-        let layout = initial_layout(&city(), &catalog).expect("layout");
+        let layout = initial_layout(&city(), &catalog, &balance).expect("layout");
         let first = simulate_tick(&layout, 1, 1000, &catalog, &balance).expect("tick");
         let again = simulate_tick(&layout, 1, 1000, &catalog, &balance).expect("tick");
         assert_eq!(first, again);

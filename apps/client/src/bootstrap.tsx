@@ -6,6 +6,7 @@ import { messages } from './i18n.js';
 import { connectWorld } from './network.js';
 import { PlayPanel } from './PlayPanel.js';
 import { gameMessages } from './game-i18n.js';
+import { CityPanel } from './CityPanel.js';
 import './cartoon.css';
 
 function App() {
@@ -14,7 +15,7 @@ function App() {
   const t = messages[state.locale];
   const g=gameMessages[state.locale];
   const [panelOpen, setPanelOpen] = useState(false);
-  const cityView = Boolean(state.world?.ruler&&state.zoom>9);
+  const cityView = Boolean(state.city&&state.zoom>=15);
   const ownCity=state.world?.cities.find(city=>city.id===state.world?.ruler?.cityId);
   useEffect(()=>connectWorld(state.session?.token??null),[state.session?.token]);
   useEffect(() => {
@@ -57,6 +58,7 @@ function App() {
     <div className="map-caption"><span className="terrain-dot" />{state.session?g.hint:t.terrain}</div>
     {!state.session&&<div className="layer-control"><button aria-pressed={state.showDiagnostics} onClick={state.toggleDiagnostics}>{t.testLayer}{state.showDiagnostics ? ' ✓' : ''}</button></div>}
     {state.session&&<button className="follow-button" onClick={()=>state.command('follow')} aria-label={g.follow}>♜</button>}
+    <CityPanel />
     <footer><span><a href="https://ecoregions.appspot.com/" target="_blank" rel="noreferrer">{t.source}</a></span><span aria-live="polite">{state.error ? t.error : state.session?g.keyboard:state.loaded ? t.ready : t.loading}</span></footer>
     <span id="keyboard-help" className="sr-only">{state.session?g.keyboard:t.keyboard}</span>
     {state.error && <div role="alert" className="error">{t.error}<button onClick={() => location.reload()}>{t.retry}</button></div>}

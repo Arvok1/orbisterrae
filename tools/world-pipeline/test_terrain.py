@@ -2,7 +2,8 @@ import unittest
 import numpy as np
 from shapely.geometry import Polygon, MultiLineString
 from PIL import Image
-from terrain import line_parts, polygon_parts, relief_points, paint_region, raster_point
+from terrain import (feature_class, line_parts, polygon_parts, relief_points,
+                     relief_raster, river_style, paint_region, raster_point)
 
 
 class TerrainTest(unittest.TestCase):
@@ -32,6 +33,22 @@ class TerrainTest(unittest.TestCase):
         self.assertEqual(first, relief_points(grid, land))
         self.assertEqual(len(first), 1)
         self.assertEqual(first[0][2], 3000)
+
+    def test_continuous_relief_is_deterministic_and_ocean_is_transparent(self):
+        grid = np.full((360, 720), -1000.0)
+        grid[170:190, 350:370] = np.linspace(0, 4200, 400).reshape(20, 20)
+        first = relief_raster(grid, 128)
+        second = relief_raster(grid, 128)
+        self.assertEqual(first.tobytes(), second.tobytes())
+        self.assertEqual(first.size, (128, 128))
+        self.assertEqual(first.getpixel((0, 0))[3], 0)
+        self.assertGreater(first.getpixel((64, 64))[3], 0)
+
+    def test_lake_centerlines_and_river_importance_are_explicit(self):
+        self.assertEqual(feature_class({'featurecla': 'Lake Centerline'}), 'Lake Centerline')
+        major = river_style({'scalerank': 1})
+        minor = river_style({'scalerank': 10})
+        self.assertGreater(major[1], minor[1])
 
 
 if __name__ == "__main__":

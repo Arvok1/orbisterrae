@@ -337,8 +337,16 @@ async fn exercise(context: &mut Context) -> Result<(), Box<dyn std::error::Error
         city_catalog: context.city_catalog.clone(),
         city_balance: context.city_balance.clone(),
     };
-    assert!(context.process_due(world::worker(source), 3_006_000).await?);
-    assert!(!context.process_due(world::worker(source), 3_006_000).await?);
+    assert!(
+        context
+            .process_due(world::worker(source), 3_006_000)
+            .await?
+    );
+    assert!(
+        !context
+            .process_due(world::worker(source), 3_006_000)
+            .await?
+    );
     let Some(server_msg::Kind::City(completed)) =
         context.command(account, &inspect, 3_006_000).await?.kind
     else {

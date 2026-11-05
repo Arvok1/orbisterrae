@@ -10,8 +10,8 @@ export function sendGame(kind:Command['kind']) {
 export function connectWorld(token:string|null) {
   let disposed=false,seq=0n,socket:WebSocket|null=null,retry:ReturnType<typeof setTimeout>|undefined;
   let authenticated=false,lastViewport='';
-  const pending=new Map<bigint,{type:'auth'|'view'|'write';at:number}>();
-  function send(kind:Command['kind'],type:'auth'|'view'|'write') {
+  const pending=new Map<bigint,{type:'auth'|'view'|'city'|'write';at:number}>();
+  function send(kind:Command['kind'],type:'auth'|'view'|'city'|'write') {
     if (socket?.readyState!==WebSocket.OPEN) return;
     const id=++seq;
     pending.set(id,{type,at:performance.now()});
@@ -29,7 +29,9 @@ export function connectWorld(token:string|null) {
   const sendAction=(kind:Command['kind'])=>{
     if (!authenticated || !token || socket?.readyState!==WebSocket.OPEN) {useAtlas.setState({gameMessage:'authentication_required'});return;}
     if ([...pending.values()].some(item=>item.type==='write')) return;
-    useAtlas.setState({commandPending:true,gameMessage:null});send(kind,'write');
+    const inspect=kind?.$case==='inspectCity';
+    if (!inspect) useAtlas.setState({commandPending:true,gameMessage:null});
+    send(kind,inspect?'city':'write');
   };
   activeSend=sendAction;
   function connect() {
@@ -59,6 +61,10 @@ export function connectWorld(token:string|null) {
           useAtlas.setState({world:kind.world,serverOffsetMs:kind.world.nowMs-Date.now(),connection:'online'});
           if (first) useAtlas.getState().command('follow');
         }
+        if (kind?.$case==='city') {
+          const current=useAtlas.getState().city;
+          useAtlas.setState({city:current?.revision===kind.city.revision?current:kind.city,commandPending:false,gameMessage:null,connection:'online'});
+        }
         if (kind?.$case==='result') {
           useAtlas.setState({commandPending:false,gameMessage:kind.result.ok?'command_accepted':kind.result.error});
           if (request.type==='write') poll();
@@ -74,6 +80,10 @@ export function connectWorld(token:string|null) {
   const timer=setInterval(()=>{
     if ([...pending.values()].some(item=>performance.now()-item.at>10000)) {socket?.close();return;}
     poll();
+    const cityId=useAtlas.getState().selectedCityId;
+    if (token&&authenticated&&cityId&&![...pending.values()].some(item=>item.type==='city'||item.type==='write')) {
+      send({$case:'inspectCity',inspectCity:{cityId}},'city');
+    }
   },token?500:150);
   connect();
   return ()=>{

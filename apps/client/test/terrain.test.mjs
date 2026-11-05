@@ -4,15 +4,14 @@ import test from 'node:test';
 
 test('shipped terrain covers global sources and keeps valid geographic coordinates', () => {
   const data = JSON.parse(readFileSync(new URL('../src/assets/world-terrain-v1.json', import.meta.url), 'utf8'));
-  assert.deepEqual(data.stats, {rivers:1473, lakes:412, biomes:847, relief:2249, symbols:2232});
-  for (const [kind, count] of Object.entries(data.stats)) assert.equal(data[kind].length, count);
+  assert.deepEqual(data.stats, {rivers:1214, lakes:412, biomes:847, lake_centerlines_filtered:259});
+  for (const kind of ['rivers','lakes','biomes']) assert.equal(data[kind].length, data.stats[kind]);
   for (const name of ['Amazonas', 'Nile', 'Mississippi', 'Yangtze']) {
     assert.ok(data.rivers.some(river => river.name === name), `Missing ${name}`);
   }
   const points = [
     ...data.rivers.flatMap(river => river.lines.flat()),
     ...data.lakes.flatMap(lake => lake.polygons.flat(2)),
-    ...data.relief, ...data.symbols,
   ];
   for (const [lon, lat] of points) {
     assert.ok(Number.isFinite(lon) && lon >= -180 && lon <= 180);
@@ -24,4 +23,9 @@ test('shipped terrain covers global sources and keeps valid geographic coordinat
   assert.equal(raster.subarray(1,4).toString(), 'PNG');
   assert.equal(raster.readUInt32BE(16), 4096);
   assert.equal(raster.readUInt32BE(20), 4096);
+  const relief = readFileSync(new URL('../src/assets/world-relief-v2.png', import.meta.url));
+  assert.equal(relief.subarray(1,4).toString(), 'PNG');
+  assert.equal(relief.readUInt32BE(16), 4096);
+  assert.equal(relief.readUInt32BE(20), 4096);
+  assert.ok(data.rivers.every(river=>Number.isInteger(river.rank)&&river.width>0));
 });

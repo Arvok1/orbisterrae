@@ -1,4 +1,4 @@
-"""Export real global hydrography, ecoregions and relief for cartoon rendering."""
+"""Export real hydrography, RESOLVE biomes and continuous ETOPO relief."""
 import argparse
 import hashlib
 import io
@@ -11,7 +11,6 @@ import zipfile
 import numpy as np
 import shapefile
 from shapely.geometry import Point, shape
-from shapely.strtree import STRtree
 from shapely.prepared import prep
 from PIL import Image, ImageDraw
 from world import load_land, SOURCE_SHA256
@@ -117,6 +116,46 @@ def relief_points(elevation, land):
     return points
 
 
+def relief_raster(elevation, size=RASTER_SIZE):
+    """Deterministic Mercator hillshade and hypsometry; ocean remains transparent."""
+    rows, columns = elevation.shape
+    gradient_y, gradient_x = np.gradient(elevation.astype(np.float64))
+    slope = np.arctan(np.hypot(gradient_x, gradient_y) * 0.018)
+    aspect = np.arctan2(-gradient_x, gradient_y)
+    azimuth, altitude = math.radians(315), math.radians(38)
+    shade = np.sin(altitude) * np.cos(slope) + np.cos(altitude) * np.sin(slope) * np.cos(azimuth - aspect)
+    shade = np.clip((shade + 0.35) / 1.35, 0, 1)
+    pixel_y = np.arange(size, dtype=np.float64)
+    mercator_lat = np.degrees(np.arctan(np.sinh(math.pi * (1 - 2 * (pixel_y + 0.5) / size))))
+    source_y = np.clip(((90 - mercator_lat) / 180 * rows).astype(int), 0, rows - 1)
+    source_x = np.clip(((np.arange(size) + 0.5) / size * columns).astype(int), 0, columns - 1)
+    sampled_elevation = elevation[source_y[:, None], source_x[None, :]].astype(np.float64)
+    sampled_shade = shade[source_y[:, None], source_x[None, :]]
+    height = np.clip(sampled_elevation, 0, 5000) / 5000
+    low = np.array([111, 118, 73], dtype=np.float64)
+    high = np.array([184, 169, 135], dtype=np.float64)
+    snow = np.array([231, 226, 211], dtype=np.float64)
+    color = low + (high - low) * np.minimum(height[..., None] * 2.4, 1)
+    snow_mix = np.clip((sampled_elevation - 2800) / 1800, 0, 1)[..., None]
+    color = color * (1 - snow_mix) + snow * snow_mix
+    dramatic = 0.42 + sampled_shade[..., None] * 0.82
+    color = np.clip(color * dramatic, 0, 255).astype(np.uint8)
+    alpha = np.where(sampled_elevation >= 0, 190, 0).astype(np.uint8)
+    return Image.fromarray(np.dstack((color, alpha)), mode='RGBA')
+
+
+def feature_class(attributes):
+    for key, value in attributes.items():
+        if str(key).lower() in ('featurecla', 'feature_class'):
+            return str(value)
+    return ''
+
+
+def river_style(attributes):
+    rank = int(attributes.get('scalerank') or attributes.get('SCALERANK') or 10)
+    return rank, round(max(0.8, 4.6 - rank * 0.34), 2)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--download-only", action="store_true")
@@ -139,19 +178,23 @@ def main():
     if hashlib.sha256(content).hexdigest() != SOURCE_SHA256:
         raise ValueError("Land source does not match P0.3")
     land = prep(load_land(content))
-    output = {"version": 1, "rivers": [], "lakes": [], "biomes": [],
-              "relief": relief_points(np.load(root / "elevation_05deg.npy"), land),
-              "symbols": [], "sources": {}}
+    elevation = np.load(root / "elevation_05deg.npy")
+    output = {"version": 2, "rivers": [], "lakes": [], "biomes": [], "sources": {}}
+    lake_centerlines_filtered = 0
     for geometry, attrs in records(paths["rivers"]):
+        if feature_class(attrs).strip().lower() == 'lake centerline':
+            lake_centerlines_filtered += 1
+            continue
         lines = line_parts(geometry.simplify(0.025, preserve_topology=True))
         if lines:
-            output["rivers"].append({"name": attrs.get("name") or "", "lines": lines})
+            rank, width = river_style(attrs)
+            output["rivers"].append({"name": attrs.get("name") or "", "rank": rank,
+                                      "width": width, "lines": lines})
     print(f"Exported {len(output['rivers'])} rivers", flush=True)
     for geometry, attrs in records(paths["lakes"]):
         polygons = polygon_parts(geometry.simplify(0.025, preserve_topology=True))
         if polygons:
             output["lakes"].append({"name": attrs.get("name") or "", "polygons": polygons})
-    geometries, biome_ids = [], []
     biome_image = Image.new('RGBA', (RASTER_SIZE, RASTER_SIZE))
     for number, (geometry, attrs) in enumerate(records(paths["biomes"]), 1):
         biome = int(attrs["BIOME_NUM"])
@@ -160,32 +203,24 @@ def main():
         if polygons:
             paint_region(biome_image, polygons, biome)
             output["biomes"].append({"biome": biome, "name": attrs.get("ECO_NAME") or ""})
-            geometries.append(simplified)
-            biome_ids.append(biome)
         if number % 100 == 0:
             print(f'Processed {number} ecoregions', flush=True)
-    tree = STRtree(geometries)
-    for lat in np.arange(-79, 83, 2):
-        for lon in np.arange(-179, 180, 2):
-            point = Point(float(lon), float(lat))
-            if not land.covers(point):
-                continue
-            indices = tree.query(point, predicate="intersects")
-            if len(indices):
-                biome = biome_ids[int(indices[0])]
-                if biome in (1, 2, 3, 4, 5, 6, 13, 14):
-                    output["symbols"].append([float(lon), float(lat), biome])
     for kind, path in paths.items():
         with path.open("rb") as stream:
             digest = hashlib.file_digest(stream, "sha256").hexdigest()
         output["sources"][kind] = {"url": SOURCES[kind], "sha256": digest}
-    output["stats"] = {kind: len(output[kind]) for kind in ("rivers", "lakes", "biomes", "relief", "symbols")}
+    output["stats"] = {kind: len(output[kind]) for kind in ("rivers", "lakes", "biomes")}
+    output["stats"]["lake_centerlines_filtered"] = lake_centerlines_filtered
     args.output_dir.mkdir(parents=True, exist_ok=True)
     target = args.output_dir / "world-terrain-v1.json"
     raster_target = target.with_name('world-biomes-v1.png')
+    relief_target = target.with_name('world-relief-v2.png')
     raster_temporary = raster_target.with_suffix('.tmp')
     biome_image.save(raster_temporary, format='PNG')
     raster_temporary.replace(raster_target)
+    relief_temporary = relief_target.with_suffix('.tmp')
+    relief_raster(elevation).save(relief_temporary, format='PNG')
+    relief_temporary.replace(relief_target)
     temporary = target.with_suffix(".tmp")
     temporary.write_text(json.dumps(output, separators=(",", ":")) + "\n", encoding="utf-8")
     temporary.replace(target)
