@@ -11,6 +11,6 @@ serde.workspace = true
 serde_json.workspace = true
 h3o.workspace = true
 toml.workspace = true
+uuid.workspace = true
 
 [dev-dependencies]
-uuid.workspace = true

@@ -1,0 +1,147 @@
+[[building]]
+id = "house"
+name_key = "building.house"
+footprint = [2, 2]
+construction_ms = 5000
+zones = ["residential"]
+housing = 8
+fire = 0.18
+visual_role = "house"
+
+[[building]]
+id = "field"
+name_key = "building.field"
+footprint = [3, 3]
+construction_ms = 4500
+zones = ["agricultural"]
+food = 18
+jobs_farmers = 6
+fire = 0.04
+visual_role = "field"
+
+[[building]]
+id = "wood_workshop"
+name_key = "building.wood_workshop"
+footprint = [3, 2]
+construction_ms = 7000
+zones = ["industrial"]
+jobs_artisans = 5
+fire = 0.28
+visual_role = "workshop"
+
+[[building]]
+id = "forge"
+name_key = "building.forge"
+footprint = [3, 2]
+construction_ms = 8500
+zones = ["industrial"]
+jobs_artisans = 5
+fire = 0.34
+visual_role = "forge"
+
+[[building]]
+id = "warehouse"
+name_key = "building.warehouse"
+footprint = [3, 3]
+construction_ms = 7500
+zones = ["industrial", "civic"]
+food = 8
+fire = 0.22
+visual_role = "warehouse"
+
+[[building]]
+id = "market"
+name_key = "building.market"
+footprint = [4, 3]
+construction_ms = 9000
+zones = ["civic"]
+jobs_artisans = 4
+visual_role = "market"
+
+[[building]]
+id = "port"
+name_key = "building.port"
+footprint = [4, 3]
+construction_ms = 11000
+zones = ["civic", "industrial"]
+water_required = true
+visual_role = "port"
+
+[[building]]
+id = "shipyard"
+name_key = "building.shipyard"
+footprint = [5, 3]
+construction_ms = 13000
+zones = ["industrial"]
+water_required = true
+jobs_artisans = 8
+fire = 0.30
+visual_role = "shipyard"
+
+[[building]]
+id = "temple"
+name_key = "building.temple"
+footprint = [3, 3]
+construction_ms = 10000
+zones = ["civic"]
+jobs_priests = 4
+visual_role = "temple"
+
+[[building]]
+id = "barracks"
+name_key = "building.barracks"
+footprint = [4, 3]
+construction_ms = 9000
+zones = ["military"]
+jobs_soldiers = 8
+defense = 8
+visual_role = "barracks"
+
+[[building]]
+id = "wall"
+name_key = "building.wall"
+footprint = [1, 1]
+construction_ms = 1800
+zones = ["military", "civic", "residential", "industrial", "agricultural"]
+defense = 2
+visual_role = "wall"
+
+[[building]]
+id = "tower"
+name_key = "building.tower"
+footprint = [2, 2]
+construction_ms = 6500
+zones = ["military"]
+jobs_soldiers = 2
+defense = 12
+visual_role = "tower"
+
+[[building]]
+id = "well"
+name_key = "building.well"
+footprint = [1, 1]
+construction_ms = 3000
+zones = ["civic", "residential", "agricultural"]
+water_radius = 12
+visual_role = "well"
+
+[[building]]
+id = "granary"
+name_key = "building.granary"
+footprint = [3, 2]
+construction_ms = 7000
+zones = ["agricultural", "civic"]
+food = 20
+fire = 0.24
+visual_role = "granary"
+
+[[building]]
+id = "smokehouse"
+name_key = "building.smokehouse"
+footprint = [2, 2]
+construction_ms = 6000
+zones = ["industrial", "agricultural"]
+food = 10
+jobs_artisans = 2
+fire = 0.30
+visual_role = "smokehouse"
