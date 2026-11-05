@@ -1,5 +1,21 @@
 # world-pipeline
 
+## Pacote regional leve (primeiro corte S1.2c)
+
+`pack_region.py` recebe GeoTIFFs locais de Copernicus DEM GLO-90, LC100 2019
+classificação e LC100 2019 fração de árvores. Não faz download automático.
+Cada chamada gera um patch 256×256 (`.orbt`) com altura inteira em metros,
+classe e fração de árvores, mais JSON de bounds, resolução e SHA-256. Os bounds
+devem produzir amostragem de no máximo 100 m; para regiões maiores, execute
+em lotes. Exemplo:
+
+```sh
+python tools/world-pipeline/pack_region.py --elevation dem.tif --cover class.tif --trees tree.tif --bounds -1 45 -0.8 45.2 --output /pacotes/region.orbt
+```
+
+O formato inicial não inclui hidrografia, índice global nem streaming Unity.
+Esses são aceites pendentes de S1.2c. O cliente não recebe os GeoTIFFs brutos.
+
 Pipeline Python 3.12 executado em Docker. Ver tarefa P0.3 em `docs/ROADMAP.md`.
 
 Na raiz, execute `make world` ou, no Windows:

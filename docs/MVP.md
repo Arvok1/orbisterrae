@@ -6,7 +6,7 @@ Objetivo: validar o **loop completo** do jogo com todos os sistemas em versão s
 
 | Sistema | Inclui no MVP | Fica para depois |
 |---|---|---|
-| Mapa | Globo de tela inteira, cartografia medieval sombria e relevo 3D progressivo; Three.js + HUD PixiJS | Otimização de tiles e alta densidade continuam nos passes seguintes |
+| Mapa | Globo de tela inteira, cartografia medieval sombria e relevo 3D progressivo; Unity nativo no desktop após S1.2c | Pacotes regionais abaixo de 90 m e cliente mobile ficam para depois |
 | Fundação e território | Cidade em posição livre, influência ponderada sobre H3 res 8 e raios em metros, 4 tiers | Contestação avançada, regras regionais finas |
 | Cidade | Grade inicial 256×256 com células de 10 m, ruas/zonas/~15 prédios, fila de construção, 3 métricas | Grafo completo, 8+ métricas, agentes visuais |
 | População | 4 classes, crescimento e fome, 2 eventos (fome, incêndio) | Doenças, crime, revolta |

@@ -1,5 +1,15 @@
 # Licenças das fontes de dados
 
+## Fontes previstas para S1.2c nativo
+
+| Fonte | Camadas usadas | Resolução | Condição de publicação |
+|---|---|---|---|
+| [Copernicus DEM GLO-90](https://dataspace.copernicus.eu/explore-data/data-collections/copernicus-contributing-missions/collections-description/COP-DEM) | Elevação terrestre (modelo de superfície) | 90 m | Incluir aviso de origem e de dados modificados exigido pela licença do produto |
+| [Copernicus LC100](https://land.copernicus.eu/en/products/global-dynamic-land-cover/copernicus-global-land-service-land-cover-100m-collection-3-epoch-2015-2019-globe) | Classe de solo e fração arbórea de 2019 | 100 m | Registrar versão e atribuição no manifesto e nos créditos |
+
+O gerador regional registra hashes dos arquivos recebidos. A cobertura e o
+tamanho global ainda não foram medidos; não publicar a meta de 40 GB como fato.
+
 | Fonte | Dados | Licença/termos | Atribuição | Uso |
 |---|---|---|---|---|
 | [Natural Earth](https://www.naturalearthdata.com/about/terms-of-use/) | Polígonos de terra 1:110m | Domínio público segundo o fornecedor | Não obrigatória; crédito voluntário no mapa | Costas do mapa e máscara terra/água H3 |

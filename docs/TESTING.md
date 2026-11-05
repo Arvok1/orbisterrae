@@ -71,6 +71,8 @@ Round-trip de `AdminSnapshotRequest`/`AdminSnapshot` em Rust/TypeScript; teste d
 
 ## S1.2c: mundo 3D e cidade física
 
+O primeiro corte dos pacotes leves usa `docker compose -f tools/world-pipeline/compose.yml run --rm --entrypoint python world -m unittest discover -s tools/world-pipeline -p test_pack_region.py`. GeoTIFFs sintéticos verificam determinismo, layout binário, hashes e limites geográficos. O teste não prova cobertura global nem execução no Unity; esses aceites continuam abertos.
+
 Testes TypeScript cobrem round-trip geodésico WGS84↔vetor unitário e metros
 locais, limites LOD 0–7/8–14/15–19 e decoder RLE independente do renderer.
 Antes de fechar o sprint, conferir por raycast terreno, cidade, prédio e célula;

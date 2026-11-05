@@ -3,7 +3,7 @@
 ## 1. Visão geral
 
 ```
-Navegador (TS/React HUD + Three.js)
+Cliente Unity desktop (cliente web mantido como referência durante a migração)
         │ WebSocket binário (protobuf)
         ▼
    Gateway (Rust) ── auth, rate limit, interest management
@@ -52,6 +52,8 @@ Navegador (TS/React HUD + Three.js)
 - Zoom aberto: dados agregados (fronteiras, ícones, rotas principais). Zoom fechado: entidades individuais.
 
 ## 5b. Globo 3D, cidade física e visibilidade administrativa
+
+**Direção S1.2c atualizada:** Unity nativo em Windows/macOS assume a renderização e HUD após paridade. O gateway, protobuf e autoridade Rust permanecem. A câmera mantém FOV e orientação ao refinar tiles; não muda de modo de visão no zoom. Pacotes de terreno separados do executável usam GLO-90 e LC100 2019, com hashes e resolução efetiva no manifesto. Os parágrafos Three.js abaixo documentam o cliente web de referência até a migração terminar.
 
 - Um único canvas Three.js desenha esfera, patches regionais e cidade; React/HTML é exclusivamente HUD acima dele. Não há canvas Pixi transparente nem renderização 2D do mundo.
 - A esfera usa WGS84 com raio de referência de 6.371.000 m. Ao aproximar, a cidade troca para um plano tangente local em metros: grade inicial 256×256, célula de 10 m. A troca é de representação, não de autoridade ou de coordenadas.

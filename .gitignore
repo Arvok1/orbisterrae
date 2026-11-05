@@ -7,3 +7,11 @@ data/world/
 __pycache__/
 .venv/
 .local/
+apps/unity-client/Library/
+apps/unity-client/Logs/
+apps/unity-client/Temp/
+apps/unity-client/Obj/
+apps/unity-client/Build/
+apps/unity-client/UserSettings/
+apps/unity-client/.vsconfig
+apps/unity-client/*.slnx

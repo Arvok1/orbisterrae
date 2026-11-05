@@ -1,5 +1,11 @@
 # Diário de bordo
 
+## 2026-11-05 — S1.2c, primeiro corte de pacotes leves
+
+- Criado `pack_region.py` para empacotar GLO-90/LC100 locais em patches de até 100 m, com SHA-256, bounds e resolução efetiva; dois testes sintéticos passaram no Docker.
+- `cargo fmt --all -- --check`, Clippy `--workspace --all-targets -- -D warnings`, testes Rust, `pnpm -r lint` e `pnpm -r test` passaram. Clippy/Cargo mostraram avisos ambientais de hard-link no cache do OneDrive; Rasterio mostrou aviso interno de depreciação.
+- O Unity 6000.6.7f1 criou `apps/unity-client` de forma assíncrona após retornar do comando. O scaffold ainda não contém cena, protocolo, HUD ou build validado. Fontes reais, hidrografia, índice global, cache, desempenho e meta de 40 GB permanecem sem validação.
+
 Formato: data, o que foi feito, o que travou, próximo passo. Uma entrada curta por sessão.
 
 | Data | Feito | Travou | Próximo |
