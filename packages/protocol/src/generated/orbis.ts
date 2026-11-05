@@ -26,6 +26,10 @@ export interface Command {
     | { $case: "viewport"; viewport: SetViewport }
     | { $case: "authenticate"; authenticate: Authenticate }
     | { $case: "moveRuler"; moveRuler: MoveRuler }
+    | { $case: "inspectCity"; inspectCity: InspectCity }
+    | { $case: "applyCityEdits"; applyCityEdits: ApplyCityEdits }
+    | { $case: "queueBuilding"; queueBuilding: QueueBuilding }
+    | { $case: "cancelConstruction"; cancelConstruction: CancelConstruction }
     | { $case: "createDesign"; createDesign: CreateDesign }
     | { $case: "startCraft"; startCraft: StartCraft }
     | { $case: "resolveCheckpoint"; resolveCheckpoint: ResolveCheckpoint }
@@ -50,6 +54,38 @@ export interface Authenticate {
 
 export interface MoveRuler {
   destination: LatLon | undefined;
+}
+
+export interface InspectCity {
+  cityId: string;
+}
+
+export interface CityCellEdit {
+  x: number;
+  y: number;
+  layer: string;
+  value: string;
+}
+
+export interface ApplyCityEdits {
+  cityId: string;
+  expectedRevision: bigint;
+  edits: CityCellEdit[];
+}
+
+export interface QueueBuilding {
+  cityId: string;
+  expectedRevision: bigint;
+  buildingId: string;
+  x: number;
+  y: number;
+  orientation: number;
+}
+
+export interface CancelConstruction {
+  cityId: string;
+  expectedRevision: bigint;
+  orderId: string;
 }
 
 export interface RulerState {
@@ -88,6 +124,76 @@ export interface WorldSnapshot {
   nowMs: number;
   villageCost: number;
   villageConstructionMs: number;
+}
+
+export interface BuildingDefinition {
+  id: string;
+  nameKey: string;
+  width: number;
+  height: number;
+  constructionMs: number;
+  zones: string[];
+  waterRequired: boolean;
+  visualRole: string;
+}
+
+export interface BuildingState {
+  id: string;
+  buildingId: string;
+  x: number;
+  y: number;
+  orientation: number;
+  complete: boolean;
+}
+
+export interface ConstructionState {
+  id: string;
+  buildingInstanceId: string;
+  buildingId: string;
+  dueAtMs: number;
+  status: string;
+}
+
+export interface PopulationState {
+  farmers: number;
+  artisans: number;
+  soldiers: number;
+  priests: number;
+}
+
+export interface CityMetrics {
+  water: number;
+  density: number;
+  defense: number;
+  foodCapacity: number;
+  housingCapacity: number;
+  fireRisk: number;
+}
+
+export interface CityEventState {
+  kind: string;
+  startedAtMs: number;
+  endsAtMs: number;
+}
+
+export interface CitySnapshot {
+  cityId: string;
+  kingdomId: string;
+  name: string;
+  width: number;
+  height: number;
+  revision: bigint;
+  terrainRle: Uint8Array;
+  roadsRle: Uint8Array;
+  zonesRle: Uint8Array;
+  buildings: BuildingState[];
+  construction: ConstructionState[];
+  population: PopulationState | undefined;
+  metrics: CityMetrics | undefined;
+  events: CityEventState[];
+  definitions: BuildingDefinition[];
+  editable: boolean;
+  nowMs: number;
 }
 
 export interface EntityHandoff {
@@ -188,6 +294,7 @@ export interface ServerMsg {
     | { $case: "era"; era: EraChanged }
     | { $case: "snapshot"; snapshot: ViewportSnapshot }
     | { $case: "world"; world: WorldSnapshot }
+    | { $case: "city"; city: CitySnapshot }
     | undefined;
 }
 
@@ -358,6 +465,18 @@ export const Command: MessageFns<Command> = {
       case "moveRuler":
         MoveRuler.encode(message.kind.moveRuler, writer.uint32(106).fork()).join();
         break;
+      case "inspectCity":
+        InspectCity.encode(message.kind.inspectCity, writer.uint32(114).fork()).join();
+        break;
+      case "applyCityEdits":
+        ApplyCityEdits.encode(message.kind.applyCityEdits, writer.uint32(122).fork()).join();
+        break;
+      case "queueBuilding":
+        QueueBuilding.encode(message.kind.queueBuilding, writer.uint32(130).fork()).join();
+        break;
+      case "cancelConstruction":
+        CancelConstruction.encode(message.kind.cancelConstruction, writer.uint32(138).fork()).join();
+        break;
       case "createDesign":
         CreateDesign.encode(message.kind.createDesign, writer.uint32(162).fork()).join();
         break;
@@ -416,6 +535,41 @@ export const Command: MessageFns<Command> = {
           }
 
           message.kind = { $case: "moveRuler", moveRuler: MoveRuler.decode(reader, reader.uint32()) };
+          continue;
+        }
+        case 14: {
+          if (tag !== 114) {
+            break;
+          }
+
+          message.kind = { $case: "inspectCity", inspectCity: InspectCity.decode(reader, reader.uint32()) };
+          continue;
+        }
+        case 15: {
+          if (tag !== 122) {
+            break;
+          }
+
+          message.kind = { $case: "applyCityEdits", applyCityEdits: ApplyCityEdits.decode(reader, reader.uint32()) };
+          continue;
+        }
+        case 16: {
+          if (tag !== 130) {
+            break;
+          }
+
+          message.kind = { $case: "queueBuilding", queueBuilding: QueueBuilding.decode(reader, reader.uint32()) };
+          continue;
+        }
+        case 17: {
+          if (tag !== 138) {
+            break;
+          }
+
+          message.kind = {
+            $case: "cancelConstruction",
+            cancelConstruction: CancelConstruction.decode(reader, reader.uint32()),
+          };
           continue;
         }
         case 20: {
@@ -482,6 +636,39 @@ export const Command: MessageFns<Command> = {
       case "moveRuler": {
         if (object.kind?.moveRuler !== undefined && object.kind?.moveRuler !== null) {
           message.kind = { $case: "moveRuler", moveRuler: MoveRuler.fromPartial(object.kind.moveRuler) };
+        }
+        break;
+      }
+      case "inspectCity": {
+        if (object.kind?.inspectCity !== undefined && object.kind?.inspectCity !== null) {
+          message.kind = { $case: "inspectCity", inspectCity: InspectCity.fromPartial(object.kind.inspectCity) };
+        }
+        break;
+      }
+      case "applyCityEdits": {
+        if (object.kind?.applyCityEdits !== undefined && object.kind?.applyCityEdits !== null) {
+          message.kind = {
+            $case: "applyCityEdits",
+            applyCityEdits: ApplyCityEdits.fromPartial(object.kind.applyCityEdits),
+          };
+        }
+        break;
+      }
+      case "queueBuilding": {
+        if (object.kind?.queueBuilding !== undefined && object.kind?.queueBuilding !== null) {
+          message.kind = {
+            $case: "queueBuilding",
+            queueBuilding: QueueBuilding.fromPartial(object.kind.queueBuilding),
+          };
+        }
+        break;
+      }
+      case "cancelConstruction": {
+        if (object.kind?.cancelConstruction !== undefined && object.kind?.cancelConstruction !== null) {
+          message.kind = {
+            $case: "cancelConstruction",
+            cancelConstruction: CancelConstruction.fromPartial(object.kind.cancelConstruction),
+          };
         }
         break;
       }
@@ -743,6 +930,389 @@ export const MoveRuler: MessageFns<MoveRuler> = {
     message.destination = (object.destination !== undefined && object.destination !== null)
       ? LatLon.fromPartial(object.destination)
       : undefined;
+    return message;
+  },
+};
+
+function createBaseInspectCity(): InspectCity {
+  return { cityId: "" };
+}
+
+export const InspectCity: MessageFns<InspectCity> = {
+  encode(message: InspectCity, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.cityId !== "") {
+      writer.uint32(10).string(message.cityId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): InspectCity {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseInspectCity();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.cityId = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<InspectCity>, I>>(base?: I): InspectCity {
+    return InspectCity.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<InspectCity>, I>>(object: I): InspectCity {
+    const message = createBaseInspectCity();
+    message.cityId = object.cityId ?? "";
+    return message;
+  },
+};
+
+function createBaseCityCellEdit(): CityCellEdit {
+  return { x: 0, y: 0, layer: "", value: "" };
+}
+
+export const CityCellEdit: MessageFns<CityCellEdit> = {
+  encode(message: CityCellEdit, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.x !== 0) {
+      writer.uint32(8).uint32(message.x);
+    }
+    if (message.y !== 0) {
+      writer.uint32(16).uint32(message.y);
+    }
+    if (message.layer !== "") {
+      writer.uint32(26).string(message.layer);
+    }
+    if (message.value !== "") {
+      writer.uint32(34).string(message.value);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CityCellEdit {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCityCellEdit();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.x = reader.uint32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.y = reader.uint32();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.layer = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.value = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<CityCellEdit>, I>>(base?: I): CityCellEdit {
+    return CityCellEdit.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<CityCellEdit>, I>>(object: I): CityCellEdit {
+    const message = createBaseCityCellEdit();
+    message.x = object.x ?? 0;
+    message.y = object.y ?? 0;
+    message.layer = object.layer ?? "";
+    message.value = object.value ?? "";
+    return message;
+  },
+};
+
+function createBaseApplyCityEdits(): ApplyCityEdits {
+  return { cityId: "", expectedRevision: 0n, edits: [] };
+}
+
+export const ApplyCityEdits: MessageFns<ApplyCityEdits> = {
+  encode(message: ApplyCityEdits, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.cityId !== "") {
+      writer.uint32(10).string(message.cityId);
+    }
+    if (message.expectedRevision !== 0n) {
+      if (BigInt.asUintN(64, message.expectedRevision) !== message.expectedRevision) {
+        throw new globalThis.Error("value provided for field message.expectedRevision of type uint64 too large");
+      }
+      writer.uint32(16).uint64(message.expectedRevision);
+    }
+    for (const v of message.edits) {
+      CityCellEdit.encode(v!, writer.uint32(26).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ApplyCityEdits {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseApplyCityEdits();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.cityId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.expectedRevision = reader.uint64() as bigint;
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.edits.push(CityCellEdit.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<ApplyCityEdits>, I>>(base?: I): ApplyCityEdits {
+    return ApplyCityEdits.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ApplyCityEdits>, I>>(object: I): ApplyCityEdits {
+    const message = createBaseApplyCityEdits();
+    message.cityId = object.cityId ?? "";
+    message.expectedRevision = object.expectedRevision ?? 0n;
+    message.edits = object.edits?.map((e) => CityCellEdit.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseQueueBuilding(): QueueBuilding {
+  return { cityId: "", expectedRevision: 0n, buildingId: "", x: 0, y: 0, orientation: 0 };
+}
+
+export const QueueBuilding: MessageFns<QueueBuilding> = {
+  encode(message: QueueBuilding, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.cityId !== "") {
+      writer.uint32(10).string(message.cityId);
+    }
+    if (message.expectedRevision !== 0n) {
+      if (BigInt.asUintN(64, message.expectedRevision) !== message.expectedRevision) {
+        throw new globalThis.Error("value provided for field message.expectedRevision of type uint64 too large");
+      }
+      writer.uint32(16).uint64(message.expectedRevision);
+    }
+    if (message.buildingId !== "") {
+      writer.uint32(26).string(message.buildingId);
+    }
+    if (message.x !== 0) {
+      writer.uint32(32).uint32(message.x);
+    }
+    if (message.y !== 0) {
+      writer.uint32(40).uint32(message.y);
+    }
+    if (message.orientation !== 0) {
+      writer.uint32(48).uint32(message.orientation);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): QueueBuilding {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseQueueBuilding();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.cityId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.expectedRevision = reader.uint64() as bigint;
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.buildingId = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.x = reader.uint32();
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.y = reader.uint32();
+          continue;
+        }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.orientation = reader.uint32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<QueueBuilding>, I>>(base?: I): QueueBuilding {
+    return QueueBuilding.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<QueueBuilding>, I>>(object: I): QueueBuilding {
+    const message = createBaseQueueBuilding();
+    message.cityId = object.cityId ?? "";
+    message.expectedRevision = object.expectedRevision ?? 0n;
+    message.buildingId = object.buildingId ?? "";
+    message.x = object.x ?? 0;
+    message.y = object.y ?? 0;
+    message.orientation = object.orientation ?? 0;
+    return message;
+  },
+};
+
+function createBaseCancelConstruction(): CancelConstruction {
+  return { cityId: "", expectedRevision: 0n, orderId: "" };
+}
+
+export const CancelConstruction: MessageFns<CancelConstruction> = {
+  encode(message: CancelConstruction, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.cityId !== "") {
+      writer.uint32(10).string(message.cityId);
+    }
+    if (message.expectedRevision !== 0n) {
+      if (BigInt.asUintN(64, message.expectedRevision) !== message.expectedRevision) {
+        throw new globalThis.Error("value provided for field message.expectedRevision of type uint64 too large");
+      }
+      writer.uint32(16).uint64(message.expectedRevision);
+    }
+    if (message.orderId !== "") {
+      writer.uint32(26).string(message.orderId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CancelConstruction {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCancelConstruction();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.cityId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.expectedRevision = reader.uint64() as bigint;
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.orderId = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<CancelConstruction>, I>>(base?: I): CancelConstruction {
+    return CancelConstruction.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<CancelConstruction>, I>>(object: I): CancelConstruction {
+    const message = createBaseCancelConstruction();
+    message.cityId = object.cityId ?? "";
+    message.expectedRevision = object.expectedRevision ?? 0n;
+    message.orderId = object.orderId ?? "";
     return message;
   },
 };
@@ -1208,6 +1778,866 @@ export const WorldSnapshot: MessageFns<WorldSnapshot> = {
     message.nowMs = object.nowMs ?? 0;
     message.villageCost = object.villageCost ?? 0;
     message.villageConstructionMs = object.villageConstructionMs ?? 0;
+    return message;
+  },
+};
+
+function createBaseBuildingDefinition(): BuildingDefinition {
+  return {
+    id: "",
+    nameKey: "",
+    width: 0,
+    height: 0,
+    constructionMs: 0,
+    zones: [],
+    waterRequired: false,
+    visualRole: "",
+  };
+}
+
+export const BuildingDefinition: MessageFns<BuildingDefinition> = {
+  encode(message: BuildingDefinition, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== "") {
+      writer.uint32(10).string(message.id);
+    }
+    if (message.nameKey !== "") {
+      writer.uint32(18).string(message.nameKey);
+    }
+    if (message.width !== 0) {
+      writer.uint32(24).uint32(message.width);
+    }
+    if (message.height !== 0) {
+      writer.uint32(32).uint32(message.height);
+    }
+    if (message.constructionMs !== 0) {
+      writer.uint32(41).double(message.constructionMs);
+    }
+    for (const v of message.zones) {
+      writer.uint32(50).string(v!);
+    }
+    if (message.waterRequired !== false) {
+      writer.uint32(56).bool(message.waterRequired);
+    }
+    if (message.visualRole !== "") {
+      writer.uint32(66).string(message.visualRole);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): BuildingDefinition {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseBuildingDefinition();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.id = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.nameKey = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.width = reader.uint32();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.height = reader.uint32();
+          continue;
+        }
+        case 5: {
+          if (tag !== 41) {
+            break;
+          }
+
+          message.constructionMs = reader.double();
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.zones.push(reader.string());
+          continue;
+        }
+        case 7: {
+          if (tag !== 56) {
+            break;
+          }
+
+          message.waterRequired = reader.bool();
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.visualRole = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<BuildingDefinition>, I>>(base?: I): BuildingDefinition {
+    return BuildingDefinition.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<BuildingDefinition>, I>>(object: I): BuildingDefinition {
+    const message = createBaseBuildingDefinition();
+    message.id = object.id ?? "";
+    message.nameKey = object.nameKey ?? "";
+    message.width = object.width ?? 0;
+    message.height = object.height ?? 0;
+    message.constructionMs = object.constructionMs ?? 0;
+    message.zones = object.zones?.map((e) => e) || [];
+    message.waterRequired = object.waterRequired ?? false;
+    message.visualRole = object.visualRole ?? "";
+    return message;
+  },
+};
+
+function createBaseBuildingState(): BuildingState {
+  return { id: "", buildingId: "", x: 0, y: 0, orientation: 0, complete: false };
+}
+
+export const BuildingState: MessageFns<BuildingState> = {
+  encode(message: BuildingState, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== "") {
+      writer.uint32(10).string(message.id);
+    }
+    if (message.buildingId !== "") {
+      writer.uint32(18).string(message.buildingId);
+    }
+    if (message.x !== 0) {
+      writer.uint32(24).uint32(message.x);
+    }
+    if (message.y !== 0) {
+      writer.uint32(32).uint32(message.y);
+    }
+    if (message.orientation !== 0) {
+      writer.uint32(40).uint32(message.orientation);
+    }
+    if (message.complete !== false) {
+      writer.uint32(48).bool(message.complete);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): BuildingState {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseBuildingState();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.id = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.buildingId = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.x = reader.uint32();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.y = reader.uint32();
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.orientation = reader.uint32();
+          continue;
+        }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.complete = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<BuildingState>, I>>(base?: I): BuildingState {
+    return BuildingState.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<BuildingState>, I>>(object: I): BuildingState {
+    const message = createBaseBuildingState();
+    message.id = object.id ?? "";
+    message.buildingId = object.buildingId ?? "";
+    message.x = object.x ?? 0;
+    message.y = object.y ?? 0;
+    message.orientation = object.orientation ?? 0;
+    message.complete = object.complete ?? false;
+    return message;
+  },
+};
+
+function createBaseConstructionState(): ConstructionState {
+  return { id: "", buildingInstanceId: "", buildingId: "", dueAtMs: 0, status: "" };
+}
+
+export const ConstructionState: MessageFns<ConstructionState> = {
+  encode(message: ConstructionState, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== "") {
+      writer.uint32(10).string(message.id);
+    }
+    if (message.buildingInstanceId !== "") {
+      writer.uint32(18).string(message.buildingInstanceId);
+    }
+    if (message.buildingId !== "") {
+      writer.uint32(26).string(message.buildingId);
+    }
+    if (message.dueAtMs !== 0) {
+      writer.uint32(33).double(message.dueAtMs);
+    }
+    if (message.status !== "") {
+      writer.uint32(42).string(message.status);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ConstructionState {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseConstructionState();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.id = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.buildingInstanceId = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.buildingId = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 33) {
+            break;
+          }
+
+          message.dueAtMs = reader.double();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.status = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<ConstructionState>, I>>(base?: I): ConstructionState {
+    return ConstructionState.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ConstructionState>, I>>(object: I): ConstructionState {
+    const message = createBaseConstructionState();
+    message.id = object.id ?? "";
+    message.buildingInstanceId = object.buildingInstanceId ?? "";
+    message.buildingId = object.buildingId ?? "";
+    message.dueAtMs = object.dueAtMs ?? 0;
+    message.status = object.status ?? "";
+    return message;
+  },
+};
+
+function createBasePopulationState(): PopulationState {
+  return { farmers: 0, artisans: 0, soldiers: 0, priests: 0 };
+}
+
+export const PopulationState: MessageFns<PopulationState> = {
+  encode(message: PopulationState, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.farmers !== 0) {
+      writer.uint32(8).uint32(message.farmers);
+    }
+    if (message.artisans !== 0) {
+      writer.uint32(16).uint32(message.artisans);
+    }
+    if (message.soldiers !== 0) {
+      writer.uint32(24).uint32(message.soldiers);
+    }
+    if (message.priests !== 0) {
+      writer.uint32(32).uint32(message.priests);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): PopulationState {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBasePopulationState();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.farmers = reader.uint32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.artisans = reader.uint32();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.soldiers = reader.uint32();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.priests = reader.uint32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<PopulationState>, I>>(base?: I): PopulationState {
+    return PopulationState.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<PopulationState>, I>>(object: I): PopulationState {
+    const message = createBasePopulationState();
+    message.farmers = object.farmers ?? 0;
+    message.artisans = object.artisans ?? 0;
+    message.soldiers = object.soldiers ?? 0;
+    message.priests = object.priests ?? 0;
+    return message;
+  },
+};
+
+function createBaseCityMetrics(): CityMetrics {
+  return { water: 0, density: 0, defense: 0, foodCapacity: 0, housingCapacity: 0, fireRisk: 0 };
+}
+
+export const CityMetrics: MessageFns<CityMetrics> = {
+  encode(message: CityMetrics, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.water !== 0) {
+      writer.uint32(9).double(message.water);
+    }
+    if (message.density !== 0) {
+      writer.uint32(17).double(message.density);
+    }
+    if (message.defense !== 0) {
+      writer.uint32(25).double(message.defense);
+    }
+    if (message.foodCapacity !== 0) {
+      writer.uint32(33).double(message.foodCapacity);
+    }
+    if (message.housingCapacity !== 0) {
+      writer.uint32(41).double(message.housingCapacity);
+    }
+    if (message.fireRisk !== 0) {
+      writer.uint32(49).double(message.fireRisk);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CityMetrics {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCityMetrics();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 9) {
+            break;
+          }
+
+          message.water = reader.double();
+          continue;
+        }
+        case 2: {
+          if (tag !== 17) {
+            break;
+          }
+
+          message.density = reader.double();
+          continue;
+        }
+        case 3: {
+          if (tag !== 25) {
+            break;
+          }
+
+          message.defense = reader.double();
+          continue;
+        }
+        case 4: {
+          if (tag !== 33) {
+            break;
+          }
+
+          message.foodCapacity = reader.double();
+          continue;
+        }
+        case 5: {
+          if (tag !== 41) {
+            break;
+          }
+
+          message.housingCapacity = reader.double();
+          continue;
+        }
+        case 6: {
+          if (tag !== 49) {
+            break;
+          }
+
+          message.fireRisk = reader.double();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<CityMetrics>, I>>(base?: I): CityMetrics {
+    return CityMetrics.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<CityMetrics>, I>>(object: I): CityMetrics {
+    const message = createBaseCityMetrics();
+    message.water = object.water ?? 0;
+    message.density = object.density ?? 0;
+    message.defense = object.defense ?? 0;
+    message.foodCapacity = object.foodCapacity ?? 0;
+    message.housingCapacity = object.housingCapacity ?? 0;
+    message.fireRisk = object.fireRisk ?? 0;
+    return message;
+  },
+};
+
+function createBaseCityEventState(): CityEventState {
+  return { kind: "", startedAtMs: 0, endsAtMs: 0 };
+}
+
+export const CityEventState: MessageFns<CityEventState> = {
+  encode(message: CityEventState, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.kind !== "") {
+      writer.uint32(10).string(message.kind);
+    }
+    if (message.startedAtMs !== 0) {
+      writer.uint32(17).double(message.startedAtMs);
+    }
+    if (message.endsAtMs !== 0) {
+      writer.uint32(25).double(message.endsAtMs);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CityEventState {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCityEventState();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.kind = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 17) {
+            break;
+          }
+
+          message.startedAtMs = reader.double();
+          continue;
+        }
+        case 3: {
+          if (tag !== 25) {
+            break;
+          }
+
+          message.endsAtMs = reader.double();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<CityEventState>, I>>(base?: I): CityEventState {
+    return CityEventState.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<CityEventState>, I>>(object: I): CityEventState {
+    const message = createBaseCityEventState();
+    message.kind = object.kind ?? "";
+    message.startedAtMs = object.startedAtMs ?? 0;
+    message.endsAtMs = object.endsAtMs ?? 0;
+    return message;
+  },
+};
+
+function createBaseCitySnapshot(): CitySnapshot {
+  return {
+    cityId: "",
+    kingdomId: "",
+    name: "",
+    width: 0,
+    height: 0,
+    revision: 0n,
+    terrainRle: new Uint8Array(0),
+    roadsRle: new Uint8Array(0),
+    zonesRle: new Uint8Array(0),
+    buildings: [],
+    construction: [],
+    population: undefined,
+    metrics: undefined,
+    events: [],
+    definitions: [],
+    editable: false,
+    nowMs: 0,
+  };
+}
+
+export const CitySnapshot: MessageFns<CitySnapshot> = {
+  encode(message: CitySnapshot, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.cityId !== "") {
+      writer.uint32(10).string(message.cityId);
+    }
+    if (message.kingdomId !== "") {
+      writer.uint32(18).string(message.kingdomId);
+    }
+    if (message.name !== "") {
+      writer.uint32(26).string(message.name);
+    }
+    if (message.width !== 0) {
+      writer.uint32(32).uint32(message.width);
+    }
+    if (message.height !== 0) {
+      writer.uint32(40).uint32(message.height);
+    }
+    if (message.revision !== 0n) {
+      if (BigInt.asUintN(64, message.revision) !== message.revision) {
+        throw new globalThis.Error("value provided for field message.revision of type uint64 too large");
+      }
+      writer.uint32(48).uint64(message.revision);
+    }
+    if (message.terrainRle.length !== 0) {
+      writer.uint32(58).bytes(message.terrainRle);
+    }
+    if (message.roadsRle.length !== 0) {
+      writer.uint32(66).bytes(message.roadsRle);
+    }
+    if (message.zonesRle.length !== 0) {
+      writer.uint32(74).bytes(message.zonesRle);
+    }
+    for (const v of message.buildings) {
+      BuildingState.encode(v!, writer.uint32(82).fork()).join();
+    }
+    for (const v of message.construction) {
+      ConstructionState.encode(v!, writer.uint32(90).fork()).join();
+    }
+    if (message.population !== undefined) {
+      PopulationState.encode(message.population, writer.uint32(98).fork()).join();
+    }
+    if (message.metrics !== undefined) {
+      CityMetrics.encode(message.metrics, writer.uint32(106).fork()).join();
+    }
+    for (const v of message.events) {
+      CityEventState.encode(v!, writer.uint32(114).fork()).join();
+    }
+    for (const v of message.definitions) {
+      BuildingDefinition.encode(v!, writer.uint32(122).fork()).join();
+    }
+    if (message.editable !== false) {
+      writer.uint32(128).bool(message.editable);
+    }
+    if (message.nowMs !== 0) {
+      writer.uint32(137).double(message.nowMs);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CitySnapshot {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCitySnapshot();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.cityId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.kingdomId = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.name = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.width = reader.uint32();
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.height = reader.uint32();
+          continue;
+        }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.revision = reader.uint64() as bigint;
+          continue;
+        }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.terrainRle = reader.bytes();
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.roadsRle = reader.bytes();
+          continue;
+        }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.zonesRle = reader.bytes();
+          continue;
+        }
+        case 10: {
+          if (tag !== 82) {
+            break;
+          }
+
+          message.buildings.push(BuildingState.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 11: {
+          if (tag !== 90) {
+            break;
+          }
+
+          message.construction.push(ConstructionState.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 12: {
+          if (tag !== 98) {
+            break;
+          }
+
+          message.population = PopulationState.decode(reader, reader.uint32());
+          continue;
+        }
+        case 13: {
+          if (tag !== 106) {
+            break;
+          }
+
+          message.metrics = CityMetrics.decode(reader, reader.uint32());
+          continue;
+        }
+        case 14: {
+          if (tag !== 114) {
+            break;
+          }
+
+          message.events.push(CityEventState.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 15: {
+          if (tag !== 122) {
+            break;
+          }
+
+          message.definitions.push(BuildingDefinition.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 16: {
+          if (tag !== 128) {
+            break;
+          }
+
+          message.editable = reader.bool();
+          continue;
+        }
+        case 17: {
+          if (tag !== 137) {
+            break;
+          }
+
+          message.nowMs = reader.double();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<CitySnapshot>, I>>(base?: I): CitySnapshot {
+    return CitySnapshot.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<CitySnapshot>, I>>(object: I): CitySnapshot {
+    const message = createBaseCitySnapshot();
+    message.cityId = object.cityId ?? "";
+    message.kingdomId = object.kingdomId ?? "";
+    message.name = object.name ?? "";
+    message.width = object.width ?? 0;
+    message.height = object.height ?? 0;
+    message.revision = object.revision ?? 0n;
+    message.terrainRle = object.terrainRle ?? new Uint8Array(0);
+    message.roadsRle = object.roadsRle ?? new Uint8Array(0);
+    message.zonesRle = object.zonesRle ?? new Uint8Array(0);
+    message.buildings = object.buildings?.map((e) => BuildingState.fromPartial(e)) || [];
+    message.construction = object.construction?.map((e) => ConstructionState.fromPartial(e)) || [];
+    message.population = (object.population !== undefined && object.population !== null)
+      ? PopulationState.fromPartial(object.population)
+      : undefined;
+    message.metrics = (object.metrics !== undefined && object.metrics !== null)
+      ? CityMetrics.fromPartial(object.metrics)
+      : undefined;
+    message.events = object.events?.map((e) => CityEventState.fromPartial(e)) || [];
+    message.definitions = object.definitions?.map((e) => BuildingDefinition.fromPartial(e)) || [];
+    message.editable = object.editable ?? false;
+    message.nowMs = object.nowMs ?? 0;
     return message;
   },
 };
@@ -2290,6 +3720,9 @@ export const ServerMsg: MessageFns<ServerMsg> = {
       case "world":
         WorldSnapshot.encode(message.kind.world, writer.uint32(82).fork()).join();
         break;
+      case "city":
+        CitySnapshot.encode(message.kind.city, writer.uint32(90).fork()).join();
+        break;
     }
     return writer;
   },
@@ -2357,6 +3790,14 @@ export const ServerMsg: MessageFns<ServerMsg> = {
           message.kind = { $case: "world", world: WorldSnapshot.decode(reader, reader.uint32()) };
           continue;
         }
+        case 11: {
+          if (tag !== 90) {
+            break;
+          }
+
+          message.kind = { $case: "city", city: CitySnapshot.decode(reader, reader.uint32()) };
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2411,6 +3852,12 @@ export const ServerMsg: MessageFns<ServerMsg> = {
       case "world": {
         if (object.kind?.world !== undefined && object.kind?.world !== null) {
           message.kind = { $case: "world", world: WorldSnapshot.fromPartial(object.kind.world) };
+        }
+        break;
+      }
+      case "city": {
+        if (object.kind?.city !== undefined && object.kind?.city !== null) {
+          message.kind = { $case: "city", city: CitySnapshot.fromPartial(object.kind.city) };
         }
         break;
       }

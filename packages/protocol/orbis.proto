@@ -15,6 +15,10 @@ message Command {
     SetViewport viewport = 11;
     Authenticate authenticate = 12;
     MoveRuler move_ruler = 13;
+    InspectCity inspect_city = 14;
+    ApplyCityEdits apply_city_edits = 15;
+    QueueBuilding queue_building = 16;
+    CancelConstruction cancel_construction = 17;
     CreateDesign create_design = 20;
     StartCraft start_craft = 21;
     ResolveCheckpoint resolve_checkpoint = 22;
@@ -25,6 +29,11 @@ message FoundCity { string name = 1; LatLon pos = 2; }
 message SetViewport { LatLon center = 1; double zoom = 2; double width_px = 3; double height_px = 4; }
 message Authenticate { string token = 1; }
 message MoveRuler { LatLon destination = 1; }
+message InspectCity { string city_id = 1; }
+message CityCellEdit { uint32 x = 1; uint32 y = 2; string layer = 3; string value = 4; }
+message ApplyCityEdits { string city_id = 1; uint64 expected_revision = 2; repeated CityCellEdit edits = 3; }
+message QueueBuilding { string city_id = 1; uint64 expected_revision = 2; string building_id = 3; uint32 x = 4; uint32 y = 5; uint32 orientation = 6; }
+message CancelConstruction { string city_id = 1; uint64 expected_revision = 2; string order_id = 3; }
 
 message RulerState {
   string id = 1; string kingdom_id = 2; LatLon pos = 3; uint32 supplies = 4;
@@ -37,6 +46,19 @@ message CityState {
 }
 message TerritoryCell { string h3 = 1; string city_id = 2; repeated LatLon boundary = 3; }
 message WorldSnapshot { RulerState ruler = 1; repeated CityState cities = 2; repeated TerritoryCell territory = 3; double now_ms = 4; uint32 village_cost = 5; double village_construction_ms = 6; }
+message BuildingDefinition { string id = 1; string name_key = 2; uint32 width = 3; uint32 height = 4; double construction_ms = 5; repeated string zones = 6; bool water_required = 7; string visual_role = 8; }
+message BuildingState { string id = 1; string building_id = 2; uint32 x = 3; uint32 y = 4; uint32 orientation = 5; bool complete = 6; }
+message ConstructionState { string id = 1; string building_instance_id = 2; string building_id = 3; double due_at_ms = 4; string status = 5; }
+message PopulationState { uint32 farmers = 1; uint32 artisans = 2; uint32 soldiers = 3; uint32 priests = 4; }
+message CityMetrics { double water = 1; double density = 2; double defense = 3; double food_capacity = 4; double housing_capacity = 5; double fire_risk = 6; }
+message CityEventState { string kind = 1; double started_at_ms = 2; double ends_at_ms = 3; }
+message CitySnapshot {
+  string city_id = 1; string kingdom_id = 2; string name = 3; uint32 width = 4; uint32 height = 5; uint64 revision = 6;
+  bytes terrain_rle = 7; bytes roads_rle = 8; bytes zones_rle = 9;
+  repeated BuildingState buildings = 10; repeated ConstructionState construction = 11;
+  PopulationState population = 12; CityMetrics metrics = 13; repeated CityEventState events = 14;
+  repeated BuildingDefinition definitions = 15; bool editable = 16; double now_ms = 17;
+}
 message EntityHandoff {
   string entity_id = 1; uint64 revision = 2; uint64 from_shard = 3;
   uint64 to_shard = 4; bytes state = 5;
@@ -75,5 +97,6 @@ message ServerMsg {
     EraChanged era = 8;
     ViewportSnapshot snapshot = 9;
     WorldSnapshot world = 10;
+    CitySnapshot city = 11;
   }
 }

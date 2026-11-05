@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::city::{BuildingInstanceId, ConstructionId};
+
 macro_rules! identifier {
     ($name:ident) => {
         #[derive(
@@ -86,8 +88,23 @@ pub struct City {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Action {
-    Arrive { ruler: RulerId, revision: u64 },
-    CompleteVillage { ruler: RulerId, city: CityId },
+    Arrive {
+        ruler: RulerId,
+        revision: u64,
+    },
+    CompleteVillage {
+        ruler: RulerId,
+        city: CityId,
+    },
+    CompleteConstruction {
+        city: CityId,
+        order: ConstructionId,
+        building: BuildingInstanceId,
+    },
+    CityTick {
+        city: CityId,
+        tick: u64,
+    },
 }
 
 #[cfg(test)]

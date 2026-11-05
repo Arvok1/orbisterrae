@@ -19,6 +19,7 @@ rand = "0.8"
 rand_chacha = "0.3"
 h3o = "0.6"
 prost = "0.13"
+prost-types = "0.13"
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "postgres", "uuid", "chrono", "json", "macros", "migrate"] }
 async-nats = "0.37"
 proptest = "1"

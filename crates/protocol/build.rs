@@ -1,10 +1,10 @@
+use prost::Message;
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-changed=../../packages/protocol/orbis.proto");
-    prost_build::Config::new()
-        .protoc_executable(protoc_bin_vendored::protoc_bin_path()?)
-        .compile_protos(
-            &["../../packages/protocol/orbis.proto"],
-            &["../../packages/protocol"],
-        )?;
+    println!("cargo:rerun-if-changed=../../packages/protocol/orbis.binpb");
+    let bytes = std::fs::read("../../packages/protocol/orbis.binpb")?;
+    let descriptors = prost_types::FileDescriptorSet::decode(bytes.as_slice())?;
+    prost_build::Config::new().compile_fds(descriptors)?;
     Ok(())
 }

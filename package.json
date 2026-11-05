@@ -5,7 +5,7 @@
   "scripts": {
     "bots:s1.1": "pwsh -NoProfile -File tools/test-first-village.ps1",
     "bots:p0": "pnpm --filter @orbis/protocol build && pnpm --filter @orbis/bot build && node tools/bot/dist/cli.js scenarios/p0.toml",
-    "protocol:generate": "buf generate && cargo build -p orbis-protocol",
+    "protocol:generate": "buf build -o packages/protocol/orbis.binpb && buf generate && cargo build -p orbis-protocol",
     "lint": "pnpm -r --if-present lint",
     "test": "pnpm -r --if-present test"
   },

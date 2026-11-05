@@ -1,11 +1,15 @@
 use orbis_core::{
+    city::{CityLayout, Construction, ConstructionId},
     time::FixedClock,
     world::{AccountId, Action, City, CityId, Position, Ruler},
 };
 use orbis_protocol::{
-    command, server_msg, CityState, Command, CommandResult, LatLon, MoveSegment, RulerState,
-    ServerMsg, TerritoryCell, WorldSnapshot,
+    command, server_msg, BuildingDefinition as WireBuildingDefinition, BuildingState,
+    CityEventState, CityMetrics, CitySnapshot, CityState, Command, CommandResult,
+    ConstructionState, LatLon, MoveSegment, PopulationState, RulerState, ServerMsg, TerritoryCell,
+    WorldSnapshot,
 };
+use orbis_sim::city::{self, Catalog as CityCatalog};
 use orbis_sim::world::{self, Balance, GameError, Geography, TerritoryBalance, VillageOrder};
 use prost::Message;
 use sqlx::{types::Json, PgConnection, PgPool, Row};
@@ -27,6 +31,8 @@ pub enum ServiceError {
     #[error(transparent)]
     Game(#[from] GameError),
     #[error(transparent)]
+    City(#[from] city::CityError),
+    #[error(transparent)]
     Wire(#[from] prost::DecodeError),
     #[error(transparent)]
     Migration(#[from] sqlx::migrate::MigrateError),
@@ -43,6 +49,8 @@ pub struct Context {
     pub geo: Arc<Geography>,
     pub balance: Arc<Balance>,
     pub territory: Arc<TerritoryBalance>,
+    pub city_catalog: Arc<CityCatalog>,
+    pub city_balance: Arc<city::Balance>,
 }
 impl Context {
     pub async fn connect() -> Result<Self, ServiceError> {
@@ -63,6 +71,10 @@ impl Context {
         let territory: TerritoryBalance =
             toml::from_str(include_str!("../../../config/balance/territory.toml"))?;
         territory.validate()?;
+        let city_catalog = CityCatalog::parse(include_str!("../../../data/buildings/mvp.toml"))?;
+        city_catalog.validate()?;
+        let city_balance = city::Balance::parse(include_str!("../../../config/balance/city.toml"))?;
+        city_balance.validate()?;
         let geo = Geography::from_json(
             include_str!("../../../apps/client/src/assets/world-land-v1.json"),
             include_str!("../../../apps/client/src/assets/world-terrain-v1.json"),
@@ -72,6 +84,8 @@ impl Context {
             geo: Arc::new(geo),
             balance: Arc::new(balance),
             territory: Arc::new(territory),
+            city_catalog: Arc::new(city_catalog),
+            city_balance: Arc::new(city_balance),
         })
     }
     pub async fn actor_shard(&self, account: AccountId) -> Result<u64, ServiceError> {
@@ -135,6 +149,28 @@ impl Context {
         .await?
         {
             return Ok(ServerMsg::decode(bytes.as_slice())?);
+        }
+        if matches!(
+            command.kind,
+            Some(command::Kind::InspectCity(_))
+                | Some(command::Kind::ApplyCityEdits(_))
+                | Some(command::Kind::QueueBuilding(_))
+                | Some(command::Kind::CancelConstruction(_))
+        ) {
+            let cache_response = !matches!(command.kind, Some(command::Kind::InspectCity(_)));
+            let response = self.city_command(&mut tx, &ruler, command, now_ms).await?;
+            if cache_response {
+                sqlx::query(
+                    "INSERT INTO command_receipts(account_id,request_id,response) VALUES($1,$2,$3)",
+                )
+                .bind(account.0)
+                .bind(&command.request_id)
+                .bind(response.encode_to_vec())
+                .execute(&mut *tx)
+                .await?;
+            }
+            tx.commit().await?;
+            return Ok(response);
         }
         let clock = FixedClock(now_ms);
         let planned = match &command.kind {
@@ -215,11 +251,29 @@ impl Context {
         let event_id: Uuid = row.get("id");
         let action: Json<Action> = row.get("payload");
         let old_shard: i64 = row.get("shard");
+        if matches!(
+            action.0,
+            Action::CompleteConstruction { .. } | Action::CityTick { .. }
+        ) {
+            self.process_city_action(&mut tx, &action.0, now_ms).await?;
+            sqlx::query("INSERT INTO event_log(shard,kind,payload) VALUES($1,1,$2)")
+                .bind(old_shard)
+                .bind(Json(&action.0))
+                .execute(&mut *tx)
+                .await?;
+            sqlx::query("UPDATE scheduled_events SET done_at=now() WHERE id=$1")
+                .bind(event_id)
+                .execute(&mut *tx)
+                .await?;
+            tx.commit().await?;
+            return Ok(true);
+        }
         if matches!(action.0, Action::CompleteVillage { .. }) {
             foundation_lock(&mut tx).await?;
         }
         let ruler_id = match action.0 {
             Action::Arrive { ruler, .. } | Action::CompleteVillage { ruler, .. } => ruler,
+            Action::CompleteConstruction { .. } | Action::CityTick { .. } => unreachable!(),
         };
         let Json(ruler): Json<Ruler> =
             sqlx::query_scalar("SELECT state FROM entities WHERE id=$1 FOR UPDATE")
@@ -277,6 +331,459 @@ impl Context {
             .await?;
         tx.commit().await?;
         Ok(true)
+    }
+
+    async fn city_command(
+        &self,
+        conn: &mut PgConnection,
+        ruler: &Ruler,
+        command: &Command,
+        now_ms: u64,
+    ) -> Result<ServerMsg, ServiceError> {
+        let raw_city_id = match command.kind.as_ref() {
+            Some(command::Kind::InspectCity(order)) => &order.city_id,
+            Some(command::Kind::ApplyCityEdits(order)) => &order.city_id,
+            Some(command::Kind::QueueBuilding(order)) => &order.city_id,
+            Some(command::Kind::CancelConstruction(order)) => &order.city_id,
+            _ => return Ok(result(&command.request_id, false, "command_not_available")),
+        };
+        let Ok(city_id) = Uuid::parse_str(raw_city_id) else {
+            return Ok(result(&command.request_id, false, "invalid_city_id"));
+        };
+        let Some(town) = load_city(conn, CityId(city_id), true).await? else {
+            return Ok(result(&command.request_id, false, "city_not_found"));
+        };
+        let mut layout =
+            ensure_layout(conn, &town, now_ms, &self.city_catalog, &self.city_balance).await?;
+        let mut orders = load_constructions(conn, town.id).await?;
+        let editable = ruler.kingdom == town.kingdom;
+        match command.kind.as_ref() {
+            Some(command::Kind::InspectCity(_)) => {}
+            Some(command::Kind::ApplyCityEdits(order)) => {
+                if !editable {
+                    return Ok(result(&command.request_id, false, "city_read_only"));
+                }
+                let edits = order
+                    .edits
+                    .iter()
+                    .map(|edit| city::CellEdit {
+                        x: edit.x as u16,
+                        y: edit.y as u16,
+                        layer: &edit.layer,
+                        value: &edit.value,
+                    })
+                    .collect::<Vec<_>>();
+                layout = match city::apply_edits(
+                    &layout,
+                    order.expected_revision,
+                    &edits,
+                    &self.city_catalog,
+                ) {
+                    Ok(layout) => layout,
+                    Err(error) => return Ok(result(&command.request_id, false, error.0)),
+                };
+                save_layout(conn, &layout).await?;
+            }
+            Some(command::Kind::QueueBuilding(order)) => {
+                if !editable {
+                    return Ok(result(&command.request_id, false, "city_read_only"));
+                }
+                let Some(definition) = self.city_catalog.find(&order.building_id) else {
+                    return Ok(result(&command.request_id, false, "unknown_building"));
+                };
+                let last_due = orders
+                    .iter()
+                    .filter(|order| order.status == "queued")
+                    .map(|order| order.due_at_ms)
+                    .max()
+                    .unwrap_or(now_ms);
+                let request = city::BuildingOrder {
+                    order: ConstructionId(Uuid::new_v4()),
+                    instance: orbis_core::city::BuildingInstanceId(Uuid::new_v4()),
+                    kind: &order.building_id,
+                    x: order.x as u16,
+                    y: order.y as u16,
+                    orientation: order.orientation as u8,
+                    due_at_ms: last_due
+                        .max(now_ms)
+                        .saturating_add(definition.construction_ms),
+                };
+                let (next, construction) = match city::queue_building(
+                    &layout,
+                    order.expected_revision,
+                    request,
+                    orders
+                        .iter()
+                        .filter(|order| order.status == "queued")
+                        .count(),
+                    &self.city_catalog,
+                    &self.city_balance,
+                ) {
+                    Ok(value) => value,
+                    Err(error) => return Ok(result(&command.request_id, false, error.0)),
+                };
+                layout = next;
+                save_layout(conn, &layout).await?;
+                save_construction(conn, &construction).await?;
+                schedule_action(
+                    conn,
+                    town.pos,
+                    construction.due_at_ms,
+                    &Action::CompleteConstruction {
+                        city: town.id,
+                        order: construction.id,
+                        building: construction.building,
+                    },
+                    &format!("construction:{}", construction.id.0),
+                )
+                .await?;
+                orders.push(construction);
+            }
+            Some(command::Kind::CancelConstruction(order)) => {
+                if !editable {
+                    return Ok(result(&command.request_id, false, "city_read_only"));
+                }
+                let Ok(order_id) = Uuid::parse_str(&order.order_id) else {
+                    return Ok(result(
+                        &command.request_id,
+                        false,
+                        "invalid_construction_id",
+                    ));
+                };
+                let Some(construction) = orders
+                    .iter_mut()
+                    .find(|construction| construction.id.0 == order_id)
+                else {
+                    return Ok(result(&command.request_id, false, "construction_not_found"));
+                };
+                layout = match city::cancel_construction(
+                    &layout,
+                    order.expected_revision,
+                    construction,
+                    &self.city_catalog,
+                ) {
+                    Ok(layout) => layout,
+                    Err(error) => return Ok(result(&command.request_id, false, error.0)),
+                };
+                construction.status = "canceled".to_owned();
+                save_layout(conn, &layout).await?;
+                sqlx::query(
+                    "UPDATE construction_orders SET state=$2,canceled_at=now() WHERE id=$1 AND done_at IS NULL AND canceled_at IS NULL",
+                )
+                .bind(construction.id.0)
+                .bind(Json(&*construction))
+                .execute(&mut *conn)
+                .await?;
+                sqlx::query(
+                    "UPDATE scheduled_events SET done_at=now() WHERE idempotency_key=$1 AND done_at IS NULL",
+                )
+                .bind(format!("construction:{}", construction.id.0))
+                .execute(&mut *conn)
+                .await?;
+            }
+            _ => unreachable!(),
+        }
+        Ok(city_snapshot(
+            &town,
+            &layout,
+            &orders,
+            &self.city_catalog,
+            editable,
+            now_ms,
+        ))
+    }
+
+    async fn process_city_action(
+        &self,
+        conn: &mut PgConnection,
+        action: &Action,
+        now_ms: u64,
+    ) -> Result<(), ServiceError> {
+        match action {
+            Action::CompleteConstruction {
+                city,
+                order,
+                building,
+            } => {
+                let Some(mut layout) = load_layout(conn, *city, true).await? else {
+                    return Ok(());
+                };
+                let Some(Json(mut construction)) = sqlx::query_scalar::<_, Json<Construction>>(
+                    "SELECT state FROM construction_orders WHERE id=$1 FOR UPDATE",
+                )
+                .bind(order.0)
+                .fetch_optional(&mut *conn)
+                .await?
+                else {
+                    return Ok(());
+                };
+                if construction.status != "queued" {
+                    return Ok(());
+                }
+                let (next, changed) =
+                    city::complete_construction(&layout, *building, &self.city_catalog)?;
+                if changed {
+                    layout = next;
+                    save_layout(conn, &layout).await?;
+                    construction.status = "complete".to_owned();
+                    sqlx::query(
+                        "UPDATE construction_orders SET state=$2,done_at=now() WHERE id=$1 AND done_at IS NULL",
+                    )
+                    .bind(order.0)
+                    .bind(Json(&construction))
+                    .execute(&mut *conn)
+                    .await?;
+                }
+            }
+            Action::CityTick { city, tick } => {
+                let Some(mut town) = load_city(conn, *city, true).await? else {
+                    return Ok(());
+                };
+                let Some(layout) = load_layout(conn, *city, true).await? else {
+                    return Ok(());
+                };
+                let (next, changed) = city::simulate_tick(
+                    &layout,
+                    *tick,
+                    now_ms,
+                    &self.city_catalog,
+                    &self.city_balance,
+                )?;
+                if changed {
+                    save_layout(conn, &next).await?;
+                    town.population = next.population.total();
+                    save_city(conn, &town).await?;
+                    let next_tick = tick.saturating_add(1);
+                    let due = now_ms.saturating_add(self.city_balance.simulation.tick_ms);
+                    schedule_action(
+                        conn,
+                        town.pos,
+                        due,
+                        &Action::CityTick {
+                            city: *city,
+                            tick: next_tick,
+                        },
+                        &format!("city-tick:{}:{next_tick}", city.0),
+                    )
+                    .await?;
+                }
+            }
+            Action::Arrive { .. } | Action::CompleteVillage { .. } => unreachable!(),
+        }
+        Ok(())
+    }
+}
+
+async fn load_city(
+    conn: &mut PgConnection,
+    id: CityId,
+    for_update: bool,
+) -> Result<Option<City>, sqlx::Error> {
+    let query = if for_update {
+        "SELECT state FROM cities WHERE id=$1 FOR UPDATE"
+    } else {
+        "SELECT state FROM cities WHERE id=$1"
+    };
+    Ok(sqlx::query_scalar::<_, Json<City>>(query)
+        .bind(id.0)
+        .fetch_optional(conn)
+        .await?
+        .map(|Json(city)| city))
+}
+
+async fn load_layout(
+    conn: &mut PgConnection,
+    city: CityId,
+    for_update: bool,
+) -> Result<Option<CityLayout>, sqlx::Error> {
+    let query = if for_update {
+        "SELECT state FROM city_layouts WHERE city_id=$1 FOR UPDATE"
+    } else {
+        "SELECT state FROM city_layouts WHERE city_id=$1"
+    };
+    Ok(sqlx::query_scalar::<_, Json<CityLayout>>(query)
+        .bind(city.0)
+        .fetch_optional(conn)
+        .await?
+        .map(|Json(layout)| layout))
+}
+
+async fn ensure_layout(
+    conn: &mut PgConnection,
+    town: &City,
+    now_ms: u64,
+    catalog: &CityCatalog,
+    balance: &city::Balance,
+) -> Result<CityLayout, ServiceError> {
+    if let Some(layout) = load_layout(conn, town.id, true).await? {
+        return Ok(layout);
+    }
+    let layout = city::initial_layout(town, catalog)?;
+    save_layout(conn, &layout).await?;
+    let tick = 1;
+    schedule_action(
+        conn,
+        town.pos,
+        now_ms.saturating_add(balance.simulation.tick_ms),
+        &Action::CityTick {
+            city: town.id,
+            tick,
+        },
+        &format!("city-tick:{}:{tick}", town.id.0),
+    )
+    .await?;
+    Ok(layout)
+}
+
+async fn save_layout(conn: &mut PgConnection, layout: &CityLayout) -> Result<(), sqlx::Error> {
+    sqlx::query("INSERT INTO city_layouts(city_id,state,version) VALUES($1,$2,$3) ON CONFLICT(city_id) DO UPDATE SET state=EXCLUDED.state,version=EXCLUDED.version,updated_at=now()")
+        .bind(layout.city.0)
+        .bind(Json(layout))
+        .bind(layout.revision as i64)
+        .execute(conn)
+        .await?;
+    Ok(())
+}
+
+async fn load_constructions(
+    conn: &mut PgConnection,
+    city: CityId,
+) -> Result<Vec<Construction>, sqlx::Error> {
+    Ok(sqlx::query_scalar::<_, Json<Construction>>(
+        "SELECT state FROM construction_orders WHERE city_id=$1 ORDER BY due_at,id",
+    )
+    .bind(city.0)
+    .fetch_all(conn)
+    .await?
+    .into_iter()
+    .map(|Json(order)| order)
+    .collect())
+}
+
+async fn save_construction(
+    conn: &mut PgConnection,
+    construction: &Construction,
+) -> Result<(), sqlx::Error> {
+    sqlx::query("INSERT INTO construction_orders(id,city_id,state,due_at) VALUES($1,$2,$3,to_timestamp($4))")
+        .bind(construction.id.0)
+        .bind(construction.city.0)
+        .bind(Json(construction))
+        .bind(construction.due_at_ms as f64 / 1000.0)
+        .execute(conn)
+        .await?;
+    Ok(())
+}
+
+async fn schedule_action(
+    conn: &mut PgConnection,
+    position: Position,
+    due_at_ms: u64,
+    action: &Action,
+    idempotency_key: &str,
+) -> Result<(), sqlx::Error> {
+    let shard = world::shard(position);
+    sqlx::query("INSERT INTO scheduled_events(id,shard,due_at,kind,payload,idempotency_key,worker_slot) VALUES($1,$2,to_timestamp($3),1,$4,$5,$6) ON CONFLICT(idempotency_key) DO NOTHING")
+        .bind(Uuid::new_v4())
+        .bind(shard as i64)
+        .bind(due_at_ms as f64 / 1000.0)
+        .bind(Json(action))
+        .bind(idempotency_key)
+        .bind(world::worker(shard) as i16)
+        .execute(conn)
+        .await?;
+    Ok(())
+}
+
+fn city_snapshot(
+    town: &City,
+    layout: &CityLayout,
+    orders: &[Construction],
+    catalog: &CityCatalog,
+    editable: bool,
+    now_ms: u64,
+) -> ServerMsg {
+    let first_pending = orders
+        .iter()
+        .filter(|order| order.status == "queued")
+        .map(|order| order.id)
+        .next();
+    ServerMsg {
+        kind: Some(server_msg::Kind::City(CitySnapshot {
+            city_id: town.id.0.to_string(),
+            kingdom_id: town.kingdom.0.to_string(),
+            name: town.name.clone(),
+            width: u32::from(layout.width),
+            height: u32::from(layout.height),
+            revision: layout.revision,
+            terrain_rle: city::encode_rle(&layout.terrain),
+            roads_rle: city::encode_rle(&layout.roads),
+            zones_rle: city::encode_rle(&layout.zones),
+            buildings: layout
+                .buildings
+                .iter()
+                .map(|building| BuildingState {
+                    id: building.id.0.to_string(),
+                    building_id: building.kind.clone(),
+                    x: u32::from(building.x),
+                    y: u32::from(building.y),
+                    orientation: u32::from(building.orientation),
+                    complete: building.complete,
+                })
+                .collect(),
+            construction: orders
+                .iter()
+                .map(|order| ConstructionState {
+                    id: order.id.0.to_string(),
+                    building_instance_id: order.building.0.to_string(),
+                    building_id: order.kind.clone(),
+                    due_at_ms: order.due_at_ms as f64,
+                    status: if order.status == "queued" && first_pending == Some(order.id) {
+                        "active".to_owned()
+                    } else {
+                        order.status.clone()
+                    },
+                })
+                .collect(),
+            population: Some(PopulationState {
+                farmers: layout.population.farmers,
+                artisans: layout.population.artisans,
+                soldiers: layout.population.soldiers,
+                priests: layout.population.priests,
+            }),
+            metrics: Some(CityMetrics {
+                water: layout.metrics.water,
+                density: layout.metrics.density,
+                defense: layout.metrics.defense,
+                food_capacity: layout.metrics.food_capacity,
+                housing_capacity: layout.metrics.housing_capacity,
+                fire_risk: layout.metrics.fire_risk,
+            }),
+            events: layout
+                .events
+                .iter()
+                .map(|event| CityEventState {
+                    kind: event.kind.clone(),
+                    started_at_ms: event.started_at_ms as f64,
+                    ends_at_ms: event.ends_at_ms as f64,
+                })
+                .collect(),
+            definitions: catalog
+                .building
+                .iter()
+                .map(|definition| WireBuildingDefinition {
+                    id: definition.id.clone(),
+                    name_key: definition.name_key.clone(),
+                    width: u32::from(definition.footprint[0]),
+                    height: u32::from(definition.footprint[1]),
+                    construction_ms: definition.construction_ms as f64,
+                    zones: definition.zones.clone(),
+                    water_required: definition.water_required,
+                    visual_role: definition.visual_role.clone(),
+                })
+                .collect(),
+            editable,
+            now_ms: now_ms as f64,
+        })),
     }
 }
 

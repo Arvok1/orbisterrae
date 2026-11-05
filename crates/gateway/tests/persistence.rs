@@ -4,7 +4,10 @@ use orbis_gateway::{
     auth::{Auth, Credentials, Tokens},
     world_service::Context,
 };
-use orbis_protocol::{command, server_msg, Command, FoundCity, LatLon, MoveRuler, SetViewport};
+use orbis_protocol::{
+    command, server_msg, ApplyCityEdits, CityCellEdit, Command, FoundCity, InspectCity, LatLon,
+    MoveRuler, QueueBuilding, SetViewport,
+};
 use orbis_sim::world;
 use sqlx::{postgres::PgConnectOptions, types::Json, Row};
 use std::str::FromStr;
@@ -164,6 +167,8 @@ async fn exercise(context: &mut Context) -> Result<(), Box<dyn std::error::Error
         geo: context.geo.clone(),
         balance: context.balance.clone(),
         territory: context.territory.clone(),
+        city_catalog: context.city_catalog.clone(),
+        city_balance: context.city_balance.clone(),
     };
     assert!(!context.process_due(world::worker(source), 1001).await?);
     assert!(
@@ -253,9 +258,131 @@ async fn exercise(context: &mut Context) -> Result<(), Box<dyn std::error::Error
         snapshot.ruler.unwrap().supplies,
         context.balance.ruler.initial_supplies - context.balance.village.cost
     );
+    let city_id = snapshot.cities[0].id.clone();
+    let inspect = Command {
+        request_id: "inspect-city".into(),
+        kind: Some(command::Kind::InspectCity(InspectCity {
+            city_id: city_id.clone(),
+        })),
+    };
+    let Some(server_msg::Kind::City(initial_city)) =
+        context.command(account, &inspect, 3_000_000).await?.kind
+    else {
+        panic!("missing city snapshot")
+    };
+    assert!(initial_city.editable);
+    assert_eq!(initial_city.width, 96);
+    assert_eq!(initial_city.buildings.len(), 3);
+    let edits = (10..12)
+        .flat_map(|y| {
+            (10..12).map(move |x| CityCellEdit {
+                x,
+                y,
+                layer: "zone".into(),
+                value: "residential".into(),
+            })
+        })
+        .collect();
+    let stale = Command {
+        request_id: "stale-layout".into(),
+        kind: Some(command::Kind::ApplyCityEdits(ApplyCityEdits {
+            city_id: city_id.clone(),
+            expected_revision: initial_city.revision - 1,
+            edits: Vec::new(),
+        })),
+    };
+    let Some(server_msg::Kind::Result(stale_result)) =
+        context.command(account, &stale, 3_000_001).await?.kind
+    else {
+        panic!("missing stale revision result")
+    };
+    assert!(!stale_result.ok);
+    assert_eq!(stale_result.error, "stale_city_revision");
+    let edit = Command {
+        request_id: "edit-layout".into(),
+        kind: Some(command::Kind::ApplyCityEdits(ApplyCityEdits {
+            city_id: city_id.clone(),
+            expected_revision: initial_city.revision,
+            edits,
+        })),
+    };
+    let Some(server_msg::Kind::City(edited)) =
+        context.command(account, &edit, 3_000_002).await?.kind
+    else {
+        panic!("missing edited city")
+    };
+    let queue = Command {
+        request_id: "queue-house".into(),
+        kind: Some(command::Kind::QueueBuilding(QueueBuilding {
+            city_id: city_id.clone(),
+            expected_revision: edited.revision,
+            building_id: "house".into(),
+            x: 10,
+            y: 10,
+            orientation: 0,
+        })),
+    };
+    let Some(server_msg::Kind::City(queued)) =
+        context.command(account, &queue, 3_000_003).await?.kind
+    else {
+        panic!("missing queued city")
+    };
+    assert_eq!(queued.construction[0].status, "active");
+    let pool = context.pool.clone();
+    *context = Context {
+        pool,
+        geo: context.geo.clone(),
+        balance: context.balance.clone(),
+        territory: context.territory.clone(),
+        city_catalog: context.city_catalog.clone(),
+        city_balance: context.city_balance.clone(),
+    };
+    assert!(context.process_due(world::worker(source), 3_006_000).await?);
+    assert!(!context.process_due(world::worker(source), 3_006_000).await?);
+    let Some(server_msg::Kind::City(completed)) =
+        context.command(account, &inspect, 3_006_000).await?.kind
+    else {
+        panic!("missing completed city")
+    };
+    assert!(completed.buildings.iter().any(|building| {
+        building.building_id == "house" && building.x == 10 && building.y == 10 && building.complete
+    }));
+    let observer = auth
+        .authenticate(
+            context,
+            Credentials {
+                username: "city_observer".into(),
+                password: "LocalTestOnly123!".into(),
+                start: None,
+            },
+            true,
+            3_006_000,
+        )
+        .await?;
+    let observer = AccountId(observer.account_id);
+    let Some(server_msg::Kind::City(read_only)) =
+        context.command(observer, &inspect, 3_006_001).await?.kind
+    else {
+        panic!("observer did not receive city")
+    };
+    assert!(!read_only.editable);
+    let forbidden = Command {
+        request_id: "observer-edit".into(),
+        kind: Some(command::Kind::ApplyCityEdits(ApplyCityEdits {
+            city_id,
+            expected_revision: read_only.revision,
+            edits: Vec::new(),
+        })),
+    };
+    let Some(server_msg::Kind::Result(forbidden)) =
+        context.command(observer, &forbidden, 3_006_002).await?.kind
+    else {
+        panic!("missing read-only result")
+    };
+    assert_eq!(forbidden.error, "city_read_only");
     let logs: i64 = sqlx::query_scalar("SELECT count(*) FROM event_log")
         .fetch_one(&context.pool)
         .await?;
-    assert_eq!(logs, 3);
+    assert_eq!(logs, 4);
     Ok(())
 }
