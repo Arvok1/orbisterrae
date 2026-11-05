@@ -64,7 +64,7 @@ export class CityLayer extends Container {
     this.alpha=Math.min(1,Math.max(0,(zoom-15)/1.5));
     this.position.set(width/2+(city.x-center.x)*size,height/2+(city.y-center.y)*size);
     const pixelsPerCell=size*CELL_METERS/WORLD_METERS;
-    this.scale.set(Math.max(0.75,pixelsPerCell/2));
+    this.scale.set(Math.max(1,pixelsPerCell));
   }
 
   cellAt(screen:PointData):{x:number;y:number}|null {

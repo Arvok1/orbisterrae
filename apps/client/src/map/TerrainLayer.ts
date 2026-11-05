@@ -88,15 +88,20 @@ export class TerrainLayer extends Container {
   private texture(kind:string) {
     const g = new Graphics();
     if(kind==='dunes') {
-      g.ellipse(60,32,58,22).fill({color:'#5d4e34',alpha:0.7});
-      for(let row=0;row<5;row++) g.moveTo(6,18+row*8).bezierCurveTo(34,1+row*8,72,38+row*3,116,16+row*7).stroke({color:'#7a643c',width:2,alpha:0.55});
+      g.poly([8,40,36,18,66,38,104,16,120,34,118,52,6,56]).fill('#403528').stroke({color:'#191510',width:2});
+      for(let row=0;row<4;row++) g.moveTo(10,24+row*10).lineTo(48,18+row*9).lineTo(96,24+row*10).stroke({color:'#7a6340',width:1.5,alpha:0.65});
     } else {
       const autumn=kind==='autumnForest',pine=kind==='pineForest';
-      const dark=autumn?'#4a3c28':pine?'#25302d':'#2c3028',middle=autumn?'#6d5530':pine?'#33433b':'#3c4034',light=autumn?'#8a6a38':pine?'#43594f':'#4a4f3e';
-      g.ellipse(64,38,60,27).fill({color:dark,alpha:0.4});
-      const crowns=[[14,35,18,13],[30,24,23,17],[53,31,25,18],[76,20,24,16],[96,34,26,18],[43,46,28,17],[78,45,30,18]];
-      for(const [x,y,rx,ry] of crowns) g.ellipse(x,y,rx,ry).fill(middle);
-      for(const [x,y,rx,ry] of crowns.filter((_,index)=>index%2===0)) g.ellipse(x-3,y-5,rx*0.6,ry*0.5).fill({color:light,alpha:0.72});
+      const fill=autumn?'#473521':pine?'#22312b':'#292c24';
+      const edge=autumn?'#251a0f':pine?'#111b16':'#141711';
+      const shapes:[number,number,number,number][]=pine
+        ? [[20,52,11,30],[40,56,13,34],[60,52,11,30],[80,56,13,34],[100,50,10,28]]
+        : [[16,40,15,13],[38,46,19,16],[60,42,17,14],[82,46,19,16],[100,40,13,12]];
+      for(const [cx,cy,rx,ry] of shapes) {
+        if(pine) g.poly([cx,cy-ry,cx-rx,cy+ry*0.8,cx,cy+ry*0.3,cx+rx,cy+ry*0.8]).fill(fill).stroke({color:edge,width:1.5});
+        else g.poly([cx-rx,cy,cx-rx*0.55,cy-ry,cx+rx*0.55,cy-ry,cx+rx,cy,cx+rx*0.25,cy+ry,cx-rx*0.25,cy+ry]).fill(fill).stroke({color:edge,width:1.5});
+        g.moveTo(cx,cy+ry*0.8).lineTo(cx,cy+ry+9).stroke({color:'#211a12',width:3});
+      }
     }
     const texture=this.app.renderer.generateTexture({target:g,resolution:2});g.destroy();this.ownedTextures.push(texture);return texture;
   }

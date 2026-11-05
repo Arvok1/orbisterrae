@@ -176,7 +176,14 @@ export class Atlas {
           if (state.world?.ruler) {this.following=true;this.center=project(rulerPosition(state.world.ruler,Date.now()+state.serverOffsetMs));this.size=8_388_608;}
         } else if (state.action.kind === 'city') {
           const city=state.world?.cities.find(city=>city.id===state.world?.ruler?.cityId);
-          if (city?.pos) {this.following=false;this.center=project(city.pos);this.size=33_554_432;state.selectCity(city.id);sendGame({$case:'inspectCity',inspectCity:{cityId:city.id}});}
+          if (city?.pos) {
+            this.following=false;
+            this.center=project(city.pos);
+            const cells = state.city?.width ?? 96;
+            this.size = Math.max(8_388_608, (this.host.clientWidth * 0.9) * 40_075_017 / (cells * 4));
+            state.selectCity(city.id);
+            sendGame({$case:'inspectCity',inspectCity:{cityId:city.id}});
+          }
           else if (!state.world&&state.selected) { this.center = project(state.selected); this.size = 16384; }
         } else this.zoom(state.action.kind === 'zoomIn' ? 1.5 : 1 / 1.5);
       }
@@ -242,7 +249,7 @@ export class Atlas {
   }
   private zoom(factor: number, point = {x: this.host.clientWidth / 2, y: this.host.clientHeight / 2}) {
     const before = this.worldAt(point);
-    this.size = Math.max(600, Math.min(134_217_728, this.size * factor));
+    this.size = Math.max(600, Math.min(1_073_741_824, this.size * factor));
     const after = this.worldAt(point);
     this.center.x += before.x - after.x;
     this.center.y += before.y - after.y;
