@@ -8,3 +8,22 @@ max_monthly_inflation = 0.03   # alvo de estabilidade nos testes de simulação 
 
 [hub]
 default_fee = 0.02
+
+[caravan]
+capacity_kg = 2000.0
+speed_mps = 2.5
+minimum_trip_ms = 1500
+
+[ship]
+capacity_kg = 20000.0
+speed_mps = 5.0
+minimum_trip_ms = 1500
+
+[money]
+initial_city_metal = 500
+initial_hub_metal = 50000
+
+[hub_seed]
+count = 3
+step_deg = 3.0
+min_separation_m = 500000.0

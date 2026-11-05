@@ -1,0 +1,58 @@
+# Mercadorias fungíveis do MVP S1.3 (docs/MVP.md §2). Bronze é liga manual, não mercadoria.
+[[commodity]]
+id = "grain"
+name_key = "commodity.grain"
+base_price = 2.0
+weight_kg = 1.0
+perishable_days = 90
+demand_base = 20.0
+
+[[commodity]]
+id = "wood"
+name_key = "commodity.wood"
+base_price = 1.5
+weight_kg = 2.0
+demand_base = 15.0
+
+[[commodity]]
+id = "stone"
+name_key = "commodity.stone"
+base_price = 1.0
+weight_kg = 5.0
+demand_base = 12.0
+
+[[commodity]]
+id = "copper"
+name_key = "commodity.copper"
+base_price = 8.0
+weight_kg = 3.0
+demand_base = 6.0
+
+[[commodity]]
+id = "tin"
+name_key = "commodity.tin"
+base_price = 10.0
+weight_kg = 3.0
+demand_base = 4.0
+
+[[commodity]]
+id = "salt"
+name_key = "commodity.salt"
+base_price = 4.0
+weight_kg = 1.0
+demand_base = 8.0
+
+[[commodity]]
+id = "leather"
+name_key = "commodity.leather"
+base_price = 3.0
+weight_kg = 2.0
+perishable_days = 120
+demand_base = 6.0
+
+[[commodity]]
+id = "cloth"
+name_key = "commodity.cloth"
+base_price = 5.0
+weight_kg = 1.5
+demand_base = 7.0

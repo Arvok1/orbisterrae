@@ -1,5 +1,6 @@
 //! Domain primitives: deterministic, without I/O.
 pub mod city;
+pub mod economy;
 pub mod time;
 pub mod world;
 

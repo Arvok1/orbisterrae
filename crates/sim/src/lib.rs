@@ -1,6 +1,7 @@
 //! Esqueleto: implementar conforme docs/ROADMAP.md
 pub mod city;
 pub mod demo;
+pub mod economy;
 pub mod risk;
 pub mod world;
 
