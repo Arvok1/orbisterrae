@@ -9,7 +9,6 @@ import { gameMessages } from './game-i18n.js';
 import { CityPanel } from './CityPanel.js';
 import { AdminPanel } from './AdminPanel.js';
 import './brutal.css';
-import './globe.css';
 
 function App() {
   const host = useRef<HTMLDivElement>(null);
@@ -56,6 +55,10 @@ function App() {
       <div className="zoom-controls"><button aria-label={t.zoomIn} onClick={() => state.command('zoomIn')}>+</button>
         <span>{state.zoom.toFixed(1)}×</span><button aria-label={t.zoomOut} onClick={() => state.command('zoomOut')}>−</button></div>
       <button aria-label={t.reset} onClick={() => state.command('reset')}>✕</button>
+    </div>
+    <div className="style-control" role="group" aria-label={state.locale==='pt-BR'?'Estilo visual do mapa':'Map visual style'}>
+      <button aria-pressed={state.renderStyle==='relief'} onClick={()=>state.setRenderStyle('relief')}>{state.locale==='pt-BR'?'Relevo 3D':'3D relief'}</button>
+      <button aria-pressed={state.renderStyle==='manuscript'} onClick={()=>state.setRenderStyle('manuscript')}>{state.locale==='pt-BR'?'Carta':'Manuscript'}</button>
     </div>
     <div className="map-caption"><span className="terrain-dot" />{state.session?g.hint:t.terrain}</div>
     {!state.session&&<div className="layer-control"><button aria-pressed={state.showDiagnostics} onClick={state.toggleDiagnostics}>{t.testLayer}{state.showDiagnostics ? ' ✓' : ''}</button></div>}

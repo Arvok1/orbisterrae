@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { decodeRle } from '../dist/map/CityLayer.js';
+import { decodeRle } from '../dist/map/cityData.js';
 
 test('city RLE decoder restores exactly 256 by 256 cells',()=>{
   const encoded=new Uint8Array([0,255,255,0,1,0]);
