@@ -28,7 +28,7 @@ export function PlayPanel() {
       }}>
         <label>{t.username}<input autoComplete="username" minLength={3} maxLength={32} required value={username} onChange={e=>setUsername(e.target.value)} /></label>
         <label>{t.password}<input type="password" autoComplete={register?'new-password':'current-password'} minLength={8} maxLength={128} required value={password} onChange={e=>setPassword(e.target.value)} /></label>
-        <button className="city-button" disabled={busy} type="submit">{busy?t.waiting:register?t.create:t.login}<span>↗</span></button>
+        <button className="city-button" disabled={busy} type="submit">{busy?t.waiting:register?t.create:t.login}<span>◆</span></button>
       </form>
       {authError&&<p className="game-feedback" role="alert">{t.errors[authError]??t.errors.server_error}</p>}
       <button className="text-button" onClick={()=>{setRegister(!register);setAuthError(null);}}>{register?t.haveAccount:t.newAccount}</button>
@@ -37,14 +37,14 @@ export function PlayPanel() {
       <h2>{city?.name??t.nomad}</h2>
       <p className="ruler-status" aria-live="polite">{ruler.journey?t.walking:ruler.foundingUntilMs?t.founding:city?.active?t.villageReady:t.idle}{due?` · ${remaining?remaining+t.seconds:t.finishing}`:''}</p>
       <dl><div><dt>{t.supplies}</dt><dd>{ruler.supplies}</dd></div><div><dt>{city?t.population:t.cost}</dt><dd>{city?city.population:state.world?.villageCost}</dd></div></dl>
-      <button className="primary" onClick={()=>state.command('follow')}>{t.follow}<span>⌖</span></button>
+      <button className="primary" onClick={()=>state.command('follow')}>{t.follow}<span>✕</span></button>
       {selected&&<p className="chosen-location">{t.selected}: {selected.lat.toFixed(3)}°, {selected.lon.toFixed(3)}°</p>}
-      <button className="city-button" disabled={!selected||blocked} onClick={()=>{if(selected)sendGame({$case:'moveRuler',moveRuler:{destination:selected}});}}>{t.move}<span>↗</span></button>
+      <button className="city-button" disabled={!selected||blocked} onClick={()=>{if(selected)sendGame({$case:'moveRuler',moveRuler:{destination:selected}});}}>{t.move}<span>◆</span></button>
       {!city?<form onSubmit={e=>{e.preventDefault();if(!blocked&&ruler.pos)sendGame({$case:'foundCity',foundCity:{name,pos:ruler.pos}});}}>
         <label>{t.villageName}<input minLength={2} maxLength={48} required value={name} onChange={e=>setName(e.target.value)} /></label>
-        <button className="city-button" disabled={blocked} type="submit">{t.found}<span>⌂</span></button>
+        <button className="city-button" disabled={blocked} type="submit">{t.found}<span>▲</span></button>
         <p className="action-cost">{t.cost}: {state.world?.villageCost} · {(state.world?.villageConstructionMs??0)/1000}{t.seconds}</p>
-      </form>:<button className="city-button" onClick={()=>state.command('city')}>{t.visit}<span>⌂</span></button>}
+      </form>:<button className="city-button" onClick={()=>state.command('city')}>{t.visit}<span>▲</span></button>}
       {state.gameMessage&&<p className="game-feedback" role="status">{t.errors[state.gameMessage]??t.errors.server_error}</p>}
       <button className="text-button" onClick={()=>{state.setSession(null);state.command('reset');}}>{t.logout}</button>
     </>}

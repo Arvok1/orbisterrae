@@ -42,21 +42,21 @@ export class Atlas {
   constructor(private host: HTMLElement) {}
 
   async init() {
-    await this.app.init({background: '#7eb8be', antialias: true,
+    await this.app.init({background: '#0b0f12', antialias: true,
       resolution: Math.min(devicePixelRatio, 2), autoDensity: true, resizeTo: this.host});
     if (this.disposed) { this.app.destroy(true); return; }
     this.ready = true;
     this.host.appendChild(this.app.canvas);
-    const cartoon = new ColorMatrixFilter();
-    cartoon.matrix = [
-      0.6532258, 0, 0, 0, 0.4377609,
-      0.1370968, 0, 0, 0, 0.7097407,
-      -0.516129, 0, 0, 0, 0.7896268,
+    const grim = new ColorMatrixFilter();
+    grim.matrix = [
+      0.30, 0.32, 0.08, 0, -0.04,
+      0.24, 0.27, 0.07, 0, -0.03,
+      0.17, 0.20, 0.06, 0, -0.02,
       0, 0, 0, 1, 0,
     ];
-    this.tilesLayer.filters = [cartoon];
+    this.tilesLayer.filters = [grim];
     this.app.stage.addChild(this.tilesLayer, this.coastline, this.entities, this.marker);
-    for (const ring of this.coastRings) this.coastline.poly(ring.flatMap(p=>[p.x*4096,p.y*4096])).stroke({color:'#64754c',pixelLine:true,alpha:0.7});
+    for (const ring of this.coastRings) this.coastline.poly(ring.flatMap(p=>[p.x*4096,p.y*4096])).stroke({color:'#4b433a',pixelLine:true,alpha:0.7});
     const response = await fetch(terrainUrl, {signal: this.abort.signal});
     if (!response.ok) throw new Error(`Terrain load failed: ${response.status}`);
     const terrainData = await response.json() as TerrainData;
@@ -299,18 +299,18 @@ export class Atlas {
       this.entities.circle(width / 2 + (p.x - this.center.x) * this.size,
         height / 2 + (p.y - this.center.y) * this.size, this.size < 1500 ? 1.5 : 3);
     }
-    this.entities.fill({color: '#e1bd79', alpha: 0.8});
+    this.entities.fill({color: '#9c7b4a', alpha: 0.8});
     const selected = useAtlas.getState().selected;
     const zoom = Math.log2(this.size / 256);
     if (selected) {
       const p = project(selected);
       const x = width / 2 + (p.x - this.center.x) * this.size;
       const y = height / 2 + (p.y - this.center.y) * this.size;
-      this.marker.circle(x, y, 18).stroke({color: '#ebc575', width: 1, alpha: 0.65});
-      this.marker.circle(x, y, 5).fill('#ebc575');
+      this.marker.circle(x, y, 18).stroke({color: '#a03a28', width: 1, alpha: 0.65});
+      this.marker.circle(x, y, 5).fill('#a03a28');
       this.marker.moveTo(x - 26, y).lineTo(x - 12, y).moveTo(x + 12, y).lineTo(x + 26, y)
         .moveTo(x, y - 26).lineTo(x, y - 12).moveTo(x, y + 12).lineTo(x, y + 26)
-        .stroke({color: '#ebc575', width: 1});
+        .stroke({color: '#a03a28', width: 1});
     }
     useAtlas.setState({zoom, loaded: this.tiles.size,
       viewport: {center: unproject(this.center), zoom: Math.log2(this.size / 256), widthPx: width, heightPx: height}});

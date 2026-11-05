@@ -4,7 +4,7 @@ import { project,type Point } from './projection.js';
 import { outerEdges,rulerPosition } from './gameScene.js';
 
 const BASIS=4096;
-/** Server state rendered as cartoon symbols; never invents a completed village. */
+/** Server state rendered as brutal medieval symbols; never invents a completed village. */
 export class GameLayer extends Container {
   private border=new Graphics();
   private ground:TilingSprite;
@@ -19,20 +19,20 @@ export class GameLayer extends Container {
   constructor(private app:Application) {
     super();
     const ground=new Graphics().rect(0,0,64,64).fill({color:'#fff2d5',alpha:0});
-    ground.moveTo(8,15).lineTo(10,11).lineTo(12,15).moveTo(43,45).lineTo(45,40).lineTo(47,44).stroke({color:'#6c8550',width:1,alpha:0.5});
-    ground.ellipse(27,34,2,1).fill({color:'#9b946d',alpha:0.5});
+    ground.moveTo(8,15).lineTo(10,11).lineTo(12,15).moveTo(43,45).lineTo(45,40).lineTo(47,44).stroke({color:'#3a3328',width:1,alpha:0.5});
+    ground.ellipse(27,34,2,1).fill({color:'#2a241c',alpha:0.5});
     this.ground=new TilingSprite({texture:this.texture(ground),width:1,height:1});
     this.village=this.townTexture(true);this.foundation=this.townTexture(false);
     const hero=new Graphics();
-    hero.ellipse(16,38,12,4).fill({color:'#423b2c',alpha:0.2});
-    hero.poly([11,14,21,14,27,34,5,34]).fill('#526b8c').stroke({color:'#374653',width:1.5});
-    hero.rect(11,30,4,8).rect(18,30,4,8).fill('#5c4939');
-    hero.roundRect(10,15,13,17,4).fill('#63844d').stroke({color:'#374c35',width:1.2});
-    hero.circle(16,11,7).fill('#e2b67c').stroke({color:'#604d35',width:1});
-    hero.poly([9,5,10,0,14,3,17,-1,20,3,24,0,23,6]).fill('#e4b552').stroke({color:'#8c6b32',width:1});
-    hero.circle(14,11,0.8).circle(19,11,0.8).fill('#4c3b2f');
-    hero.moveTo(27,7).lineTo(27,35).stroke({color:'#745738',width:2});
-    hero.poly([28,7,38,10,28,16]).fill('#c27849').stroke({color:'#745738',width:0.8});
+    hero.ellipse(16,38,12,4).fill({color:'#000000',alpha:0.3});
+    hero.poly([11,14,21,14,27,34,5,34]).fill('#4a3f35').stroke({color:'#241e17',width:1.5});
+    hero.rect(11,30,4,8).rect(18,30,4,8).fill('#2e261d');
+    hero.roundRect(10,15,13,17,4).fill('#3a3128').stroke({color:'#1b1610',width:1.2});
+    hero.circle(16,11,7).fill('#cfa67a').stroke({color:'#3a2b1f',width:1});
+    hero.poly([9,5,10,0,14,3,17,-1,20,3,24,0,23,6]).fill('#4a3f35').stroke({color:'#241e17',width:1});
+    hero.circle(14,11,0.8).circle(19,11,0.8).fill('#14100d');
+    hero.moveTo(27,7).lineTo(27,35).stroke({color:'#2a241c',width:2});
+    hero.poly([28,7,38,10,28,16]).fill('#8e3a28').stroke({color:'#2a241c',width:0.8});
     this.hero=new Sprite(this.texture(hero));this.hero.anchor.set(0.45,0.92);
     this.addChild(this.ground,this.border,this.hero);this.eventMode='none';
   }
@@ -41,24 +41,24 @@ export class GameLayer extends Container {
   }
   private townTexture(active:boolean) {
     const g=new Graphics();
-    g.ellipse(48,63,48,25).fill({color:active?'#c4b67d':'#d3c294',alpha:0.85});
-    g.moveTo(10,72).quadraticCurveTo(45,50,80,72).stroke({color:'#ead7a1',width:9});
+    g.ellipse(48,63,48,25).fill({color:active?'#3b342a':'#2e2920',alpha:0.85});
+    g.moveTo(10,72).quadraticCurveTo(45,50,80,72).stroke({color:'#4b433a',width:9});
     for (const [x,y,s] of [[6,34,0.8],[36,13,1],[59,40,0.8]]) {
       if (active) {
-        g.poly([x,y+15*s,x+25*s,y+12*s,x+25*s,y+34*s,x,y+38*s]).fill('#efe0ac').stroke({color:'#746044',width:1});
-        g.poly([x+25*s,y+12*s,x+34*s,y+18*s,x+34*s,y+35*s,x+25*s,y+34*s]).fill('#c7ba8a').stroke({color:'#746044',width:1});
-        g.poly([x-4*s,y+17*s,x+11*s,y-1*s,x+29*s,y+14*s]).fill('#7d9452').stroke({color:'#5c6b3b',width:1.3});
-        g.poly([x+11*s,y-1*s,x+22*s,y+2*s,x+38*s,y+18*s,x+29*s,y+14*s]).fill('#9ca963').stroke({color:'#5c6b3b',width:1});
-        g.rect(x+5*s,y+24*s,7*s,12*s).fill('#80623c');g.rect(x+17*s,y+22*s,5*s,5*s).fill('#687b72');
-        g.moveTo(x+3*s,y+17*s).lineTo(x+24*s,y+14*s).stroke({color:'#53683c',width:0.7});
+        g.poly([x,y+15*s,x+25*s,y+12*s,x+25*s,y+34*s,x,y+38*s]).fill('#241e17').stroke({color:'#15100c',width:1});
+        g.poly([x+25*s,y+12*s,x+34*s,y+18*s,x+34*s,y+35*s,x+25*s,y+34*s]).fill('#1c1711').stroke({color:'#15100c',width:1});
+        g.poly([x-4*s,y+17*s,x+11*s,y-1*s,x+29*s,y+14*s]).fill('#191510').stroke({color:'#0e0b08',width:1.3});
+        g.poly([x+11*s,y-1*s,x+22*s,y+2*s,x+38*s,y+18*s,x+29*s,y+14*s]).fill('#221c15').stroke({color:'#0e0b08',width:1});
+        g.rect(x+5*s,y+24*s,7*s,12*s).fill('#9c3424');g.rect(x+17*s,y+22*s,5*s,5*s).fill('#3a332a');
+        g.moveTo(x+3*s,y+17*s).lineTo(x+24*s,y+14*s).stroke({color:'#3a332a',width:0.7});
       } else {
-        g.poly([x,y+31*s,x+25*s,y+27*s,x+34*s,y+32*s,x+10*s,y+37*s]).fill('#b69767').stroke({color:'#8e714d',width:1});
+        g.poly([x,y+31*s,x+25*s,y+27*s,x+34*s,y+32*s,x+10*s,y+37*s]).fill('#241e17').stroke({color:'#15100c',width:1});
         g.moveTo(x+2*s,y+30*s).lineTo(x+2*s,y+14*s).lineTo(x+16*s,y+1*s).lineTo(x+30*s,y+15*s).lineTo(x+30*s,y+31*s)
-          .moveTo(x+2*s,y+20*s).lineTo(x+30*s,y+22*s).stroke({color:'#9d7547',width:2});
+          .moveTo(x+2*s,y+20*s).lineTo(x+30*s,y+22*s).stroke({color:'#3a332a',width:2});
       }
     }
-    g.moveTo(50,44).lineTo(50,66).stroke({color:'#7c6040',width:1.5});
-    g.poly([50,44,61,46,50,52]).fill('#b96742');
+    g.moveTo(50,44).lineTo(50,66).stroke({color:'#3a332a',width:1.5});
+    g.poly([50,44,61,46,50,52]).fill('#9c3424');
     return this.texture(g);
   }
   sync(world:WorldSnapshot|null) {
@@ -70,7 +70,7 @@ export class GameLayer extends Container {
       let town=this.towns.get(city.id);
       if (!town) {
         const node=new Container();const sprite=new Sprite(city.active?this.village:this.foundation);sprite.anchor.set(0.5,0.7);
-        const label=new Text({text:city.name,style:{fontFamily:'Nunito, sans-serif',fontSize:12,fontWeight:'800',fill:'#493d2c',stroke:{color:'#fff2d5',width:3}}});
+        const label=new Text({text:city.name,style:{fontFamily:'DM Sans, sans-serif',fontSize:12,fontWeight:'700',fill:'#d8cdb2',stroke:{color:'#14100d',width:3}}});
         label.anchor.set(0.5,0);label.y=30;node.addChild(sprite,label);this.addChildAt(node,this.children.length-1);
         town={node,sprite,label,active:city.active};this.towns.set(city.id,town);
       }
@@ -82,7 +82,7 @@ export class GameLayer extends Container {
       for (const [a,b] of outerEdges(world.territory)) {
         const p=project(a),q=project(b);this.border.moveTo(p.x*BASIS,p.y*BASIS).lineTo(q.x*BASIS,q.y*BASIS);
       }
-      this.border.stroke({color:'#b67c31',pixelLine:true});this.territoryKey=key;
+      this.border.stroke({color:'#a03a28',pixelLine:true});this.territoryKey=key;
     }
   }
   frame(center:Point,size:number,width:number,height:number,nowMs:number) {

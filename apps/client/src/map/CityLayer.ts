@@ -83,11 +83,11 @@ export class CityLayer extends Container {
     this.pivot.set(0,city.height/2);
     const count=city.width*city.height;
     try {this.roads=decodeRle(city.roadsRle,count);this.zones=decodeRle(city.zonesRle,count);} catch {this.visible=false;return;}
-    const zoneColors=['#b9a56c','#d7b07e','#b4b86c','#a88762','#c8b276','#9b8d70'];
+    const zoneColors=['#3a3328','#40372b','#3d402b','#3b3027','#423a2b','#343028'];
     for(let y=0;y<city.height;y++) for(let x=0;x<city.width;x++) {
       const index=y*city.width+x,road=this.roads[index]??0,zone=this.zones[index]??0;
-      this.ground.poly(diamond(x,y)).fill({color:road?'#9b7c53':zoneColors[zone]??zoneColors[0],alpha:road?1:0.9}).stroke({color:'#76694d',width:0.045,alpha:0.32});
-      if((x+y)%12===0&&!road) this.ground.circle(...iso(x+0.5,y+0.5),0.08).fill({color:'#596b3d',alpha:0.35});
+      this.ground.poly(diamond(x,y)).fill({color:road?'#241e17':zoneColors[zone]??zoneColors[0],alpha:road?1:0.9}).stroke({color:'#15100c',width:0.045,alpha:0.32});
+      if((x+y)%12===0&&!road) this.ground.circle(...iso(x+0.5,y+0.5),0.08).fill({color:'#4a4034',alpha:0.35});
     }
     const definitions=new Map(city.definitions.map(definition=>[definition.id,definition]));
     const buildings=[...city.buildings].sort((a,b)=>(a.x+a.y)-(b.x+b.y));
@@ -99,29 +99,29 @@ export class CityLayer extends Container {
       const [cx,cy]=iso(building.x+width/2,building.y+height/2);
       const footprint=[...iso(building.x,building.y),...iso(building.x+width,building.y),...iso(building.x+width,building.y+height),...iso(building.x,building.y+height)];
       if(!building.complete) {
-        structure.poly(footprint).fill({color:'#c7aa73',alpha:0.65}).stroke({color:'#6f5134',width:0.12});
-        for(let level=0;level<3;level++) structure.moveTo(cx-width/2,cy-level*0.45).lineTo(cx+width/2,cy-level*0.45).stroke({color:'#6f5134',width:0.08});
+        structure.poly(footprint).fill({color:'#3b342a',alpha:0.65}).stroke({color:'#241e17',width:0.12});
+        for(let level=0;level<3;level++) structure.moveTo(cx-width/2,cy-level*0.45).lineTo(cx+width/2,cy-level*0.45).stroke({color:'#241e17',width:0.08});
       } else if(definition.visualRole==='field') {
-        structure.poly(footprint).fill('#b9a24c').stroke({color:'#7b7137',width:0.08});
-        for(let row=0;row<Math.max(2,height*2);row++) structure.moveTo(cx-width/2,cy-height/4+row*0.18).lineTo(cx+width/2,cy-height/4+row*0.18).stroke({color:'#e0c96b',width:0.05});
+        structure.poly(footprint).fill('#3d402b').stroke({color:'#2b2a1c',width:0.08});
+        for(let row=0;row<Math.max(2,height*2);row++) structure.moveTo(cx-width/2,cy-height/4+row*0.18).lineTo(cx+width/2,cy-height/4+row*0.18).stroke({color:'#5a5a3a',width:0.05});
       } else if(definition.visualRole==='wall') {
-        structure.poly(footprint).fill('#9e927a').stroke({color:'#62594c',width:0.1});
+        structure.poly(footprint).fill('#45403a').stroke({color:'#241e17',width:0.1});
       } else {
         const buildingHeight=Math.max(0.8,Math.min(2.4,(width+height)/3));
-        structure.poly(footprint).fill('#f2d698').stroke({color:'#5a4936',width:0.16});
-        structure.poly([cx-width/1.7,cy-buildingHeight/2,cx,cy-buildingHeight,cx+width/1.7,cy-buildingHeight/2,cx,cy-buildingHeight/3]).fill(definition.visualRole==='tower'?'#64744f':'#824833').stroke({color:'#4d392f',width:0.16});
-        structure.rect(cx-0.12,cy-buildingHeight/2,0.24,0.4).fill('#5b4638');
+        structure.poly(footprint).fill('#b7a98a').stroke({color:'#241e17',width:0.16});
+        structure.poly([cx-width/1.7,cy-buildingHeight/2,cx,cy-buildingHeight,cx+width/1.7,cy-buildingHeight/2,cx,cy-buildingHeight/3]).fill(definition.visualRole==='tower'?'#3a2f28':'#191510').stroke({color:'#0e0b08',width:0.16});
+        structure.rect(cx-0.12,cy-buildingHeight/2,0.24,0.4).fill('#2a241c');
       }
       structure.alpha=building.complete?1:0.85;
       this.structures.addChild(structure);
       if(building.complete&&['forge','workshop','smokehouse'].includes(definition.visualRole)) {
-        this.atmosphere.circle(cx+0.2,cy-1.4,0.16).circle(cx+0.32,cy-1.75,0.22).fill({color:'#5c5750',alpha:0.34});
+        this.atmosphere.circle(cx+0.2,cy-1.4,0.16).circle(cx+0.32,cy-1.75,0.22).fill({color:'#151310',alpha:0.4});
       }
       void base;
     }
     const fire=city.events.some(event=>event.kind==='fire'),famine=city.events.some(event=>event.kind==='famine');
-    if(fire) this.atmosphere.circle(0,city.height/2,2.2).fill({color:'#d05c2c',alpha:0.45});
-    if(famine) this.atmosphere.rect(-city.width,0,city.width*2,city.height).fill({color:'#7b5d32',alpha:0.12});
+    if(fire) this.atmosphere.circle(0,city.height/2,2.2).fill({color:'#b8431f',alpha:0.5});
+    if(famine) this.atmosphere.rect(-city.width,0,city.width*2,city.height).fill({color:'#5b4327',alpha:0.18});
   }
 }
 
