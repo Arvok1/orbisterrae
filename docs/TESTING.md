@@ -78,3 +78,12 @@ confirmar que cada controle HTML recebe clique sem arrastar o globo; alternar os
 dois estilos sem enviar comando; repetir visualmente Alpes, Himalaia, Amazônia,
 Saara, Paris e Porto do Loire em 1280×720 e 390×844. O soak de cinco minutos é
 manual e deve registrar FPS, DPR e LOD no relatório da página.
+
+### Continuidade do zoom e fidelidade local
+
+O teste de regressão de S1.2c confere que a largura física do patch continua
+diminuindo até z29, inclusive fora de uma cidade, e que a máscara de lago exclui
+trechos de rio. Conferir no navegador a seleção após pan, os dois estilos e a
+legibilidade de água e bosque em z15, z21 e z25. A fonte ETOPO 60″ define apenas
+o relevo macro; detalhes de vegetação são decoração determinística e não devem
+ser descritos como cobertura florestal de precisão métrica.
