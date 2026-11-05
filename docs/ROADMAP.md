@@ -65,7 +65,7 @@ Meta: **todos os sistemas em versão simples**, integrados, jogáveis de ponta a
 | Sprint | Entrega | Aceite | Tamanho |
 |---|---|---|---|
 | S1.1 ✓ | **Mundo servível distribuído:** contas locais com JWT, reino, clã nômade, fundação de cidade e território (T1.1 a T1.6 simplificados), com gateway e workers de shard separados via NATS | 100 bots fundam cidades; territórios sem sobreposição; `EntityHandoff` não perde entidade | 3 a 4 sem |
-| S1.2 | **Cidade simples:** grade com ruas/zonas/prédios (~15 tipos), fila de construção, população por classes, 3 métricas de layout (água, densidade, defesa), 2 eventos (fome, incêndio) | Layout muda defesa e crescimento de forma mensurável | 3 a 4 sem |
+| S1.2 ✓ | **Cidade simples:** grade com ruas/zonas/prédios (~15 tipos), fila de construção, população por classes, 3 métricas de layout (água, densidade, defesa), 2 eventos (fome, incêndio) | Layout muda defesa e crescimento de forma mensurável (testes de sim + cenário `bots:s1.2`) | 3 a 4 sem |
 | S1.3 | **Economia simples:** 8 mercadorias, preço local, caravanas e navios (sem vento ainda), 2 a 3 hubs IA com order book simples, moeda (escambo→metal) | Economia fechada com bots por 7 dias simulados sem hiperinflação | 3 a 4 sem |
 | S1.4 | **IA simples:** Utility AI com 4 objetivos (crescer, comerciar, expandir, defender), nascimento/colapso básicos | 100 reinos IA por 14 dias simulados, trajetórias variadas | 2 a 3 sem |
 | S1.5 | **Ventos e navegação simples:** campo mensal em baixa resolução, polar por tipo de vela (3 tipos), camada animada | Navio contra o vento é mais lento; rota sazonal muda | 1 a 2 sem |

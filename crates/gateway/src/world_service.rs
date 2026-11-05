@@ -73,7 +73,22 @@ impl Context {
         territory.validate()?;
         let city_catalog = CityCatalog::parse(include_str!("../../../data/buildings/mvp.toml"))?;
         city_catalog.validate()?;
-        let city_balance = city::Balance::parse(include_str!("../../../config/balance/city.toml"))?;
+        let mut city_balance =
+            city::Balance::parse(include_str!("../../../config/balance/city.toml"))?;
+        // Test/harness only: the bot scenario accelerates city ticks without touching
+        // production config. See docs/TESTING.md.
+        if let Ok(raw) = std::env::var("ORBIS_CITY_TICK_MS") {
+            let millis: u64 = raw
+                .trim()
+                .parse()
+                .map_err(|_| ServiceError::Configuration("invalid ORBIS_CITY_TICK_MS"))?;
+            if millis == 0 {
+                return Err(ServiceError::Configuration(
+                    "ORBIS_CITY_TICK_MS must be positive",
+                ));
+            }
+            city_balance.simulation.tick_ms = millis;
+        }
         city_balance.validate()?;
         let geo = Geography::from_json(
             include_str!("../../../apps/client/src/assets/world-land-v1.json"),

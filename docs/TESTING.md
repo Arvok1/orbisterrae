@@ -25,6 +25,14 @@ vilas ativas e únicas, recibo idempotente, governante preservado ao cruzar
 worker e nenhuma transferência pendente; ao terminar, encerra somente os
 processos próprios e remove o banco temporário.
 
+S1.2: `pnpm bots:s1.2` repete o arranjo isolado com 3 bots e prova o aceite do
+passe pelo protocolo real: um bot constrói torre (defesa mensurável), um fica
+parado sem poço (população travada em 12) e um constrói 4 casas sem comida até
+a fome disparar; `test_database verify-city` confere os invariantes persistidos.
+O gateway aceita `ORBIS_CITY_TICK_MS` somente em testes/harness para acelerar
+os ticks de cidade; o script lê o valor de `scenarios/s1_2.toml` e o padrão de
+produção permanece o de `config/balance/city.toml`.
+
 - **Bot headless** (`tools/bot` ou crate `bot`) fala o mesmo protocolo do cliente.
 - **Cenários** em TOML: `scenarios/*.toml` (número de bots, reinos IA, duração simulada, metas).
 - **Relógio acelerado:** o `Clock` injetado permite avançar dias em segundos nos testes.

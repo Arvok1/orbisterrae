@@ -1,5 +1,11 @@
 //! Wire types generated from packages/protocol/orbis.proto.
-include!(concat!(env!("OUT_DIR"), "/orbis.v1.rs"));
+//! Generated prost code is isolated in its own module so clippy lints do not
+//! fail the workspace on generated symbols; the public API is re-exported.
+#[allow(clippy::all)]
+mod generated {
+    include!(concat!(env!("OUT_DIR"), "/orbis.v1.rs"));
+}
+pub use generated::*;
 
 #[cfg(test)]
 mod tests {

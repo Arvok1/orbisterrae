@@ -1,0 +1,14 @@
+# Cenário do passe S1.2 (docs/TESTING.md). Executado pelo harness de bots.
+# ORBIS_CITY_TICK_MS é lido daqui por tools/test-city.ps1 e aplicado pelo gateway
+# somente nos serviços de teste; o padrão de produção não muda.
+[run]
+seed = 42
+bots = 3
+concurrency = 3
+timeout_ms = 60000
+tick_ms = 250
+
+[assertions]
+cities = 3
+minimum_defense_delta = 10.0
+minimum_growth_delta = 4

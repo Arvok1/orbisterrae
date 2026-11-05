@@ -37,3 +37,19 @@ pendente. O banco de teste e apenas os processos de teste são removidos no fim.
 CI: o job de rede inicia gateway e worker ligados por NATS, executa o smoke de
 1.000 conexões e depois este cenário. Testes unitários de cenário, tour
 determinístico e percentis entram em `pnpm -r test`.
+
+## Cidade simples S1.2
+
+Com Docker, NATS e PowerShell disponíveis, execute na raiz:
+
+```powershell
+pnpm bots:s1.2
+```
+
+O script usa o mesmo arranjo isolado do S1.1 (banco PostGIS temporário,
+gateway e dois workers), mas registra 3 bots que fundam cidades e editam a
+grade pelo protocolo real: defesa mensurável com torre, crescimento travado
+sem poço e fome quando a população excede a comida. Os ticks de cidade são
+acelerados por `ORBIS_CITY_TICK_MS`, lido de `scenarios/s1_2.toml`; ao final,
+`test_database verify-city` valida os invariantes persistidos e apenas os
+processos e o banco de teste são removidos.

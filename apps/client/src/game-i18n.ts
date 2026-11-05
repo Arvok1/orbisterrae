@@ -8,7 +8,7 @@ const pt={
   seconds:'s',walking:'Caminhando',founding:'Fundando a vila',finishing:'Concluindo…',idle:'Pronto para explorar',
   villageReady:'Vila fundada',population:'Habitantes',visit:'Ver minha vila',logout:'Sair do perfil',
   hint:'Selecione um destino · Use Mover ou WASD',keyboard:'WASD move o governante; setas movem a câmera; +/− ajustam o zoom.',
-  city:{authoritative:'Edição autoritativa',readOnly:'Somente leitura',population:'População',water:'Água',density:'Densidade',defense:'Defesa',road:'Rua',zone:'Zona…',build:'Construir…',click:'Clique numa célula para aplicar a ferramenta selecionada.',cancel:'Cancelar',active:'ativa',queued:'na fila',rotateLeft:'Girar à esquerda',rotateRight:'Girar à direita'},
+  city:{authoritative:'Edição autoritativa',readOnly:'Somente leitura',population:'População',water:'Água',density:'Densidade',defense:'Defesa',road:'Rua',zone:'Zona…',build:'Construir…',click:'Clique numa célula para aplicar a ferramenta selecionada.',cancel:'Cancelar',active:'ativa',queued:'na fila',rotateLeft:'Girar à esquerda',rotateRight:'Girar à direita',farmers:'Fazendeiros',artisans:'Artesãos',soldiers:'Soldados',priests:'Sacerdotes',events:{famine:'Fome ativa',fire:'Incêndio ativo'} as Record<string,string>},
   buildings:{house:'Casa',field:'Campo',wood_workshop:'Oficina de madeira',forge:'Forja',warehouse:'Armazém',market:'Mercado',port:'Porto',shipyard:'Estaleiro',temple:'Templo',barracks:'Quartel',wall:'Muralha',tower:'Torre',well:'Poço',granary:'Celeiro',smokehouse:'Defumadouro'} as Record<string,string>,
   zones:{residential:'Residencial',agricultural:'Agrícola',industrial:'Industrial',civic:'Cívica',military:'Militar'} as Record<string,string>,
   errors:{
@@ -32,7 +32,7 @@ const en:typeof pt={
   seconds:'s',walking:'Walking',founding:'Founding the village',finishing:'Finishing…',idle:'Ready to explore',
   villageReady:'Village founded',population:'Residents',visit:'Visit my village',logout:'Sign out',
   hint:'Select a destination · Use Move or WASD',keyboard:'WASD moves the ruler; arrows pan the camera; +/− changes zoom.',
-  city:{authoritative:'Authoritative editing',readOnly:'Read only',population:'Population',water:'Water',density:'Density',defense:'Defense',road:'Road',zone:'Zone…',build:'Build…',click:'Click a cell to apply the selected tool.',cancel:'Cancel',active:'active',queued:'queued',rotateLeft:'Rotate left',rotateRight:'Rotate right'},
+  city:{authoritative:'Authoritative editing',readOnly:'Read only',population:'Population',water:'Water',density:'Density',defense:'Defense',road:'Road',zone:'Zone…',build:'Build…',click:'Click a cell to apply the selected tool.',cancel:'Cancel',active:'active',queued:'queued',rotateLeft:'Rotate left',rotateRight:'Rotate right',farmers:'Farmers',artisans:'Artisans',soldiers:'Soldiers',priests:'Priests',events:{famine:'Famine active',fire:'Fire active'}},
   buildings:{house:'House',field:'Field',wood_workshop:'Wood workshop',forge:'Forge',warehouse:'Warehouse',market:'Market',port:'Port',shipyard:'Shipyard',temple:'Temple',barracks:'Barracks',wall:'Wall',tower:'Tower',well:'Well',granary:'Granary',smokehouse:'Smokehouse'},
   zones:{residential:'Residential',agricultural:'Agricultural',industrial:'Industrial',civic:'Civic',military:'Military'},
   errors:{command_accepted:'The ruler accepted your order.',authentication_required:'Sign in to your profile to continue.',

@@ -79,7 +79,7 @@ async fn main() -> anyhow::Result<()> {
                                     if orbis_sim::world::worker(context.actor_shard(account).await?)!=slot {return Ok(result(&command.request_id,false,"shard_moved"));}
                                     context.command(account,&command,now_ms()).await
                                 }.await;
-                                match response {Ok(response)=>response,Err(ServiceError::BadInput(code))=>result(&command.request_id,false,code),Err(ServiceError::Unauthorized)=>result(&command.request_id,false,"authentication_required"),Err(error)=>{tracing::error!(%error,slot,"Command failed");result(&command.request_id,false,"server_error")}}
+                                match response {Ok(response)=>response,Err(ServiceError::BadInput(code))=>result(&command.request_id,false,code),Err(ServiceError::Unauthorized)=>{tracing::warn!(slot,"actor lookup failed for authenticated account");result(&command.request_id,false,"authentication_required")},Err(error)=>{tracing::error!(%error,slot,"Command failed");result(&command.request_id,false,"server_error")}}
                             }
                             None=>result(&command.request_id,false,"authentication_required"),
                         }

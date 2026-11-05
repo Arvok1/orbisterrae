@@ -202,8 +202,12 @@ async fn forward(
     command: &orbis_protocol::Command,
 ) -> ServerMsg {
     for _ in 0..2 {
-        let Ok(shard) = app.world.actor_shard(account).await else {
-            return result(&command.request_id, false, "authentication_required");
+        let shard = match app.world.actor_shard(account).await {
+            Ok(shard) => shard,
+            Err(error) => {
+                tracing::error!(%error, "actor shard lookup failed while forwarding");
+                return result(&command.request_id, false, "authentication_required");
+            }
         };
         let mut headers = async_nats::HeaderMap::new();
         headers.insert("x-orbis-account", account.0.to_string());

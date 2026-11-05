@@ -41,7 +41,11 @@ Formato: `Tn.m` = tarefa. **Escopo** diz o que fazer; **Aceite** diz como saber 
 > representam a profundidade completa: estações, heap recarregado no boot,
 > rebalanceamento de shards e contestação territorial ainda serão aprofundados.
 - [ ] **T1.7 Visibilidade.** Fontes de visão, interest management, neblina de guerra básica.
-- [ ] **T1.8 Filas de construção (v0).** Construir/subir nível de prédio simples via evento agendado.
+- [x] **T1.8 Filas de construção (v0).** Construir/subir nível de prédio simples via evento agendado.
+  *Cobertura MVP S1.2 concluída:* fila autoritativa com cancelamento, conclusão por
+  evento agendado idempotente e ticks de cidade persistidos; poço passa a ser
+  necessário para a vila crescer (água natural 50%). Cotas de prédios especiais
+  e grafo completo continuam em P2.
   *Aceite da fase:* 500 jogadores-bot fundando e expandindo, sem inconsistência entre cliente e servidor.
 
 ## Fase 2: Cidade e economia local

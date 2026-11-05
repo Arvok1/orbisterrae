@@ -5,12 +5,12 @@ use orbis_gateway::{
     world_service::Context,
 };
 use orbis_protocol::{
-    command, server_msg, ApplyCityEdits, CityCellEdit, Command, FoundCity, InspectCity, LatLon,
-    MoveRuler, QueueBuilding, SetViewport,
+    command, server_msg, ApplyCityEdits, CancelConstruction, CityCellEdit, Command, FoundCity,
+    InspectCity, LatLon, MoveRuler, QueueBuilding, SetViewport,
 };
 use orbis_sim::world;
 use sqlx::{postgres::PgConnectOptions, types::Json, Row};
-use std::str::FromStr;
+use std::{str::FromStr, sync::Arc};
 use uuid::Uuid;
 
 fn view() -> Command {
@@ -273,6 +273,13 @@ async fn exercise(context: &mut Context) -> Result<(), Box<dyn std::error::Error
     assert!(initial_city.editable);
     assert_eq!(initial_city.width, 96);
     assert_eq!(initial_city.buildings.len(), 3);
+    let initial_total = initial_city
+        .population
+        .as_ref()
+        .map(|population| {
+            population.farmers + population.artisans + population.soldiers + population.priests
+        })
+        .unwrap_or(0);
     let edits = (10..12)
         .flat_map(|y| {
             (10..12).map(move |x| CityCellEdit {
@@ -355,6 +362,75 @@ async fn exercise(context: &mut Context) -> Result<(), Box<dyn std::error::Error
     assert!(completed.buildings.iter().any(|building| {
         building.building_id == "house" && building.x == 10 && building.y == 10 && building.complete
     }));
+    // Canceling a pending order removes the incomplete building and closes its event.
+    let wall_zone = Command {
+        request_id: "zone-wall".into(),
+        kind: Some(command::Kind::ApplyCityEdits(ApplyCityEdits {
+            city_id: city_id.clone(),
+            expected_revision: completed.revision,
+            edits: vec![CityCellEdit {
+                x: 12,
+                y: 10,
+                layer: "zone".into(),
+                value: "residential".into(),
+            }],
+        })),
+    };
+    let Some(server_msg::Kind::City(wall_zoned)) =
+        context.command(account, &wall_zone, 3_006_005).await?.kind
+    else {
+        panic!("missing wall zone city")
+    };
+    let wall = Command {
+        request_id: "queue-wall".into(),
+        kind: Some(command::Kind::QueueBuilding(QueueBuilding {
+            city_id: city_id.clone(),
+            expected_revision: wall_zoned.revision,
+            building_id: "wall".into(),
+            x: 12,
+            y: 10,
+            orientation: 0,
+        })),
+    };
+    let Some(server_msg::Kind::City(walled)) =
+        context.command(account, &wall, 3_006_005).await?.kind
+    else {
+        panic!("missing walled city")
+    };
+    let wall_order = walled
+        .construction
+        .iter()
+        .find(|order| order.building_id == "wall" && order.status == "active")
+        .expect("queued wall is active")
+        .clone();
+    let cancel = Command {
+        request_id: "cancel-wall".into(),
+        kind: Some(command::Kind::CancelConstruction(CancelConstruction {
+            city_id: city_id.clone(),
+            expected_revision: walled.revision,
+            order_id: wall_order.id.clone(),
+        })),
+    };
+    let Some(server_msg::Kind::City(cancelled)) =
+        context.command(account, &cancel, 3_006_010).await?.kind
+    else {
+        panic!("missing cancelled city")
+    };
+    assert!(cancelled
+        .construction
+        .iter()
+        .any(|order| order.id == wall_order.id && order.status == "canceled"));
+    assert!(!cancelled
+        .buildings
+        .iter()
+        .any(|building| !building.complete));
+    let pending_wall: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM scheduled_events WHERE idempotency_key=$1 AND done_at IS NULL",
+    )
+    .bind(format!("construction:{}", wall_order.id))
+    .fetch_one(&context.pool)
+    .await?;
+    assert_eq!(pending_wall, 0);
     let observer = auth
         .authenticate(
             context,
@@ -377,7 +453,7 @@ async fn exercise(context: &mut Context) -> Result<(), Box<dyn std::error::Error
     let forbidden = Command {
         request_id: "observer-edit".into(),
         kind: Some(command::Kind::ApplyCityEdits(ApplyCityEdits {
-            city_id,
+            city_id: city_id.clone(),
             expected_revision: read_only.revision,
             edits: Vec::new(),
         })),
@@ -388,9 +464,171 @@ async fn exercise(context: &mut Context) -> Result<(), Box<dyn std::error::Error
         panic!("missing read-only result")
     };
     assert_eq!(forbidden.error, "city_read_only");
+    // Drive city ticks through the worker path with a fast tick for this exercise.
+    async fn drain_until(
+        context: &Context,
+        slot: u16,
+        now: u64,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let mut processed = 0_u32;
+        while context.process_due(slot, now).await? {
+            processed += 1;
+            assert!(processed < 512, "drain exceeded budget at {now}");
+        }
+        Ok(())
+    }
+    *context = Context {
+        pool: context.pool.clone(),
+        geo: context.geo.clone(),
+        balance: context.balance.clone(),
+        territory: context.territory.clone(),
+        city_catalog: context.city_catalog.clone(),
+        city_balance: Arc::new({
+            let mut balance = (*context.city_balance).clone();
+            balance.simulation.tick_ms = 1000;
+            balance
+        }),
+    };
+    let slot = world::worker(source);
+    // Without a well the water coverage stays below 1.0 and the village cannot grow.
+    for step in 1..=5_u64 {
+        drain_until(context, slot, 3_010_000 + step * 1000).await?;
+    }
+    let Some(server_msg::Kind::City(stalled)) =
+        context.command(account, &inspect, 3_015_000).await?.kind
+    else {
+        panic!("missing stalled city")
+    };
+    assert!(stalled.metrics.expect("metrics").water < 1.0);
+    let stalled_total = stalled.population.expect("population");
+    assert_eq!(
+        stalled_total.farmers
+            + stalled_total.artisans
+            + stalled_total.soldiers
+            + stalled_total.priests,
+        initial_total,
+        "a village without a well must not grow"
+    );
+    // A well with food and housing nearby unlocks growth up to the housing cap.
+    let zone_edits: Vec<CityCellEdit> = (12..20)
+        .flat_map(|x| {
+            (10..12).map(move |y| CityCellEdit {
+                x,
+                y,
+                layer: "zone".into(),
+                value: "residential".into(),
+            })
+        })
+        .chain((12..15).flat_map(|x| {
+            (13..16).map(move |y| CityCellEdit {
+                x,
+                y,
+                layer: "zone".into(),
+                value: "agricultural".into(),
+            })
+        }))
+        .collect();
+    let zone = Command {
+        request_id: "zone-growth".into(),
+        kind: Some(command::Kind::ApplyCityEdits(ApplyCityEdits {
+            city_id: city_id.clone(),
+            expected_revision: stalled.revision,
+            edits: zone_edits,
+        })),
+    };
+    let Some(server_msg::Kind::City(zoned)) =
+        context.command(account, &zone, 3_015_000).await?.kind
+    else {
+        panic!("missing growth zone city")
+    };
+    let mut revision = zoned.revision;
+    for (request_id, building_id, x, y) in [
+        ("queue-well", "well", 12_u32, 10_u32),
+        ("queue-home-a", "house", 14, 10),
+        ("queue-home-b", "house", 16, 10),
+        ("queue-field", "field", 12, 13),
+    ] {
+        let queue = Command {
+            request_id: request_id.into(),
+            kind: Some(command::Kind::QueueBuilding(QueueBuilding {
+                city_id: city_id.clone(),
+                expected_revision: revision,
+                building_id: building_id.into(),
+                x,
+                y,
+                orientation: 0,
+            })),
+        };
+        let response = context.command(account, &queue, 3_015_001).await?;
+        let Some(server_msg::Kind::City(queued)) = response.kind.clone() else {
+            panic!("missing growth queue city for {request_id}: {response:?}")
+        };
+        revision = queued.revision;
+    }
+    drain_until(context, slot, 3_032_600).await?;
+    let Some(server_msg::Kind::City(growing)) =
+        context.command(account, &inspect, 3_032_601).await?.kind
+    else {
+        panic!("missing growing city")
+    };
+    assert!(growing
+        .buildings
+        .iter()
+        .any(|building| building.building_id == "well" && building.complete));
+    assert_eq!(growing.metrics.expect("metrics").water, 1.0);
+    for step in 1..=28_u64 {
+        drain_until(context, slot, 3_032_600 + step * 1000).await?;
+    }
+    let Some(server_msg::Kind::City(capped)) =
+        context.command(account, &inspect, 3_060_601).await?.kind
+    else {
+        panic!("missing capped city")
+    };
+    let capped_total = capped.population.expect("population");
+    assert_eq!(
+        capped_total.farmers + capped_total.artisans + capped_total.soldiers + capped_total.priests,
+        48,
+        "growth stops exactly at housing capacity"
+    );
+    // One more home without food pushes population past capacity and fires famine.
+    let extra_home = Command {
+        request_id: "queue-home-c".into(),
+        kind: Some(command::Kind::QueueBuilding(QueueBuilding {
+            city_id: city_id.clone(),
+            expected_revision: capped.revision,
+            building_id: "house".into(),
+            x: 18,
+            y: 10,
+            orientation: 0,
+        })),
+    };
+    let Some(server_msg::Kind::City(_extra_home)) =
+        context.command(account, &extra_home, 3_060_700).await?.kind
+    else {
+        panic!("missing famine home city")
+    };
+    drain_until(context, slot, 3_065_701).await?;
+    for step in 1..=6_u64 {
+        drain_until(context, slot, 3_065_700 + step * 1000).await?;
+    }
+    let Some(server_msg::Kind::City(famished)) =
+        context.command(account, &inspect, 3_071_701).await?.kind
+    else {
+        panic!("missing famished city")
+    };
+    assert!(famished.events.iter().any(|event| event.kind == "famine"));
+    let famished_total = famished.population.expect("population");
+    let total = famished_total.farmers
+        + famished_total.artisans
+        + famished_total.soldiers
+        + famished_total.priests;
+    assert!(
+        (50..=51).contains(&total),
+        "famine keeps population near food capacity: {total}"
+    );
     let logs: i64 = sqlx::query_scalar("SELECT count(*) FROM event_log")
         .fetch_one(&context.pool)
         .await?;
-    assert_eq!(logs, 4);
+    assert!(logs >= 4, "world and city actions are logged: {logs}");
     Ok(())
 }

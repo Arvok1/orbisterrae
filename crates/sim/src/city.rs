@@ -168,7 +168,7 @@ pub fn decode_rle(encoded: &[u8], expected_len: usize) -> Result<Vec<u8>, CityEr
         return Err(CityError("invalid_rle"));
     }
     let mut decoded = Vec::with_capacity(expected_len);
-    for chunk in encoded.chunks_exact(3) {
+    for chunk in encoded.as_chunks::<3>().0 {
         let run = u16::from_le_bytes([chunk[1], chunk[2]]) as usize;
         if run == 0 || decoded.len().saturating_add(run) > expected_len {
             return Err(CityError("invalid_rle"));
@@ -599,7 +599,7 @@ fn deterministic_roll(city: CityId, tick: u64) -> u64 {
 }
 
 fn oriented_footprint(footprint: [u16; 2], orientation: u8) -> (u16, u16) {
-    if orientation % 2 == 0 {
+    if orientation.is_multiple_of(2) {
         (footprint[0], footprint[1])
     } else {
         (footprint[1], footprint[0])
@@ -816,5 +816,254 @@ mod tests {
                 .expect("idempotent")
                 .1
         );
+    }
+
+    fn building(id: u128, kind: &str, x: u16, y: u16) -> Building {
+        Building {
+            id: BuildingInstanceId(Uuid::from_u128(id)),
+            kind: kind.to_owned(),
+            x,
+            y,
+            orientation: 0,
+            complete: true,
+        }
+    }
+
+    #[test]
+    fn well_coverage_and_housing_shape_population_growth() {
+        let catalog = catalog();
+        let balance = balance();
+        let base = initial_layout(&city(), &catalog, &balance).expect("layout");
+        // A: well covering every building, one extra house and a field.
+        let mut a = base.clone();
+        a.buildings.extend([
+            building(30, "well", 44, 44),
+            building(31, "house", 42, 38),
+            building(32, "field", 52, 42),
+        ]);
+        recompute_metrics(&mut a, &catalog).expect("a");
+        assert_eq!(a.metrics.water, 1.0);
+        // B: untouched village without a well.
+        let mut b = base.clone();
+        recompute_metrics(&mut b, &catalog).expect("b");
+        assert_eq!(b.metrics.water, 0.5);
+        // C: a well that sits out of reach of every building.
+        let mut c = base.clone();
+        c.buildings
+            .extend([building(40, "well", 4, 4), building(41, "house", 42, 38)]);
+        recompute_metrics(&mut c, &catalog).expect("c");
+        assert!(c.metrics.water < 1.0);
+        for tick in 1..=40 {
+            for layout in [&mut a, &mut b, &mut c] {
+                let (next, changed) =
+                    simulate_tick(layout, tick, tick * 1000, &catalog, &balance).expect("tick");
+                assert!(changed);
+                *layout = next;
+            }
+        }
+        assert_eq!(b.population.total(), 12, "no well means no growth");
+        assert_eq!(
+            c.population.total(),
+            12,
+            "partial water coverage blocks growth"
+        );
+        assert_eq!(
+            a.population.total(),
+            32,
+            "growth stops exactly at housing capacity"
+        );
+    }
+
+    #[test]
+    fn famine_fires_when_population_exceeds_food_and_reduces_farmers() {
+        let catalog = catalog();
+        let balance = balance();
+        let mut layout = initial_layout(&city(), &catalog, &balance).expect("layout");
+        layout.population.farmers = 40;
+        let (next, changed) = simulate_tick(&layout, 1, 1000, &catalog, &balance).expect("tick");
+        assert!(changed);
+        assert!(next.events.iter().any(|event| event.kind == "famine"));
+        assert_eq!(next.population.farmers, 39);
+    }
+
+    #[test]
+    fn dense_workshops_ignite_deterministically_within_a_bounded_horizon() {
+        let catalog = catalog();
+        let balance = balance();
+        let mut layout = initial_layout(&city(), &catalog, &balance).expect("layout");
+        for index in 0..12_u128 {
+            let x = 52 + (index % 4) as u16 * 3;
+            let y = 45 + (index / 4) as u16 * 3;
+            layout.buildings.push(building(100 + index, "forge", x, y));
+        }
+        recompute_metrics(&mut layout, &catalog).expect("metrics");
+        assert_eq!(layout.metrics.fire_risk, 1.0);
+        let horizon = 50_000_u64;
+        let mut current = layout;
+        let mut ignited = false;
+        for tick in 1..=horizon {
+            let (next, _) =
+                simulate_tick(&current, tick, tick * 1000, &catalog, &balance).expect("tick");
+            current = next;
+            if current.events.iter().any(|event| event.kind == "fire") {
+                ignited = true;
+                break;
+            }
+        }
+        assert!(
+            ignited,
+            "fire must ignite within {horizon} deterministic ticks"
+        );
+    }
+
+    #[test]
+    fn invalid_edits_water_requirements_and_cancellation_are_enforced() {
+        let catalog = catalog();
+        let balance = balance();
+        let layout = initial_layout(&city(), &catalog, &balance).expect("layout");
+        let edit = |x, y, layer, value| CellEdit { x, y, layer, value };
+        assert_eq!(
+            apply_edits(
+                &layout,
+                layout.revision,
+                &[edit(0, 0, "zone", "commerce")],
+                &catalog
+            ),
+            Err(CityError("invalid_zone"))
+        );
+        assert_eq!(
+            apply_edits(
+                &layout,
+                layout.revision,
+                &[edit(0, 0, "road", "highway")],
+                &catalog
+            ),
+            Err(CityError("invalid_road_value"))
+        );
+        assert_eq!(
+            apply_edits(
+                &layout,
+                layout.revision,
+                &[edit(96, 0, "road", "road")],
+                &catalog
+            ),
+            Err(CityError("city_cell_out_of_bounds"))
+        );
+        assert_eq!(
+            apply_edits(
+                &layout,
+                layout.revision,
+                &[edit(0, 0, "terrain", "grass")],
+                &catalog
+            ),
+            Err(CityError("invalid_city_layer"))
+        );
+        let civic: Vec<CellEdit> = (20_u16..24)
+            .flat_map(|x| (20_u16..23).map(move |y| edit(x, y, "zone", "civic")))
+            .collect();
+        let zoned = apply_edits(&layout, layout.revision, &civic, &catalog).expect("zone");
+        let port = BuildingOrder {
+            order: ConstructionId(Uuid::from_u128(50)),
+            instance: BuildingInstanceId(Uuid::from_u128(51)),
+            kind: "port",
+            x: 20,
+            y: 20,
+            orientation: 0,
+            due_at_ms: 100,
+        };
+        assert_eq!(
+            queue_building(&zoned, zoned.revision, port, 0, &catalog, &balance),
+            Err(CityError("building_requires_water"))
+        );
+        let mut with_well = zoned.clone();
+        with_well.buildings.push(building(52, "well", 24, 22));
+        let (queued, order) =
+            queue_building(&with_well, with_well.revision, port, 0, &catalog, &balance)
+                .expect("watered port");
+        assert_eq!(queued.buildings.len(), 5);
+        let canceled =
+            cancel_construction(&queued, queued.revision, &order, &catalog).expect("cancel");
+        assert!(!canceled
+            .buildings
+            .iter()
+            .any(|building| building.id == order.building && !building.complete));
+        assert_eq!(
+            cancel_construction(&canceled, canceled.revision, &order, &catalog),
+            Err(CityError("construction_not_pending"))
+        );
+        assert_eq!(
+            complete_construction(&canceled, order.building, &catalog),
+            Err(CityError("construction_not_found"))
+        );
+    }
+
+    #[test]
+    fn seeded_scripts_preserve_population_and_metric_invariants() {
+        let catalog = catalog();
+        let balance = balance();
+        for seed in 0..8_u128 {
+            let mut town = city();
+            town.id = CityId(Uuid::from_u128(seed + 1000));
+            let mut layout = initial_layout(&town, &catalog, &balance).expect("layout");
+            let zoned = apply_edits(
+                &layout,
+                layout.revision,
+                &(8_u16..10)
+                    .flat_map(|x| {
+                        (8_u16..10).map(move |y| CellEdit {
+                            x,
+                            y,
+                            layer: "zone",
+                            value: "residential",
+                        })
+                    })
+                    .collect::<Vec<_>>(),
+                &catalog,
+            )
+            .expect("zone");
+            assert!(zoned.revision > layout.revision);
+            layout = zoned;
+            let (queued, order) = queue_building(
+                &layout,
+                layout.revision,
+                BuildingOrder {
+                    order: ConstructionId(Uuid::from_u128(seed + 2000)),
+                    instance: BuildingInstanceId(Uuid::from_u128(seed + 3000)),
+                    kind: "house",
+                    x: 8,
+                    y: 8,
+                    orientation: 0,
+                    due_at_ms: 1000,
+                },
+                0,
+                &catalog,
+                &balance,
+            )
+            .expect("queue");
+            layout = queued;
+            let (completed, changed) =
+                complete_construction(&layout, order.building, &catalog).expect("complete");
+            assert!(changed);
+            layout = completed;
+            for tick in 1..=30 {
+                let (next, _) =
+                    simulate_tick(&layout, tick, tick * 1000, &catalog, &balance).expect("tick");
+                layout = next;
+                assert_invariants(&layout);
+            }
+        }
+    }
+
+    fn assert_invariants(layout: &CityLayout) {
+        let population = &layout.population;
+        assert_eq!(
+            population.farmers + population.artisans + population.soldiers + population.priests,
+            population.total()
+        );
+        assert!((0.0..=1.0).contains(&layout.metrics.water));
+        assert!((0.0..=1.0).contains(&layout.metrics.density));
+        assert!(layout.metrics.food_capacity >= 0.0);
+        assert!(layout.metrics.housing_capacity >= 0.0);
+        assert!(population.total() as f64 <= layout.metrics.housing_capacity + 1.0);
     }
 }

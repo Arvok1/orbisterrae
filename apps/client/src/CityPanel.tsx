@@ -14,6 +14,8 @@ export function CityPanel() {
     <div className="city-panel-head"><span><strong>{city.name}</strong><small>{city.editable?t.city.authoritative:t.city.readOnly} · rev. {city.revision.toString()}</small></span>
       <span className="city-rotation"><button aria-label={t.city.rotateLeft} onClick={()=>state.rotateCity(-1)}>Q ↶</button><button aria-label={t.city.rotateRight} onClick={()=>state.rotateCity(1)}>↷ E</button></span></div>
     <dl><div><dt>{t.city.population}</dt><dd>{population}</dd></div><div><dt>{t.city.water}</dt><dd>{Math.round((city.metrics?.water??0)*100)}%</dd></div><div><dt>{t.city.density}</dt><dd>{Math.round((city.metrics?.density??0)*100)}%</dd></div><div><dt>{t.city.defense}</dt><dd>{(city.metrics?.defense??0).toFixed(1)}</dd></div></dl>
+    {city.population&&<dl><div><dt>{t.city.farmers}</dt><dd>{city.population.farmers}</dd></div><div><dt>{t.city.artisans}</dt><dd>{city.population.artisans}</dd></div><div><dt>{t.city.soldiers}</dt><dd>{city.population.soldiers}</dd></div><div><dt>{t.city.priests}</dt><dd>{city.population.priests}</dd></div></dl>}
+    {city.events.length>0&&<p className="city-events">{city.events.map(event=>t.city.events[event.kind]??event.kind).join(' · ')}</p>}
     {city.editable&&<><div className="city-tools">
       <button aria-pressed={state.cityTool.kind==='road'} onClick={()=>set({kind:'road',value:'road'})}>{t.city.road}</button>
       <select aria-label={t.city.zone} value={state.cityTool.kind==='zone'?state.cityTool.value:'none'} onChange={event=>set({kind:'zone',value:event.target.value as ZoneValue})}>
