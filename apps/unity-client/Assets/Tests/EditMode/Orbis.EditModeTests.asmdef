@@ -3,7 +3,8 @@
     "rootNamespace": "Orbis.Tests.EditMode",
     "references": [
         "Orbis.Core",
-        "Orbis.Protocol"
+        "Orbis.Protocol",
+        "Orbis.Network"
     ],
     "includePlatforms": [
         "Editor"

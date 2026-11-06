@@ -1,5 +1,6 @@
 using System;
 using Orbis.Core;
+using Orbis.Network;
 using Orbis.UI;
 using Orbis.World;
 using UnityEngine;
@@ -15,6 +16,7 @@ namespace Orbis.Bootstrap
         static WorldBootstrap instance;
 
         WorldHudController hudController;
+        GameNetworkClient networkClient;
         PanelSettings runtimePanelSettings;
         VolumeProfile runtimeVolumeProfile;
 
@@ -48,12 +50,15 @@ namespace Orbis.Bootstrap
             var initialFocus = new GeoCoordinate(-22.9068, -43.1729);
             var store = new GameStore(new ClientViewState(locale, style, initialFocus, InitialAltitudeMeters, string.Empty));
 
+            networkClient = gameObject.AddComponent<GameNetworkClient>();
+            networkClient.Initialize(config, store);
+
             var worldCamera = CreateCamera();
             CreateLighting(worldCamera);
             var globe = CreateGlobe(style);
             var cameraController = worldCamera.gameObject.AddComponent<GeoCameraController>();
             cameraController.Initialize(worldCamera, store, initialFocus, InitialAltitudeMeters);
-            CreateHud(store, globe);
+            CreateHud(store, globe, networkClient);
         }
 
         static Camera CreateCamera()
@@ -112,7 +117,7 @@ namespace Orbis.Bootstrap
             return globe;
         }
 
-        void CreateHud(GameStore store, GlobeRenderer globe)
+        void CreateHud(GameStore store, GlobeRenderer globe, GameNetworkClient network)
         {
             var visualTree = Resources.Load<VisualTreeAsset>("Orbis/WorldHud");
             if (visualTree == null) throw new InvalidOperationException("WorldHud.uxml was not found in Resources/Orbis.");
@@ -128,7 +133,7 @@ namespace Orbis.Bootstrap
             document.panelSettings = runtimePanelSettings;
             document.sortingOrder = 100;
             document.visualTreeAsset = visualTree;
-            hudController = new WorldHudController(document.rootVisualElement, store, globe);
+            hudController = new WorldHudController(document.rootVisualElement, store, globe, network);
         }
 
         void OnDestroy()

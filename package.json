@@ -3,6 +3,8 @@
   "private": true,
   "packageManager": "pnpm@9.12.0",
   "scripts": {
+    "demo:seed": "pwsh -NoProfile -File scripts/seed-demo-world.ps1",
+    "test:unity-admin": "pwsh -NoProfile -File scripts/test-unity-admin.ps1",
     "bots:s1.2": "pwsh -NoProfile -File tools/test-city.ps1",
     "bots:s1.1": "pwsh -NoProfile -File tools/test-first-village.ps1",
     "bots:p0": "pnpm --filter @orbis/protocol build && pnpm --filter @orbis/bot build && node tools/bot/dist/cli.js scenarios/p0.toml",

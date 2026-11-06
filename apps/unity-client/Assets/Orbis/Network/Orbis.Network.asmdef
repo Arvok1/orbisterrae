@@ -1,0 +1,19 @@
+{
+    "name": "Orbis.Network",
+    "rootNamespace": "Orbis.Network",
+    "references": [
+        "Orbis.Core",
+        "Orbis.Protocol"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "Google.Protobuf.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

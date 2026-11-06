@@ -3,13 +3,17 @@
     "rootNamespace": "Orbis.UI",
     "references": [
         "Orbis.Core",
-        "Orbis.World"
+        "Orbis.World",
+        "Orbis.Network",
+        "Orbis.Protocol"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
-    "overrideReferences": false,
-    "precompiledReferences": [],
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "Google.Protobuf.dll"
+    ],
     "autoReferenced": true,
     "defineConstraints": [],
     "versionDefines": [],

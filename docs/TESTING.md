@@ -81,6 +81,13 @@ por 20 segundos forçando D3D11 e o log não apresentou exceções. Esse smoke
 prova inicialização e estabilidade da cena, não paridade com o servidor; login,
 WebSocket e o loop da primeira vila continuam como aceites pendentes.
 
+O observatório Unity usa `pnpm test:unity-admin` como integração real. O script
+registra uma conta local temporária, concede o papel pelo CLI auditado, autentica
+via WebSocket protobuf, exige `AdminSnapshot`, revoga o papel e confirma
+`admin_required`. `pnpm demo:seed` persiste doze contas, oito cidades e atividade
+por comandos normais para inspeção manual. EditMode cobre a mescla incremental
+de snapshots sem perder o mundo inicial nem duplicar eventos.
+
 Testes TypeScript cobrem round-trip geodésico WGS84↔vetor unitário e metros
 locais, limites LOD 0–7/8–14/15–19 e decoder RLE independente do renderer.
 Antes de fechar o sprint, conferir por raycast terreno, cidade, prédio e célula;

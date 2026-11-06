@@ -45,6 +45,12 @@
     color: rgb(164, 177, 159);
 }
 
+.session-label {
+    font-size: 11px;
+    color: rgb(190, 174, 132);
+    margin-right: 6px;
+}
+
 .top-spacer {
     flex-grow: 1;
 }
@@ -83,6 +89,123 @@
     border-bottom-right-radius: 6px;
 }
 
+.modal-card,
+.side-panel,
+.event-panel {
+    position: absolute;
+    background-color: rgba(12, 17, 15, 0.95);
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-left-color: rgb(75, 91, 73);
+    border-right-color: rgb(75, 91, 73);
+    border-top-color: rgb(75, 91, 73);
+    border-bottom-color: rgb(75, 91, 73);
+    border-top-left-radius: 7px;
+    border-top-right-radius: 7px;
+    border-bottom-left-radius: 7px;
+    border-bottom-right-radius: 7px;
+    padding: 14px;
+}
+
+.modal-card {
+    width: 360px;
+    align-self: center;
+    top: 30%;
+}
+
+.panel-title {
+    font-size: 18px;
+    -unity-font-style: bold;
+    color: rgb(211, 184, 116);
+    margin-bottom: 5px;
+}
+
+.panel-help,
+.inspector-text {
+    font-size: 11px;
+    color: rgb(166, 178, 160);
+    white-space: normal;
+    margin-bottom: 8px;
+}
+
+.primary-button {
+    height: 34px;
+    margin-top: 8px;
+    color: rgb(237, 225, 190);
+    background-color: rgb(73, 84, 61);
+}
+
+.panel-header,
+.filter-row {
+    flex-direction: row;
+    align-items: center;
+}
+
+.filter-row > TextField {
+    flex-grow: 1;
+}
+
+.live-badge {
+    margin-left: auto;
+    font-size: 10px;
+    color: rgb(138, 213, 139);
+}
+
+.side-panel {
+    top: 82px;
+    bottom: 22px;
+    width: 290px;
+}
+
+.left-panel {
+    left: 18px;
+}
+
+.right-panel {
+    right: 18px;
+}
+
+.section-title {
+    margin-top: 9px;
+    margin-bottom: 5px;
+    font-size: 12px;
+    -unity-font-style: bold;
+    color: rgb(204, 188, 148);
+}
+
+.item-list {
+    flex-grow: 1;
+    min-height: 80px;
+}
+
+.list-button,
+.event-button {
+    height: 48px;
+    margin-bottom: 4px;
+    -unity-text-align: middle-left;
+    font-size: 10px;
+    white-space: normal;
+    color: rgb(218, 209, 183);
+    background-color: rgb(30, 39, 33);
+}
+
+.event-panel {
+    right: 322px;
+    bottom: 22px;
+    width: 300px;
+    height: 220px;
+}
+
+.event-list {
+    flex-grow: 1;
+}
+
+.event-button {
+    height: 42px;
+}
+
 .coordinates {
     font-size: 13px;
     color: rgb(219, 207, 176);
@@ -113,7 +236,10 @@
 
 .manuscript .top-bar,
 .manuscript .world-info,
-.manuscript .camera-hint {
+.manuscript .camera-hint,
+.manuscript .modal-card,
+.manuscript .side-panel,
+.manuscript .event-panel {
     background-color: rgba(38, 28, 20, 0.91);
     color: rgb(231, 208, 158);
 }
@@ -146,5 +272,13 @@
 }
 
 .compact-layout .camera-hint {
+    display: none;
+}
+
+.compact-layout .side-panel {
+    width: 250px;
+}
+
+.compact-layout .event-panel {
     display: none;
 }

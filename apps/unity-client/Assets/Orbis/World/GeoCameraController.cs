@@ -33,6 +33,15 @@ namespace Orbis.World
             altitudeMeters = initialAltitudeMeters;
             input = new OrbisInputActions();
             input.Enable();
+            store.FocusRequested += FocusOn;
+            ApplyTransform();
+        }
+
+        void FocusOn(GeoCoordinate coordinate, double requestedAltitudeMeters)
+        {
+            focus = coordinate;
+            altitudeMeters = System.Math.Clamp(requestedAltitudeMeters, MinimumAltitudeMeters, MaximumAltitudeMeters);
+            PublishView();
             ApplyTransform();
         }
 
@@ -127,6 +136,7 @@ namespace Orbis.World
 
         void OnDestroy()
         {
+            if (store != null) store.FocusRequested -= FocusOn;
             input?.Dispose();
         }
     }

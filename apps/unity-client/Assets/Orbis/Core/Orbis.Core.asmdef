@@ -1,12 +1,16 @@
 {
     "name": "Orbis.Core",
     "rootNamespace": "Orbis.Core",
-    "references": [],
+    "references": [
+        "Orbis.Protocol"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
-    "overrideReferences": false,
-    "precompiledReferences": [],
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "Google.Protobuf.dll"
+    ],
     "autoReferenced": true,
     "defineConstraints": [],
     "versionDefines": [],

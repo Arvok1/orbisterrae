@@ -1,5 +1,11 @@
 # Diário de bordo
 
+## 2026-11-06 — S1.2c, rede e observatório Unity
+
+- Unity agora entra via HTTP/JWT, autentica WebSocket protobuf, reconecta, mantém snapshot administrativo incremental e inspeciona qualquer cidade em modo somente leitura. A HUD oferece filtros, cidades, eventos, foco da câmera e encerra a visão admin após revogação.
+- `orbis-admin` concede/revoga papel com motivo e auditoria; `pnpm test:unity-admin` provou grant → snapshot global → revoke → `admin_required`. `pnpm demo:seed` criou 12 contas, 8 cidades, construções e governantes móveis pelo caminho autoritativo.
+- O globo detalhado offline permanece como a próxima branch; esta entrega não apresenta a esfera sólida como concluída.
+
 ## 2026-11-06 — S1.2c, preview Unity executável
 
 - Gerado um Player Windows Development do globo Unity com navegação, zoom, HUD isolada da câmera, alternância Relevo/Carta e PT-BR/inglês. `start-unity-preview.cmd` abre o build existente e `start-unity-preview.ps1 -Rebuild` o recompila quando necessário.

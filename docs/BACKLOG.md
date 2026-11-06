@@ -134,14 +134,14 @@ Formato: `Tn.m` = tarefa. **Escopo** diz o que fazer; **Aceite** diz como saber 
 
 ## Aditivo S1.2c — mundo 3D nativo e cartografia (2026-11-05)
 
-- [~] **T1.9a Cliente Unity desktop.** Fundação URP criada com geodesia em `double`, escala 1 unidade = 1 km, câmera pelo Input System, HUD UI Toolkit e estilos Relevo/Carta. Faltam protocolo/rede, globo em tiles, login/JWT, gameplay, cidade e visão admin; manter o cliente web funcional até paridade. Uma câmera com FOV/rumo/inclinação contínuos; arraste esquerdo move terreno, direito orbita, roda aproxima no cursor.
+- [~] **T1.9a Cliente Unity desktop.** Fundação URP, protocolo C#, login HTTP, sessão JWT, WebSocket com reconexão, observatório admin e HUD UI Toolkit implementados. Faltam globo offline em tiles, cidade física completa e cutover; manter o cliente web funcional até paridade. Uma câmera com FOV/rumo/inclinação contínuos; arraste esquerdo move terreno, direito orbita, roda aproxima no cursor.
 - [ ] **T1.9b Pacotes globais leves.** Copernicus GLO-90 + LC100 2019 (classe e fração arbórea); gerar e validar pacotes regionais em lotes, armazenar em disco externo e medir projeção global contra meta de 40 GB. O gerador inicial `pack_region.py` e seus testes são apenas o primeiro corte; ingestão global, água, índice e cache ainda faltam.
 
 - [ ] **T1.9 Mundo 3D e cartografia própria.** Cena Three.js única; HUD React/HTML sem Pixi; textura 4K amostrada sem raster intermediário, globo WGS84 e LOD global/regional/urbano. Relevo ETOPO, hidrografia Natural Earth e vegetação determinística ficam versionados em `data/world/v1`.
   *Aceite:* 1280×720 e 390×844; zoom sem borrões relevantes, pan/seleção por raycast no canvas, 60 fps desktop e 30 fps mobile; soak de cinco minutos.
 - [ ] **T1.10 Escala e migração.** H3 res8 com raios configurados em metros; cidade 256×256 a 10 m; expansão por tier; migração de layouts 96×96 preservando IDs e coordenadas normalizadas, com rollback res7.
   *Aceite:* layout legado e construções sobrevivem à migração; limites/colisões continuam válidos; distribuição preserva o raio físico configurado.
-- [ ] **T1.11 Observatório administrativo.** Papel admin separado no banco, papel relido em cada requisição, snapshot sem fog, feed incremental filtrável e trilha `admin_audit`; revogação imediata.
+- [x] **T1.11 Observatório administrativo.** Papel admin separado no banco, papel relido em cada requisição, snapshot sem fog, feed incremental filtrável e trilha `admin_audit`; revogação imediata. Unity possui login, filtros, cidades/eventos, inspeção somente leitura e cenário demo autoritativo idempotente.
   *Aceite:* player recebe `admin_required`; admin obtém mapa/eventos globais; leitura auditada e filtros/cursor funcionam após reconexão.
 - [ ] **T1.12 Cidade física e entrada isolada.** Grade 256×256 de 10 m vira patch tangente local; terreno, vias, zonas, edifícios, governantes e tropas são malhas. Instancing/buffers sujos substituem 65.536 desenhos individuais. Apenas o canvas inicia gesto de câmera após limiar; HUD recebe cliques normalmente.
   *Aceite:* raycast seleciona terreno, cidade, prédio e célula após quatro rotações; botões HUD não alteram câmera; layout preserva IDs e coordenadas.

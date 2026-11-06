@@ -42,8 +42,25 @@ Para jogar o preview Windows já compilado, execute na raiz do repositório:
 
 Use `.\start-unity-preview.ps1 -Rebuild` para gerar novamente o Player antes
 de abri-lo. O preview atual permite navegar e aproximar o globo, orbitar a
-câmera, alternar Relevo/Carta e PT-BR/inglês. Login, conexão ao mundo local e
-cidade editável ainda pertencem às próximas fatias de S1.2c.
+câmera, alternar Relevo/Carta e PT-BR/inglês. Login e observatório administrativo
+já usam o gateway local; cidade editável continua na próxima fatia de S1.2c.
+
+## Observatório administrativo local
+
+Com gateway e workers ativos, provisione uma conta separada sem gravar a senha:
+
+```powershell
+.\scripts\provision-admin.ps1 -Username admin
+pnpm demo:seed
+```
+
+Entre com essa conta no Player. O papel é verificado pelo servidor em cada
+snapshot, e o painel mostra cidades, entidades, território, eventos e inspeção
+somente leitura de qualquer cidade. Para revogar:
+
+```powershell
+.\scripts\provision-admin.ps1 -Action Revoke -Username admin -Reason "fim da sessão"
+```
 
 O menu `Orbis/Build` expõe builds Windows e macOS. Em automação, use `-executeMethod Orbis.Editor.BuildClient.BuildWindowsDevelopment` ou `BuildMacDevelopment`; `--build-output=<caminho>` substitui a saída padrão. O build valida explicitamente o `BuildReport` e falha quando o resultado não é `Succeeded`.
 

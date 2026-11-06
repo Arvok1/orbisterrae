@@ -3,15 +3,57 @@
     <ui:VisualElement name="hud-root" class="hud-root" picking-mode="Ignore">
         <ui:VisualElement name="top-bar" class="top-bar input-surface">
             <ui:Label name="world-title" class="world-title" text="ORBIS TERRAE" />
-            <ui:Label name="connection-status" class="connection-status" text="Fundação Unity" />
+            <ui:Label name="connection-status" class="connection-status" text="Offline" />
             <ui:VisualElement class="top-spacer" />
+            <ui:Label name="session-label" class="session-label" />
+            <ui:Button name="logout-button" class="hud-button compact" text="Sair" />
             <ui:Button name="style-toggle" class="hud-button" text="Carta manuscrita" />
             <ui:Button name="locale-toggle" class="hud-button compact" text="EN" />
         </ui:VisualElement>
+
         <ui:VisualElement name="world-info" class="world-info input-surface">
             <ui:Label name="coordinates" class="coordinates" text="00.0000°, 000.0000°" />
             <ui:Label name="altitude" class="altitude" text="Altitude: 18.000 km" />
         </ui:VisualElement>
+
+        <ui:VisualElement name="login-panel" class="modal-card input-surface">
+            <ui:Label name="login-title" class="panel-title" text="Entrar no mundo" />
+            <ui:Label name="login-help" class="panel-help" text="Use a conta administrativa provisionada localmente." />
+            <ui:TextField name="username-input" label="Usuário" />
+            <ui:TextField name="password-input" label="Senha" is-password-field="true" />
+            <ui:Button name="login-button" class="primary-button" text="Entrar" />
+        </ui:VisualElement>
+
+        <ui:VisualElement name="admin-panel" class="side-panel left-panel input-surface">
+            <ui:VisualElement class="panel-header">
+                <ui:Label name="admin-title" class="panel-title" text="Observatório" />
+                <ui:Label class="live-badge" text="● AO VIVO" />
+            </ui:VisualElement>
+            <ui:Label name="admin-summary" class="panel-help" text="—" />
+            <ui:TextField name="account-filter" label="Conta" />
+            <ui:TextField name="kingdom-filter" label="Reino" />
+            <ui:TextField name="city-filter" label="Cidade" />
+            <ui:VisualElement class="filter-row">
+                <ui:TextField name="shard-filter" label="Shard" />
+                <ui:TextField name="event-filter" label="Evento" />
+            </ui:VisualElement>
+            <ui:Button name="apply-filters" class="primary-button" text="Aplicar filtros" />
+            <ui:Label name="cities-title" class="section-title" text="Cidades" />
+            <ui:ScrollView name="city-list" class="item-list" />
+        </ui:VisualElement>
+
+        <ui:VisualElement name="city-inspector" class="side-panel right-panel input-surface">
+            <ui:Label name="city-name" class="panel-title" text="Cidade" />
+            <ui:Label name="city-details" class="inspector-text" text="Selecione uma cidade." />
+            <ui:Label name="buildings-title" class="section-title" text="Construções" />
+            <ui:ScrollView name="building-list" class="item-list" />
+        </ui:VisualElement>
+
+        <ui:VisualElement name="event-panel" class="event-panel input-surface">
+            <ui:Label name="events-title" class="section-title" text="Eventos recentes" />
+            <ui:ScrollView name="event-list" class="event-list" />
+        </ui:VisualElement>
+
         <ui:Label name="camera-hint" class="camera-hint input-surface" text="Arraste para mover · botão direito para orbitar · roda para aproximar" />
     </ui:VisualElement>
 </ui:UXML>
