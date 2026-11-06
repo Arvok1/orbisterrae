@@ -1,5 +1,11 @@
 # Diário de bordo
 
+## 2026-11-06 — S1.2c, preview Unity executável
+
+- Gerado um Player Windows Development do globo Unity com navegação, zoom, HUD isolada da câmera, alternância Relevo/Carta e PT-BR/inglês. `start-unity-preview.cmd` abre o build existente e `start-unity-preview.ps1 -Rebuild` o recompila quando necessário.
+- O contrato protobuf compartilhado agora também gera `Orbis.V1` em C# e o cliente inclui o runtime oficial `Google.Protobuf` 3.36.2 com licença e hashes documentados. Nenhuma lógica autoritativa foi movida ao cliente.
+- O build produziu 149.384.216 bytes e permaneceu ativo por 20 segundos em D3D11 sem exceções. Este preview ainda não oferece login, estado do servidor, fundação ou cidade editável; esses fluxos continuam na fatia de rede/gameplay de S1.2c.
+
 ## 2026-11-05 — S1.2c, fundação Unity URP
 
 - Substituído o scaffold Built-in pelo projeto URP do Unity `6000.6.7f1`, com assemblies separados, geodesia em `double`, escala 1 unidade = 1 km, globo procedural, câmera contínua pelo Input System, pós-processamento ACES e HUD UI Toolkit responsiva.

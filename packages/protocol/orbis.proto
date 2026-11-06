@@ -1,5 +1,6 @@
 syntax = "proto3";
 package orbis.v1;
+option csharp_namespace = "Orbis.V1";
 
 message LatLon { double lat = 1; double lon = 2; }
 

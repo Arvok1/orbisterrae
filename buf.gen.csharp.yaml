@@ -1,0 +1,6 @@
+version: v2
+plugins:
+  - protoc_builtin: csharp
+    out: apps/unity-client/Assets/Orbis/Protocol/Generated
+    opt:
+      - base_namespace=Orbis

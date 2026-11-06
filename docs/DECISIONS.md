@@ -41,6 +41,8 @@ O cliente principal passa a ser Unity 6 nativo em Windows/macOS; o cliente web c
 
 O projeto usa o template URP oficial e mantém os assemblies de core, mundo, UI e bootstrap separados. Input System substitui leitura direta de teclas; UI Toolkit isola a HUD da câmera; Localization e Unity Test Framework são dependências oficiais resolvidas pelo Package Manager. São dependências justificadas pela paridade PT-BR/en, roteamento consistente de entrada e validação automatizada do cliente. Google.Protobuf será adicionado somente na fatia de rede, junto à geração C# do contrato compartilhado.
 
+Na fatia de rede, `Google.Protobuf` 3.36.2 entra como DLL oficial `netstandard2.0` do NuGet, com hash e licença BSD-3-Clause versionados. O C# é gerado localmente pelo `protoc` oficial; o schema não é enviado a serviços remotos. O DLL não executa simulação e não altera a autoridade Rust.
+
 ### Integração S1.1
 
 Movimento, geografia e fundação são funções determinísticas em core/sim;

@@ -34,6 +34,17 @@ A HUD bloqueia os comandos da câmera enquanto o ponteiro está sobre um control
 
 ## Build de desenvolvimento
 
+Para jogar o preview Windows já compilado, execute na raiz do repositório:
+
+```powershell
+.\start-unity-preview.cmd
+```
+
+Use `.\start-unity-preview.ps1 -Rebuild` para gerar novamente o Player antes
+de abri-lo. O preview atual permite navegar e aproximar o globo, orbitar a
+câmera, alternar Relevo/Carta e PT-BR/inglês. Login, conexão ao mundo local e
+cidade editável ainda pertencem às próximas fatias de S1.2c.
+
 O menu `Orbis/Build` expõe builds Windows e macOS. Em automação, use `-executeMethod Orbis.Editor.BuildClient.BuildWindowsDevelopment` ou `BuildMacDevelopment`; `--build-output=<caminho>` substitui a saída padrão. O build valida explicitamente o `BuildReport` e falha quando o resultado não é `Succeeded`.
 
 Windows usa Mono e stripping `Low` durante a migração para iteração rápida. O build macOS requer o módulo de plataforma ou runner compatível e não é gate nesta máquina.

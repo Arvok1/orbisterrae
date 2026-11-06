@@ -75,6 +75,12 @@ O primeiro corte dos pacotes leves usa `docker compose -f tools/world-pipeline/c
 
 A fundação Unity é validada com o Editor `6000.6.7f1` em modo batch. EditMode cobre round-trip geodésico em `double`, escala de 1 unidade Unity por quilômetro e parsing/validação de endpoints, idioma, qualidade e cache. PlayMode verifica bootstrap do globo/câmera/HUD e o bloqueio de input pela HUD. Build Windows Development valida o player; smoke com o gateway entra na fatia de rede de S1.2c.
 
+O corte executável de 2026-11-06 foi compilado em Windows pelo método
+`Orbis.Editor.BuildClient.BuildWindowsDevelopment`. O Player permaneceu ativo
+por 20 segundos forçando D3D11 e o log não apresentou exceções. Esse smoke
+prova inicialização e estabilidade da cena, não paridade com o servidor; login,
+WebSocket e o loop da primeira vila continuam como aceites pendentes.
+
 Testes TypeScript cobrem round-trip geodésico WGS84↔vetor unitário e metros
 locais, limites LOD 0–7/8–14/15–19 e decoder RLE independente do renderer.
 Antes de fechar o sprint, conferir por raycast terreno, cidade, prédio e célula;

@@ -2,15 +2,18 @@
     "name": "Orbis.EditModeTests",
     "rootNamespace": "Orbis.Tests.EditMode",
     "references": [
-        "Orbis.Core"
+        "Orbis.Core",
+        "Orbis.Protocol"
     ],
     "includePlatforms": [
         "Editor"
     ],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
-    "overrideReferences": false,
-    "precompiledReferences": [],
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "Google.Protobuf.dll"
+    ],
     "autoReferenced": false,
     "defineConstraints": [
         "UNITY_INCLUDE_TESTS"
