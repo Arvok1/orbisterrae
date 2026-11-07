@@ -12,6 +12,7 @@ namespace Orbis.World
         public InputAction CameraMove { get; }
         public InputAction Rotate { get; }
         public InputAction Follow { get; }
+        public InputAction Cancel { get; }
 
         readonly InputActionMap map;
 
@@ -39,6 +40,7 @@ namespace Orbis.World
                 .With("Negative", "<Keyboard>/q")
                 .With("Positive", "<Keyboard>/e");
             Follow = map.AddAction("FollowRuler", InputActionType.Button, "<Keyboard>/f");
+            Cancel = map.AddAction("CancelTool", InputActionType.Button, "<Keyboard>/escape");
         }
 
         public void Enable() => map.Enable();

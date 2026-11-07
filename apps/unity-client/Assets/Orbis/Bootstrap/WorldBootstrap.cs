@@ -52,7 +52,7 @@ namespace Orbis.Bootstrap
             var store = new GameStore(new ClientViewState(locale, style, initialFocus, InitialAltitudeMeters, string.Empty));
 
             networkClient = gameObject.AddComponent<GameNetworkClient>();
-            networkClient.Initialize(config, store);
+            if(!VisualAcceptanceRunner.Requested)networkClient.Initialize(config, store);
 
             var worldCamera = CreateCamera();
             CreateLighting(worldCamera);
@@ -60,17 +60,12 @@ namespace Orbis.Bootstrap
             var cameraController = worldCamera.gameObject.AddComponent<GeoCameraController>();
             cameraController.Initialize(worldCamera, store, globe, initialFocus, InitialAltitudeMeters);
             gameObject.AddComponent<CityWorldRenderer>().Initialize(store, globe);
-            gameObject.AddComponent<WorldCartography>().Initialize(store, globe);
-            cameraController.Selected += position =>
-            {
-                var city = store.State.City;
-                var location = CityPresentation.FindCity(store.State, store.State.SelectedCityId);
-                if (city != null && location?.Pos != null && store.State.Tool.Kind != "select"
-                    && CityPresentation.TryCell(new GeoCoordinate(location.Pos.Lat, location.Pos.Lon), city.Width, city.Height, position, out var cell))
-                    networkClient.EditCell((uint)cell.x, (uint)cell.y);
-                else store.Update(store.State.With(selection: position));
-            };
+            var cartography=gameObject.AddComponent<WorldCartography>();
+            cartography.Initialize(store, globe);
+            gameObject.AddComponent<GeographicOverlay>().Initialize(store, globe);
+            gameObject.AddComponent<CityInteractionController>().Initialize(store,globe,cartography,networkClient.EditCell,networkClient.SelectCity);
             CreateHud(store, globe, networkClient);
+            if(VisualAcceptanceRunner.Requested)gameObject.AddComponent<VisualAcceptanceRunner>().Initialize(store,globe);
         }
 
         static Camera CreateCamera()

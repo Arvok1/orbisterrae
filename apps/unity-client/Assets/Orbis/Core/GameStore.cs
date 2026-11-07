@@ -62,6 +62,7 @@ namespace Orbis.Core
         public GeoCoordinate? Selection { get; }
         public CityTool Tool { get; }
         public string PendingOperation { get; }
+        public PlacementPreview Preview { get; }
 
         public ClientViewState(
             string locale,
@@ -78,7 +79,8 @@ namespace Orbis.Core
             WorldSnapshot world = null,
             GeoCoordinate? selection = null,
             CityTool tool = null,
-            string pendingOperation = "")
+            string pendingOperation = "",
+            PlacementPreview preview = null)
         {
             Locale = locale;
             VisualStyle = visualStyle;
@@ -95,6 +97,7 @@ namespace Orbis.Core
             Selection = selection;
             Tool = tool ?? new CityTool();
             PendingOperation = pendingOperation;
+            Preview = preview;
         }
 
         public ClientViewState With(
@@ -117,7 +120,9 @@ namespace Orbis.Core
             CityTool tool = null,
             string pendingOperation = null,
             bool clearWorld = false,
-            bool clearSelection = false)
+            bool clearSelection = false,
+            PlacementPreview preview = null,
+            bool clearPreview = false)
         {
             return new ClientViewState(
                 locale ?? Locale,
@@ -134,7 +139,8 @@ namespace Orbis.Core
                 clearWorld ? null : world ?? World,
                 clearSelection ? null : selection ?? Selection,
                 tool ?? Tool,
-                pendingOperation ?? PendingOperation);
+                pendingOperation ?? PendingOperation,
+                clearPreview ? null : preview ?? Preview);
         }
     }
 

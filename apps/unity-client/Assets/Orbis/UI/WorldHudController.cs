@@ -48,6 +48,7 @@ namespace Orbis.UI
 
         AdminSnapshot renderedAdmin;
         CitySnapshot renderedCity;
+        string renderedLocale;
 
         static readonly IReadOnlyDictionary<string, string> Portuguese = new Dictionary<string, string>
         {
@@ -127,8 +128,10 @@ namespace Orbis.UI
         void RegisterInputSurface(VisualElement surface)
         {
             inputSurfaces.Add(surface);
-            surface.RegisterCallback<PointerEnterEvent>(_ => HudInputGate.Enter());
-            surface.RegisterCallback<PointerLeaveEvent>(_ => HudInputGate.Leave());
+            surface.RegisterCallback<PointerEnterEvent>(_ => HudInputGate.Enter(surface));
+            surface.RegisterCallback<PointerLeaveEvent>(_ => HudInputGate.Leave(surface));
+            surface.RegisterCallback<FocusInEvent>(_ => HudInputGate.SetKeyboardFocus(true));
+            surface.RegisterCallback<FocusOutEvent>(_ => HudInputGate.SetKeyboardFocus(false));
         }
 
         void Login()
@@ -172,10 +175,18 @@ namespace Orbis.UI
         {
             var text = state.Locale == "en" ? English : Portuguese;
             title.text = text["title"];
-            status.text = string.IsNullOrWhiteSpace(state.Status) ? text["offline"] : state.Status;
+            status.text = ClientText.Get(state.Locale,string.IsNullOrWhiteSpace(state.Status)?"offline":state.Status);
             coordinates.text = $"{state.Focus.LatitudeDegrees:+00.0000;-00.0000;00.0000}°, {state.Focus.LongitudeDegrees:+000.0000;-000.0000;000.0000}°";
             altitude.text = FormatAltitude(state.AltitudeMeters);
-            terrainStatus.text = globe.PackageStatus;
+            terrainStatus.text = ClientText.Get(state.Locale,globe.PackageStatus);
+            foreach(var pair in new[] { ("login-title","login"),("login-help","login_help"),("admin-title","observatory"),
+                ("events-title","events"),("cities-title","cities"),("buildings-title","buildings") })
+            { var label=root.Q<Label>(pair.Item1);if(label!=null)label.text=ClientText.Get(state.Locale,pair.Item2); }
+            usernameInput.label=ClientText.Get(state.Locale,"username");passwordInput.label=ClientText.Get(state.Locale,"password");
+            loginButton.text=ClientText.Get(state.Locale,"sign_in");logoutButton.text=ClientText.Get(state.Locale,"sign_out");
+            applyFilters.text=ClientText.Get(state.Locale,"apply_filters");accountFilter.label=ClientText.Get(state.Locale,"account");
+            kingdomFilter.label=ClientText.Get(state.Locale,"kingdom");cityFilter.label=ClientText.Get(state.Locale,"city");
+            eventFilter.label=ClientText.Get(state.Locale,"event");
             styleButton.text = state.VisualStyle == MapVisualStyle.Relief ? text["manuscript"] : text["relief"];
             localeButton.text = state.Locale == "en" ? "PT-BR" : "EN";
             root.Q<Label>("camera-hint").text = text["hint"];
@@ -190,12 +201,14 @@ namespace Orbis.UI
             eventPanel.style.display = isAdmin ? DisplayStyle.Flex : DisplayStyle.None;
             cityInspector.style.display = !string.IsNullOrEmpty(state.SelectedCityId) ? DisplayStyle.Flex : DisplayStyle.None;
 
-            if (!ReferenceEquals(renderedAdmin, state.Admin))
+            var localeChanged=renderedLocale!=state.Locale;
+            renderedLocale=state.Locale;
+            if (!ReferenceEquals(renderedAdmin, state.Admin)||localeChanged)
             {
                 renderedAdmin = state.Admin;
                 RenderAdmin(state.Admin);
             }
-            if (!ReferenceEquals(renderedCity, state.City))
+            if (!ReferenceEquals(renderedCity, state.City)||localeChanged)
             {
                 renderedCity = state.City;
                 RenderCity(state.City);
@@ -208,11 +221,11 @@ namespace Orbis.UI
             eventList.Clear();
             if (snapshot == null)
             {
-                adminSummary.text = "Aguardando snapshot global…";
+                adminSummary.text = ClientText.Get(store.State.Locale,"waiting_snapshot");
                 return;
             }
 
-            adminSummary.text = $"{snapshot.Cities.Count} cidades · {snapshot.Entities.Count} entidades · {snapshot.Territory.Count} células";
+            adminSummary.text = $"{snapshot.Cities.Count} {ClientText.Get(store.State.Locale,"cities")} · {snapshot.Entities.Count} entities · H3 {snapshot.Territory.Count}";
             foreach (var city in snapshot.Cities)
             {
                 var captured = city;
@@ -229,7 +242,7 @@ namespace Orbis.UI
                 var captured = snapshot.Events[index];
                 var button = new Button(() => FocusEvent(captured))
                 {
-                    text = $"{FormatTime(captured.AtMs)} · evento {captured.Kind}\n{(string.IsNullOrEmpty(captured.Region) ? $"Shard {captured.Shard}" : captured.Region)}",
+                    text = $"{FormatTime(captured.AtMs)} · {ClientText.Get(store.State.Locale,"event")} {captured.Kind}\n{(string.IsNullOrEmpty(captured.Region) ? $"Shard {captured.Shard}" : captured.Region)}",
                 };
                 button.AddToClassList("event-button");
                 eventList.Add(button);
@@ -263,20 +276,21 @@ namespace Orbis.UI
             buildingList.Clear();
             if (city == null)
             {
-                cityName.text = "Cidade";
-                cityDetails.text = "Carregando…";
+                cityName.text = ClientText.Get(store.State.Locale,"city");
+                cityDetails.text = ClientText.Get(store.State.Locale,"loading");
                 return;
             }
 
             cityName.text = city.Name;
-            cityDetails.text = $"Grade {city.Width}×{city.Height} · revisão {city.Revision}\n"
-                + $"População {Population(city.Population):N0} · água {city.Metrics?.Water:P0}\n"
-                + $"Densidade {city.Metrics?.Density:P0} · defesa {city.Metrics?.Defense:N1}\n"
-                + $"Alimento {city.Metrics?.FoodCapacity:N0} · moradia {city.Metrics?.HousingCapacity:N0}\n"
-                + $"Obras {city.Construction.Count} · eventos {city.Events.Count} · {(city.Editable ? "edição autorizada" : "somente leitura")}";
+            string Text(string key)=>ClientText.Get(store.State.Locale,key);
+            cityDetails.text = $"{city.Width}×{city.Height} · rev. {city.Revision}\n"
+                + $"{Text("population")} {Population(city.Population):N0} · {Text("water")} {city.Metrics?.Water:P0}\n"
+                + $"{Text("density")} {city.Metrics?.Density:P0} · {Text("defense")} {city.Metrics?.Defense:N1}\n"
+                + $"{Text("food")} {city.Metrics?.FoodCapacity:N0} · {Text("housing")} {city.Metrics?.HousingCapacity:N0}\n"
+                + $"{Text(city.Editable?"editable":"read_only")}";
             foreach (var building in city.Buildings)
             {
-                buildingList.Add(new Label($"{building.BuildingId} · ({building.X}, {building.Y}) · {(building.Complete ? "concluído" : "obra")}"));
+                buildingList.Add(new Label($"{Text(building.BuildingId)} · ({building.X}, {building.Y}) · {Text(building.Complete?"complete":"active")}"));
             }
         }
 

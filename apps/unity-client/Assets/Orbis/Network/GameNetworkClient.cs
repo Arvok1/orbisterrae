@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
@@ -17,7 +18,7 @@ namespace Orbis.Network
 {
     public sealed class GameNetworkClient : MonoBehaviour
     {
-        const int MaximumFrameBytes = 64 * 1024;
+        const int MaximumFrameBytes = 8 * 1024 * 1024;
         const float AdminPollSeconds = 1f;
         const float CityPollSeconds = 0.5f;
 
@@ -53,9 +54,12 @@ namespace Orbis.Network
             public string error;
         }
 
-        readonly ConcurrentQueue<byte[]> received = new();
-        readonly ConcurrentQueue<SocketSignal> signals = new();
+        readonly ConcurrentQueue<(int Generation, byte[] Bytes)> received = new();
+        readonly ConcurrentQueue<(int Generation, SocketSignal Signal)> signals = new();
         readonly Dictionary<ulong, RequestKind> pending = new();
+        readonly Dictionary<ulong, CommandReceipt> receipts = new();
+        readonly Dictionary<string,string> operations = new();
+        readonly Dictionary<string,ulong> refreshAfter = new();
         readonly SemaphoreSlim sendGate = new(1, 1);
 
         ClientRuntimeConfig config;
@@ -69,8 +73,8 @@ namespace Orbis.Network
         float nextAdminPoll;
         float nextCityPoll;
         float nextWorldPoll;
-        float operationStarted;
         string sessionPath;
+        int socketGeneration;
 
         public void Initialize(ClientRuntimeConfig runtimeConfig, GameStore gameStore)
         {
@@ -80,7 +84,7 @@ namespace Orbis.Network
             var restored = RestoreSession();
             if (restored != null)
             {
-                store.Update(store.State.With(session: restored, status: "Reconectando…", connection: ConnectionState.Connecting));
+                store.Update(store.State.With(session: restored, status: "reconnecting", connection: ConnectionState.Connecting));
                 StartSocket();
             }
         }
@@ -89,7 +93,7 @@ namespace Orbis.Network
         {
             if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
             {
-                SetStatus("Informe usuário e senha.");
+                SetStatus("credentials_required");
                 return;
             }
 
@@ -99,10 +103,11 @@ namespace Orbis.Network
         public void Logout()
         {
             StopSocket();
+            operations.Clear(); refreshAfter.Clear();
             if (File.Exists(sessionPath)) File.Delete(sessionPath);
             adminCursor = 0;
             store.Update(store.State.With(
-                status: "Sessão encerrada",
+                status: "logged_out",
                 connection: ConnectionState.Offline,
                 selectedCityId: string.Empty,
                 clearSession: true,
@@ -115,6 +120,7 @@ namespace Orbis.Network
             var value = cityId ?? string.Empty;
             store.Update(store.State.With(selectedCityId: value, clearCity: value != store.State.SelectedCityId, tool: new CityTool()));
             nextCityPoll = 0;
+            PublishPending();
         }
 
         public void MoveRuler(GeoCoordinate position) => Submit(new Command
@@ -155,11 +161,24 @@ namespace Orbis.Network
 
         void Submit(Command command)
         {
-            if (!authenticated || store.State.Connection != ConnectionState.Online || !string.IsNullOrEmpty(store.State.PendingOperation)) return;
+            var cityId = CommandCity(command);
+            if (!authenticated || socket?.State!=WebSocketState.Open || store.State.Connection != ConnectionState.Online || operations.ContainsKey(cityId) || refreshAfter.ContainsKey(cityId)) return;
             command.RequestId = Guid.NewGuid().ToString("N");
-            operationStarted = Time.unscaledTime;
-            store.Update(store.State.With(pendingOperation: command.RequestId));
+            operations[cityId] = command.RequestId;
+            PublishPending();
             Send(command, RequestKind.Mutation);
+        }
+
+        static string CommandCity(Command command) => command.QueueBuilding?.CityId ?? command.ApplyCityEdits?.CityId
+            ?? command.CancelConstruction?.CityId ?? command.InspectCity?.CityId ?? "";
+
+        void PublishPending()
+        {
+            var cityId = store.State.SelectedCityId;
+            var value = operations.TryGetValue(cityId, out var operation) ? operation
+                : operations.TryGetValue("", out var worldOperation) ? worldOperation
+                : refreshAfter.ContainsKey(cityId) || refreshAfter.ContainsKey("") ? "refresh_required" : "";
+            if (store.State.PendingOperation != value) store.Update(store.State.With(pendingOperation: value));
         }
 
         public void SetFilters(AdminFilters filters)
@@ -172,7 +191,7 @@ namespace Orbis.Network
 
         IEnumerator LoginRoutine(string username, string password)
         {
-            SetStatus("Entrando…", ConnectionState.Connecting);
+            SetStatus("connecting", ConnectionState.Connecting);
             var payload = Encoding.UTF8.GetBytes(JsonUtility.ToJson(new LoginRequest
             {
                 username = username,
@@ -192,7 +211,7 @@ namespace Orbis.Network
                 : JsonUtility.FromJson<LoginResponse>(request.downloadHandler.text);
             if (request.result != UnityWebRequest.Result.Success || string.IsNullOrWhiteSpace(response.token))
             {
-                SetStatus(response.error == "invalid_credentials" ? "Credenciais inválidas" : "Gateway indisponível", ConnectionState.Offline);
+                SetStatus(response.error == "invalid_credentials" ? "invalid_credentials" : "server_unavailable", ConnectionState.Offline);
                 yield break;
             }
 
@@ -204,20 +223,28 @@ namespace Orbis.Network
                 Role = response.role,
             };
             File.WriteAllText(sessionPath, JsonUtility.ToJson(session));
-            store.Update(store.State.With(session: session, status: "Conectando ao mundo…", connection: ConnectionState.Connecting));
+            StopSocket(); operations.Clear(); refreshAfter.Clear();
+            store.Update(store.State.With(session: session, status: "connecting", connection: ConnectionState.Connecting,
+                clearWorld: true, clearCity: true, clearAdmin: true, clearSelection: true, clearPreview: true,
+                selectedCityId: "", tool: new CityTool()));
             StartSocket();
         }
 
         void Update()
         {
+            if(store==null)return;
             while (signals.TryDequeue(out var signal))
             {
-                if (signal == SocketSignal.Connected)
+                if (signal.Generation != socketGeneration) continue;
+                if (signal.Signal == SocketSignal.Connected)
                 {
                     authenticated = false;
                     initialAdminWorld = true;
                     pending.Clear();
-                    SetStatus("Autenticando…", ConnectionState.Authenticating);
+                    receipts.Clear();
+                    foreach(var cityId in operations.Keys)refreshAfter[cityId]=0;
+                    operations.Clear();
+                    SetStatus("authenticating", ConnectionState.Authenticating);
                     Send(new Command
                     {
                         RequestId = Guid.NewGuid().ToString("N"),
@@ -228,17 +255,22 @@ namespace Orbis.Network
                 {
                     authenticated = false;
                     pending.Clear();
-                    store.Update(store.State.With(status: "Reconectando…", connection: ConnectionState.Connecting, pendingOperation: ""));
+                    receipts.Clear();
+                    foreach (var cityId in operations.Keys) refreshAfter[cityId] = 0;
+                    operations.Clear();
+                    store.Update(store.State.With(status: "reconnecting", connection: ConnectionState.Connecting, pendingOperation: ""));
                 }
             }
 
-            while (received.TryDequeue(out var bytes)) HandleEnvelope(bytes);
+            while (received.TryDequeue(out var message))
+                if (message.Generation == socketGeneration) HandleEnvelope(message.Bytes);
+            PublishPending();
             if (!authenticated || store.State.Session == null) return;
 
-            if (!string.IsNullOrEmpty(store.State.PendingOperation) && Time.unscaledTime - operationStarted > 15f)
+            if (receipts.Values.Any(receipt => Time.unscaledTime - receipt.SentAt > 15f))
             {
                 StartSocket();
-                store.Update(store.State.With(connection: ConnectionState.Connecting, pendingOperation: "", status: "Reconectando…"));
+                store.Update(store.State.With(connection: ConnectionState.Connecting, pendingOperation: "", status: "reconnecting"));
                 return;
             }
             if (!store.State.Session.IsAdmin && Time.unscaledTime >= nextWorldPoll && !pending.ContainsValue(RequestKind.World))
@@ -295,43 +327,55 @@ namespace Orbis.Network
             }
             catch (InvalidProtocolBufferException)
             {
-                SetStatus("Resposta inválida do servidor");
+                SetStatus("invalid_response");
                 return;
             }
 
             if (!pending.TryGetValue(envelope.Seq, out var requestKind)) return;
+            if (!receipts.TryGetValue(envelope.Seq, out var receipt) || !receipt.Accept(envelope, socketGeneration)) return;
             pending.Remove(envelope.Seq);
+            receipts.Remove(envelope.Seq);
             var server = envelope.Server;
             if (server == null) return;
 
             if (requestKind == RequestKind.Mutation)
             {
-                store.Update(store.State.With(pendingOperation: ""));
+                operations.Remove(receipt.CityId);
+                refreshAfter[receipt.CityId] = envelope.Seq;
                 nextCityPoll = 0;
                 nextWorldPoll = 0;
             }
             if (server.World != null)
             {
                 store.Update(store.State.With(world: server.World));
+                if (refreshAfter.TryGetValue("", out var afterWorld) && envelope.Seq > afterWorld) refreshAfter.Remove("");
                 if (string.IsNullOrEmpty(store.State.SelectedCityId) && !string.IsNullOrEmpty(server.World.Ruler?.CityId))
                     SelectCity(server.World.Ruler.CityId);
             }
 
             if (server.Result != null)
             {
+                if(!server.Result.Ok&&server.Result.Error=="authentication_required")
+                {
+                    StopSocket();operations.Clear();refreshAfter.Clear();
+                    if(File.Exists(sessionPath))File.Delete(sessionPath);
+                    store.Update(store.State.With(clearSession:true,clearCity:true,clearWorld:true,clearAdmin:true,selectedCityId:"",clearPreview:true,
+                        connection:ConnectionState.Offline,status:"authentication_required",tool:new CityTool()));
+                    return;
+                }
                 if (requestKind == RequestKind.Authenticate && server.Result.Ok)
                 {
                     authenticated = true;
                     nextWorldPoll = 0;
                     nextCityPoll = 0;
-                    SetStatus(store.State.Session.IsAdmin ? "ADMIN · AO VIVO" : "Online", ConnectionState.Online);
+                    SetStatus(store.State.Session.IsAdmin ? "admin_live" : "online", ConnectionState.Online);
                 }
                 else if (!server.Result.Ok && server.Result.Error == "admin_required")
                 {
                     var session = store.State.Session;
                     session.Role = "player";
                     File.WriteAllText(sessionPath, JsonUtility.ToJson(session));
-                    store.Update(store.State.With(session: session, status: "Acesso administrativo revogado", clearAdmin: true));
+                    store.Update(store.State.With(session: session, status: "admin_revoked", clearAdmin: true));
                 }
                 else if (!server.Result.Ok)
                 {
@@ -344,7 +388,7 @@ namespace Orbis.Network
                 var merged = AdminSnapshotMerge.Apply(store.State.Admin, server.Admin);
                 adminCursor = server.Admin.NextEventSeq;
                 initialAdminWorld = false;
-                store.Update(store.State.With(admin: merged, status: "ADMIN · AO VIVO", connection: ConnectionState.Online));
+                store.Update(store.State.With(admin: merged, status: "admin_live", connection: ConnectionState.Online));
             }
 
             if (server.City != null && server.City.CityId == store.State.SelectedCityId
@@ -352,6 +396,10 @@ namespace Orbis.Network
             {
                 store.Update(store.State.With(city: server.City));
             }
+            if (server.City != null && requestKind == RequestKind.City
+                && refreshAfter.TryGetValue(server.City.CityId, out var afterCity) && envelope.Seq > afterCity)
+                refreshAfter.Remove(server.City.CityId);
+            PublishPending();
         }
 
         void Send(Command command, RequestKind kind)
@@ -359,22 +407,27 @@ namespace Orbis.Network
             if (socket == null || socket.State != WebSocketState.Open) return;
             var sequence = nextSequence++;
             pending[sequence] = kind;
+            var revision = command.QueueBuilding?.ExpectedRevision ?? command.ApplyCityEdits?.ExpectedRevision
+                ?? command.CancelConstruction?.ExpectedRevision ?? 0;
+            receipts[sequence] = new CommandReceipt(sequence, socketGeneration, command.RequestId, CommandCity(command), revision, Time.unscaledTime);
             var bytes = new Envelope { Seq = sequence, Command = command }.ToByteArray();
-            _ = SendBytesAsync(bytes, lifetime.Token);
+            _ = SendBytesAsync(socket, bytes, lifetime.Token);
         }
 
-        async Task SendBytesAsync(byte[] bytes, CancellationToken cancellationToken)
+        async Task SendBytesAsync(ClientWebSocket activeSocket, byte[] bytes, CancellationToken cancellationToken)
         {
-            await sendGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try { await sendGate.WaitAsync(cancellationToken).ConfigureAwait(false); }
+            catch (OperationCanceledException) { return; }
             try
             {
-                if (socket?.State == WebSocketState.Open)
+                if (activeSocket?.State == WebSocketState.Open)
                 {
-                    await socket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Binary, true, cancellationToken).ConfigureAwait(false);
+                    await activeSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Binary, true, cancellationToken).ConfigureAwait(false);
                 }
             }
             catch (OperationCanceledException) { }
             catch (WebSocketException) { }
+            catch (ObjectDisposedException) { }
             finally
             {
                 sendGate.Release();
@@ -391,12 +444,16 @@ namespace Orbis.Network
         void StopSocket()
         {
             authenticated = false;
+            Interlocked.Increment(ref socketGeneration);
             lifetime?.Cancel();
             lifetime?.Dispose();
             lifetime = null;
             socket?.Dispose();
             socket = null;
             pending.Clear();
+            receipts.Clear();
+            foreach (var cityId in operations.Keys) refreshAfter[cityId] = 0;
+            operations.Clear();
             if (store != null) store.Update(store.State.With(pendingOperation: ""));
         }
 
@@ -404,21 +461,23 @@ namespace Orbis.Network
         {
             while (!cancellationToken.IsCancellationRequested)
             {
+                var generation = Interlocked.Increment(ref socketGeneration);
                 try
                 {
                     socket?.Dispose();
                     socket = new ClientWebSocket();
                     socket.Options.KeepAliveInterval = TimeSpan.FromSeconds(10);
                     await socket.ConnectAsync(config.WebSocketEndpoint, cancellationToken).ConfigureAwait(false);
-                    signals.Enqueue(SocketSignal.Connected);
-                    await ReceiveLoopAsync(socket, cancellationToken).ConfigureAwait(false);
+                    signals.Enqueue((generation, SocketSignal.Connected));
+                    await ReceiveLoopAsync(socket, generation, cancellationToken).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) { break; }
                 catch (WebSocketException) { }
                 catch (IOException) { }
+                catch (ObjectDisposedException) { }
                 finally
                 {
-                    signals.Enqueue(SocketSignal.Disconnected);
+                    signals.Enqueue((generation, SocketSignal.Disconnected));
                 }
 
                 try
@@ -429,7 +488,7 @@ namespace Orbis.Network
             }
         }
 
-        async Task ReceiveLoopAsync(ClientWebSocket activeSocket, CancellationToken cancellationToken)
+        async Task ReceiveLoopAsync(ClientWebSocket activeSocket, int generation, CancellationToken cancellationToken)
         {
             var buffer = new byte[MaximumFrameBytes];
             while (activeSocket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
@@ -444,7 +503,7 @@ namespace Orbis.Network
                     stream.Write(buffer, 0, result.Count);
                 } while (!result.EndOfMessage);
 
-                if (result.MessageType == WebSocketMessageType.Binary) received.Enqueue(stream.ToArray());
+                if (result.MessageType == WebSocketMessageType.Binary) received.Enqueue((generation, stream.ToArray()));
             }
         }
 
@@ -470,7 +529,6 @@ namespace Orbis.Network
         void OnDestroy()
         {
             StopSocket();
-            sendGate.Dispose();
         }
     }
 }

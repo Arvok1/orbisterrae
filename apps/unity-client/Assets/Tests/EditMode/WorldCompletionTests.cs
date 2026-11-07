@@ -1,0 +1,95 @@
+using System;
+using System.IO;
+using NUnit.Framework;
+using Orbis.Core;
+using Orbis.Network;
+using Orbis.V1;
+using Orbis.World;
+using UnityEngine;
+
+namespace Orbis.Tests.EditMode
+{
+    public sealed class WorldCompletionTests
+    {
+        [TestCase(0,0,.5f,.5f)]
+        [TestCase(0,-180,0,.5f)]
+        [TestCase(85.05112878,90,.75f,1)]
+        public void MercatorProjectionMatchesAssets(double latitude,double longitude,float expectedX,float expectedY)
+        {
+            var uv=GeoPresentation.MercatorUv(new GeoCoordinate(latitude,longitude));
+            Assert.That(uv.x,Is.EqualTo(expectedX).Within(.00001));Assert.That(uv.y,Is.EqualTo(expectedY).Within(.00001));
+        }
+        [Test]
+        public void SharedTerritoryEdgeIsRemoved()
+        {
+            var first=new TerritoryCell { CityId="city" };first.Boundary.Add(new[]{new LatLon{Lat=0,Lon=0},new LatLon{Lat=0,Lon=1},new LatLon{Lat=1,Lon=0}});
+            var second=new TerritoryCell { CityId="city" };second.Boundary.Add(new[]{new LatLon{Lat=0,Lon=1},new LatLon{Lat=0,Lon=0},new LatLon{Lat=-1,Lon=0}});
+            Assert.That(GeoPresentation.TerritoryEdges(new[]{first,second})["city"].Count,Is.EqualTo(4));
+        }
+        [Test]
+        public void ConcaveLakeTriangulatesWithoutFanOutsidePolygon()
+        {
+            var points=new[]{new Vector2(0,0),new Vector2(3,0),new Vector2(3,3),new Vector2(1.5f,1),new Vector2(0,3)};
+            Assert.That(PolygonTriangulator.Triangulate(points).Length,Is.EqualTo(9));
+        }
+        [Test]
+        public void ResponseChecksGenerationSequenceRequestAndCityRevision()
+        {
+            var receipt=new CommandReceipt(7,3,"request","city",9,0);
+            var envelope=new Envelope { Seq=7,Server=new ServerMsg { Result=new CommandResult { RequestId="request",Ok=true } } };
+            Assert.That(receipt.Accept(envelope,3),Is.True);Assert.That(receipt.Accept(envelope,2),Is.False);
+            envelope.Server.Result.RequestId="other";Assert.That(receipt.Accept(envelope,3),Is.False);
+            envelope.Server=new ServerMsg{City=new CitySnapshot{CityId="city",Revision=8}};Assert.That(receipt.Accept(envelope,3),Is.False);
+            envelope.Server.City.Revision=9;Assert.That(receipt.Accept(envelope,3),Is.True);
+            envelope.Server.City.CityId="foreign";Assert.That(receipt.Accept(envelope,3),Is.False);
+        }
+        [Test]
+        public void EveryUrbanRoleHasDeterministicGeometryAndThreeLods()
+        {
+            Assert.That(UrbanKit.Roles.Length,Is.EqualTo(15));
+            foreach(var role in UrbanKit.Roles)
+                for(var lod=0;lod<3;lod++)
+                {
+                    var first=UrbanKit.Build(role,1,lod);var second=UrbanKit.Build(role,1,lod);
+                    Assert.That(first.vertices,Is.EqualTo(second.vertices));Assert.That(first.vertexCount,Is.GreaterThan(0));
+                    Assert.That(first.subMeshCount,Is.EqualTo(4));
+                    UnityEngine.Object.DestroyImmediate(first);UnityEngine.Object.DestroyImmediate(second);
+                }
+        }
+        [Test]
+        public void PreviewRejectsOccupiedBoundsAndReadOnlyWithoutChangingSnapshot()
+        {
+            var city=new CitySnapshot { CityId="city",Width=256,Height=256,Editable=true };
+            city.Definitions.Add(new BuildingDefinition { Id="house",Width=2,Height=3 });
+            city.Buildings.Add(new BuildingState { Id="house1",BuildingId="house",X=10,Y=10 });
+            var state=new ClientViewState("en",MapVisualStyle.Relief,new GeoCoordinate(0,0),1000,"",ConnectionState.Online,
+                city:city,selectedCityId:"city",tool:new CityTool("building","house"));
+            Assert.That(PlacementPreview.Evaluate(state,10,10).Reason,Is.EqualTo("occupied"));
+            Assert.That(PlacementPreview.Evaluate(state,255,255).Valid,Is.False);
+            Assert.That(PlacementPreview.Evaluate(state,20,20).Valid,Is.True);
+            Assert.That(PlacementPreview.Evaluate(state.With(connection:ConnectionState.Offline),20,20).Valid,Is.False);
+            Assert.That(city.Buildings.Count,Is.EqualTo(1));
+        }
+        [Test]
+        public void PackagePathsAndHashesFailClosed()
+        {
+            var root=Path.Combine(Path.GetTempPath(),Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);
+            try
+            {
+                File.WriteAllText(Path.Combine(root,"manifest.json"),"{\"format\":\"orbis-world-v2\",\"version\":2,\"tile_side\":65,\"max_lod\":0}");
+                var package=new WorldPackage(root);
+                Assert.Throws<InvalidDataException>(()=>package.ResolveContained("../escape"));
+                File.WriteAllText(Path.Combine(root,"data.bin"),"hello");
+                Assert.Throws<InvalidDataException>(()=>package.ResolveVisual(new WorldFileDescriptor{path="data.bin",bytes=5,sha256="bad"}));
+                Assert.Throws<InvalidDataException>(()=>package.ResolveVisual(new WorldFileDescriptor{path="data.bin",bytes=6,sha256="bad"}));
+            }
+            finally { Directory.Delete(root,true); }
+        }
+        [Test]
+        public void LocaleChangesIndependentOfCityRevision()
+        {
+            Assert.That(ClientText.Get("pt-BR","house"),Is.EqualTo("Casa"));Assert.That(ClientText.Get("en","house"),Is.EqualTo("House"));
+            Assert.That(ClientText.Remaining(120000,30000),Is.EqualTo("01:30"));Assert.That(ClientText.Remaining(1000,2000),Is.EqualTo("00:00"));
+        }
+    }
+}

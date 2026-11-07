@@ -3,13 +3,17 @@
     "rootNamespace": "Orbis.Tests.PlayMode",
     "references": [
         "Orbis.Bootstrap",
-        "Orbis.World"
+        "Orbis.World",
+        "Orbis.Core",
+        "Orbis.Protocol",
+        "Orbis.Network",
+        "Orbis.UI"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
-    "overrideReferences": false,
-    "precompiledReferences": [],
+    "overrideReferences": true,
+    "precompiledReferences": ["Google.Protobuf.dll"],
     "autoReferenced": false,
     "defineConstraints": [
         "UNITY_INCLUDE_TESTS"

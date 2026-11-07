@@ -26,7 +26,6 @@ namespace Orbis.World
 
         public GeoCoordinate Focus => focus;
         public double AltitudeMeters => altitudeMeters;
-        public event System.Action<GeoCoordinate> Selected;
 
         public void Initialize(Camera camera, GameStore gameStore, GlobeRenderer globeRenderer, GeoCoordinate initialFocus, double initialAltitudeMeters)
         {
@@ -62,11 +61,6 @@ namespace Orbis.World
             if (orbitPressed && !orbitWasPressed) pressPointer = pointer;
 
             var passedThreshold = (pointer - pressPointer).sqrMagnitude >= DragThresholdPixels * DragThresholdPixels;
-            if (!primaryPressed && primaryWasPressed && !passedThreshold && !pressBlocked && !HudInputGate.IsPointerBlocked)
-            {
-                var selected = RaycastCoordinate(pointer);
-                if (selected.HasValue) Selected?.Invoke(selected.Value);
-            }
             if (!HudInputGate.IsPointerBlocked && !pressBlocked && passedThreshold)
             {
                 if (primaryPressed) Pan(pointerDelta);
@@ -78,10 +72,10 @@ namespace Orbis.World
                 var scroll = input.Scroll.ReadValue<Vector2>().y;
                 if (Mathf.Abs(scroll) > 0.01f) Zoom(scroll, pointer);
 
-                var keyboard = input.CameraMove.ReadValue<Vector2>();
+                var keyboard = HudInputGate.IsKeyboardBlocked ? Vector2.zero : input.CameraMove.ReadValue<Vector2>();
                 if (keyboard.sqrMagnitude > 0.001f) Pan(keyboard * (220f * Time.unscaledDeltaTime));
 
-                var rotate = input.Rotate.ReadValue<float>();
+                var rotate = HudInputGate.IsKeyboardBlocked ? 0 : input.Rotate.ReadValue<float>();
                 if (Mathf.Abs(rotate) > 0.01f) headingDegrees += rotate * 55f * Time.unscaledDeltaTime;
             }
 
@@ -128,25 +122,6 @@ namespace Orbis.World
         {
             if (worldCamera == null || globe?.SurfaceCollider == null) return null;
             var ray = worldCamera.ScreenPointToRay(pointer);
-            var city = store.State.City;
-            var location = CityPresentation.FindCity(store.State, store.State.SelectedCityId);
-            if (city != null && location?.Pos != null && altitudeMeters < 30000)
-            {
-                var origin = new GeoCoordinate(location.Pos.Lat, location.Pos.Lon);
-                var up = GeoMath.SurfaceNormal(origin);
-                var center = up * (float)((GeoMath.EarthRadiusMeters + globe.SampleHeightMeters(origin) + 1) / GeoMath.MetersPerUnityUnit);
-                if (new Plane(up, center).Raycast(ray, out var distance))
-                {
-                    var east = Vector3.Cross(Vector3.up, up).normalized;
-                    if (east.sqrMagnitude < .01f) east = Vector3.right;
-                    var north = Vector3.Cross(up, east).normalized;
-                    var offset = ray.GetPoint(distance) - center;
-                    var x = Vector3.Dot(offset, east) * 1000 / CityPresentation.CellMeters + city.Width / 2d;
-                    var y = city.Height / 2d - Vector3.Dot(offset, north) * 1000 / CityPresentation.CellMeters;
-                    if (x >= 0 && y >= 0 && x < city.Width && y < city.Height)
-                        return CityPresentation.CellCoordinate(origin, city.Width, city.Height, x, y);
-                }
-            }
             if (!globe.SurfaceCollider.Raycast(ray, out var hit, (float)(MaximumAltitudeMeters / GeoMath.MetersPerUnityUnit * 2))) return null;
             var normal = hit.point.normalized;
             return GeoMath.FromEcef(new Double3(normal.x * GeoMath.EarthRadiusMeters,
