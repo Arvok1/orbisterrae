@@ -51,12 +51,21 @@ try {
     console.log(JSON.stringify({stage:'founding',bots:Math.min(scenario.bots,begin+scenario.concurrency)}));
   }
   assert.ok(last);let world=await snapshot(last);const until=performance.now()+scenario.timeoutMs;
-  while(world.cities.filter(city=>city.active).length<scenario.villages) {
-    assert.ok(performance.now()<until,'Village completion timed out');await new Promise(resolve=>setTimeout(resolve,250));world=await snapshot(last);
+  let confirmed:WorldSnapshot['cities']=[];
+  while(confirmed.filter(city=>city.active).length<scenario.villages) {
+    assert.ok(performance.now()<until,'Village completion timed out');confirmed=[];
+    const founders=clients.filter(client=>client!==traveller);
+    for(let begin=0;begin<founders.length;begin+=scenario.concurrency) {
+      const snapshots=await Promise.all(founders.slice(begin,begin+scenario.concurrency).map(client=>snapshot(client)));
+      assert.ok(snapshots.every(value=>value.cities.every(city=>city.kingdomId===value.ruler?.kingdomId)),'kingdom visibility remains authoritative');
+      confirmed.push(...snapshots.flatMap(value=>value.cities));
+    }
+    if(confirmed.some(city=>!city.active))await new Promise(resolve=>setTimeout(resolve,250));
   }
-  assert.equal(world.cities.length,scenario.villages);assert.ok(world.cities.every(city=>city.active));
-  assert.equal(new Set(world.cities.map(city=>city.id)).size,scenario.villages);
+  world=await snapshot(last);
+  assert.equal(confirmed.length,scenario.villages);assert.ok(confirmed.every(city=>city.active));
+  assert.equal(new Set(confirmed.map(city=>city.id)).size,scenario.villages);
   assert.ok(world.ruler);assert.equal(world.ruler.supplies,original.ruler!.supplies-world.villageCost);
-  console.log(JSON.stringify({result:'passed',bots:scenario.bots,villages:world.cities.length,duplicateFounding:'idempotent',handoffRuler:arrived.ruler?.id===original.ruler?.id,
+  console.log(JSON.stringify({result:'passed',bots:scenario.bots,villages:confirmed.length,duplicateFounding:'idempotent',handoffRuler:arrived.ruler?.id===original.ruler?.id,
     p95FoundingMs:percentile(latencies,0.95),elapsedMs:performance.now()-started}));
 } finally {for(const client of clients)client.close();}

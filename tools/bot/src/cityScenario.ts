@@ -230,8 +230,11 @@ try {
   assert.ok(faminePopulation >= 32 && faminePopulation <= 33, `famine population ${faminePopulation}`);
 
   const world = await snapshot(builder);
-  assert.equal(world.cities.filter(city => city.active).length, scenario.cities);
-  assert.equal(new Set(world.cities.map(city => city.id)).size, scenario.cities);
+  const ownWorlds = [world,await snapshot(idle),await snapshot(starving)];
+  assert.ok(ownWorlds.every(value=>value.cities.length===1&&value.cities[0].kingdomId===value.ruler?.kingdomId),'player snapshots only expose their own kingdom');
+  const confirmedCities=ownWorlds.flatMap(value=>value.cities);
+  assert.equal(confirmedCities.filter(city=>city.active).length,scenario.cities);
+  assert.equal(new Set(confirmedCities.map(city=>city.id)).size,scenario.cities);
   const foreign = await citySnapshot(builder,idleCity);
   assert.equal(foreign.editable,false,'foreign city is read-only');
   const unauthorized = await builder.request({$case:'applyCityEdits',applyCityEdits:{cityId:idleCity,expectedRevision:foreign.revision,edits:[{x:0,y:0,layer:'road',value:'road'}]}});
@@ -263,13 +266,15 @@ try {
   if(exportRoot) {
     await mkdir(exportRoot,{recursive:true});
     await writeFile(join(exportRoot,'world.bin'),WorldWire.encode(await snapshot(reconnected)).finish());
+    await writeFile(join(exportRoot,'world-idle.bin'),WorldWire.encode(await snapshot(idle)).finish());
+    await writeFile(join(exportRoot,'world-starving.bin'),WorldWire.encode(await snapshot(starving)).finish());
     await writeFile(join(exportRoot,'city.bin'),CityWire.encode(restored).finish());
     await writeFile(join(exportRoot,'city-idle.bin'),CityWire.encode(await citySnapshot(reconnected,idleCity)).finish());
     await writeFile(join(exportRoot,'city-starving.bin'),CityWire.encode(await citySnapshot(reconnected,starvingCity)).finish());
   }
   console.log(JSON.stringify({
     result: 'passed',
-    cities: world.cities.length,
+    cities: confirmedCities.length,
     defenseDelta: defenseBuilt - initialDefense,
     growthDelta: populationTotal(grown.a) - populationTotal(grown.b),
     faminePopulation,

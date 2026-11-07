@@ -36,7 +36,7 @@ async fn main() -> anyhow::Result<()> {
                 .await?;
         }
         "verify" => {
-            let row=sqlx::query("SELECT (SELECT count(*) FROM cities WHERE state->>'active'='true') AS cities,(SELECT count(*) FROM entities) AS rulers,(SELECT count(*) FROM scheduled_events WHERE done_at IS NULL) AS pending,(SELECT count(*) FROM entity_handoffs) AS handoffs,(SELECT count(*) FROM entity_handoffs WHERE acknowledged_at IS NULL) AS unacknowledged,(SELECT count(*) FROM territory_cells) AS cells").fetch_one(&pool).await?;
+            let row=sqlx::query("SELECT (SELECT count(*) FROM cities WHERE state->>'active'='true') AS cities,(SELECT count(*) FROM entities) AS rulers,(SELECT count(*) FROM scheduled_events WHERE done_at IS NULL AND kind=0) AS pending,(SELECT count(*) FROM entity_handoffs) AS handoffs,(SELECT count(*) FROM entity_handoffs WHERE acknowledged_at IS NULL) AS unacknowledged,(SELECT count(*) FROM territory_cells_res8) AS cells").fetch_one(&pool).await?;
             let cities: i64 = row.get("cities");
             let rulers: i64 = row.get("rulers");
             let pending: i64 = row.get("pending");
