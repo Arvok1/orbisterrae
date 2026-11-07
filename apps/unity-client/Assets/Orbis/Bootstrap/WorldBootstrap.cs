@@ -16,6 +16,7 @@ namespace Orbis.Bootstrap
         static WorldBootstrap instance;
 
         WorldHudController hudController;
+        CityGameplayController gameplayController;
         GameNetworkClient networkClient;
         PanelSettings runtimePanelSettings;
         VolumeProfile runtimeVolumeProfile;
@@ -55,9 +56,20 @@ namespace Orbis.Bootstrap
 
             var worldCamera = CreateCamera();
             CreateLighting(worldCamera);
-            var globe = CreateGlobe(style);
+            var globe = CreateGlobe(config, style);
             var cameraController = worldCamera.gameObject.AddComponent<GeoCameraController>();
-            cameraController.Initialize(worldCamera, store, initialFocus, InitialAltitudeMeters);
+            cameraController.Initialize(worldCamera, store, globe, initialFocus, InitialAltitudeMeters);
+            gameObject.AddComponent<CityWorldRenderer>().Initialize(store, globe);
+            gameObject.AddComponent<WorldCartography>().Initialize(store, globe);
+            cameraController.Selected += position =>
+            {
+                var city = store.State.City;
+                var location = CityPresentation.FindCity(store.State, store.State.SelectedCityId);
+                if (city != null && location?.Pos != null && store.State.Tool.Kind != "select"
+                    && CityPresentation.TryCell(new GeoCoordinate(location.Pos.Lat, location.Pos.Lon), city.Width, city.Height, position, out var cell))
+                    networkClient.EditCell((uint)cell.x, (uint)cell.y);
+                else store.Update(store.State.With(selection: position));
+            };
             CreateHud(store, globe, networkClient);
         }
 
@@ -107,12 +119,12 @@ namespace Orbis.Bootstrap
             worldCamera.transform.SetParent(transform, true);
         }
 
-        GlobeRenderer CreateGlobe(MapVisualStyle style)
+        GlobeRenderer CreateGlobe(ClientRuntimeConfig config, MapVisualStyle style)
         {
             var globeObject = new GameObject("Earth");
             globeObject.transform.SetParent(transform, false);
             var globe = globeObject.AddComponent<GlobeRenderer>();
-            globe.Initialize();
+            globe.Initialize(config);
             globe.SetVisualStyle(style);
             return globe;
         }
@@ -134,11 +146,13 @@ namespace Orbis.Bootstrap
             document.sortingOrder = 100;
             document.visualTreeAsset = visualTree;
             hudController = new WorldHudController(document.rootVisualElement, store, globe, network);
+            gameplayController = new CityGameplayController(document.rootVisualElement, store, network);
         }
 
         void OnDestroy()
         {
             hudController?.Dispose();
+            gameplayController?.Dispose();
             if (runtimePanelSettings != null) Destroy(runtimePanelSettings);
             if (runtimeVolumeProfile != null) Destroy(runtimeVolumeProfile);
             if (instance == this) instance = null;

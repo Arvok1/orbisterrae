@@ -26,6 +26,8 @@ namespace Orbis.Network
             Authenticate,
             Admin,
             City,
+            World,
+            Mutation,
         }
 
         enum SocketSignal
@@ -66,6 +68,8 @@ namespace Orbis.Network
         bool initialAdminWorld = true;
         float nextAdminPoll;
         float nextCityPoll;
+        float nextWorldPoll;
+        float operationStarted;
         string sessionPath;
 
         public void Initialize(ClientRuntimeConfig runtimeConfig, GameStore gameStore)
@@ -103,14 +107,59 @@ namespace Orbis.Network
                 selectedCityId: string.Empty,
                 clearSession: true,
                 clearAdmin: true,
-                clearCity: true));
+                clearCity: true, clearWorld: true, clearSelection: true, tool: new CityTool()));
         }
 
         public void SelectCity(string cityId)
         {
             var value = cityId ?? string.Empty;
-            store.Update(store.State.With(selectedCityId: value, clearCity: value.Length == 0));
+            store.Update(store.State.With(selectedCityId: value, clearCity: value != store.State.SelectedCityId, tool: new CityTool()));
             nextCityPoll = 0;
+        }
+
+        public void MoveRuler(GeoCoordinate position) => Submit(new Command
+        {
+            MoveRuler = new MoveRuler { Destination = new LatLon { Lat = position.LatitudeDegrees, Lon = position.LongitudeDegrees } },
+        });
+
+        public void FoundCity(string name, GeoCoordinate position)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return;
+            Submit(new Command { FoundCity = new FoundCity { Name = name.Trim(), Pos = new LatLon
+                { Lat = position.LatitudeDegrees, Lon = position.LongitudeDegrees } } });
+        }
+
+        public void EditCell(uint x, uint y)
+        {
+            var state = store.State;
+            if (!CityPresentation.CanEdit(state)) return;
+            var city = state.City;
+            var tool = state.Tool;
+            if (tool.Kind == "building")
+                Submit(new Command { QueueBuilding = new QueueBuilding { CityId = city.CityId,
+                    ExpectedRevision = city.Revision, BuildingId = tool.Value, X = x, Y = y, Orientation = tool.Orientation } });
+            else if (tool.Kind == "road" || tool.Kind == "zone")
+            {
+                var edits = new ApplyCityEdits { CityId = city.CityId, ExpectedRevision = city.Revision };
+                edits.Edits.Add(new CityCellEdit { X = x, Y = y, Layer = tool.Kind, Value = tool.Value });
+                Submit(new Command { ApplyCityEdits = edits });
+            }
+        }
+
+        public void CancelConstruction(string orderId)
+        {
+            if (!CityPresentation.CanEdit(store.State)) return;
+            Submit(new Command { CancelConstruction = new CancelConstruction { CityId = store.State.City.CityId,
+                ExpectedRevision = store.State.City.Revision, OrderId = orderId } });
+        }
+
+        void Submit(Command command)
+        {
+            if (!authenticated || store.State.Connection != ConnectionState.Online || !string.IsNullOrEmpty(store.State.PendingOperation)) return;
+            command.RequestId = Guid.NewGuid().ToString("N");
+            operationStarted = Time.unscaledTime;
+            store.Update(store.State.With(pendingOperation: command.RequestId));
+            Send(command, RequestKind.Mutation);
         }
 
         public void SetFilters(AdminFilters filters)
@@ -178,12 +227,29 @@ namespace Orbis.Network
                 else
                 {
                     authenticated = false;
-                    SetStatus("Reconectando…", ConnectionState.Connecting);
+                    pending.Clear();
+                    store.Update(store.State.With(status: "Reconectando…", connection: ConnectionState.Connecting, pendingOperation: ""));
                 }
             }
 
             while (received.TryDequeue(out var bytes)) HandleEnvelope(bytes);
             if (!authenticated || store.State.Session == null) return;
+
+            if (!string.IsNullOrEmpty(store.State.PendingOperation) && Time.unscaledTime - operationStarted > 15f)
+            {
+                StartSocket();
+                store.Update(store.State.With(connection: ConnectionState.Connecting, pendingOperation: "", status: "Reconectando…"));
+                return;
+            }
+            if (!store.State.Session.IsAdmin && Time.unscaledTime >= nextWorldPoll && !pending.ContainsValue(RequestKind.World))
+            {
+                nextWorldPoll = Time.unscaledTime + 1f;
+                Send(new Command { RequestId = Guid.NewGuid().ToString("N"), Viewport = new SetViewport
+                {
+                    Center = new LatLon { Lat = store.State.Focus.LatitudeDegrees, Lon = store.State.Focus.LongitudeDegrees },
+                    Zoom = 4, WidthPx = Screen.width, HeightPx = Screen.height,
+                } }, RequestKind.World);
+            }
 
             if (store.State.Session.IsAdmin && Time.unscaledTime >= nextAdminPoll && !pending.ContainsValue(RequestKind.Admin))
             {
@@ -233,16 +299,31 @@ namespace Orbis.Network
                 return;
             }
 
-            pending.TryGetValue(envelope.Seq, out var requestKind);
+            if (!pending.TryGetValue(envelope.Seq, out var requestKind)) return;
             pending.Remove(envelope.Seq);
             var server = envelope.Server;
             if (server == null) return;
+
+            if (requestKind == RequestKind.Mutation)
+            {
+                store.Update(store.State.With(pendingOperation: ""));
+                nextCityPoll = 0;
+                nextWorldPoll = 0;
+            }
+            if (server.World != null)
+            {
+                store.Update(store.State.With(world: server.World));
+                if (string.IsNullOrEmpty(store.State.SelectedCityId) && !string.IsNullOrEmpty(server.World.Ruler?.CityId))
+                    SelectCity(server.World.Ruler.CityId);
+            }
 
             if (server.Result != null)
             {
                 if (requestKind == RequestKind.Authenticate && server.Result.Ok)
                 {
                     authenticated = true;
+                    nextWorldPoll = 0;
+                    nextCityPoll = 0;
                     SetStatus(store.State.Session.IsAdmin ? "ADMIN · AO VIVO" : "Online", ConnectionState.Online);
                 }
                 else if (!server.Result.Ok && server.Result.Error == "admin_required")
@@ -266,7 +347,8 @@ namespace Orbis.Network
                 store.Update(store.State.With(admin: merged, status: "ADMIN · AO VIVO", connection: ConnectionState.Online));
             }
 
-            if (server.City != null)
+            if (server.City != null && server.City.CityId == store.State.SelectedCityId
+                && (store.State.City == null || server.City.Revision >= store.State.City.Revision))
             {
                 store.Update(store.State.With(city: server.City));
             }
@@ -315,6 +397,7 @@ namespace Orbis.Network
             socket?.Dispose();
             socket = null;
             pending.Clear();
+            if (store != null) store.Update(store.State.With(pendingOperation: ""));
         }
 
         async Task SocketLoopAsync(CancellationToken cancellationToken)

@@ -58,6 +58,10 @@ namespace Orbis.Core
         public CitySnapshot City { get; }
         public string SelectedCityId { get; }
         public AdminFilters Filters { get; }
+        public WorldSnapshot World { get; }
+        public GeoCoordinate? Selection { get; }
+        public CityTool Tool { get; }
+        public string PendingOperation { get; }
 
         public ClientViewState(
             string locale,
@@ -70,7 +74,11 @@ namespace Orbis.Core
             AdminSnapshot admin = null,
             CitySnapshot city = null,
             string selectedCityId = "",
-            AdminFilters filters = null)
+            AdminFilters filters = null,
+            WorldSnapshot world = null,
+            GeoCoordinate? selection = null,
+            CityTool tool = null,
+            string pendingOperation = "")
         {
             Locale = locale;
             VisualStyle = visualStyle;
@@ -83,6 +91,10 @@ namespace Orbis.Core
             City = city;
             SelectedCityId = selectedCityId ?? string.Empty;
             Filters = filters ?? new AdminFilters();
+            World = world;
+            Selection = selection;
+            Tool = tool ?? new CityTool();
+            PendingOperation = pendingOperation;
         }
 
         public ClientViewState With(
@@ -99,7 +111,13 @@ namespace Orbis.Core
             AdminFilters filters = null,
             bool clearSession = false,
             bool clearAdmin = false,
-            bool clearCity = false)
+            bool clearCity = false,
+            WorldSnapshot world = null,
+            GeoCoordinate? selection = null,
+            CityTool tool = null,
+            string pendingOperation = null,
+            bool clearWorld = false,
+            bool clearSelection = false)
         {
             return new ClientViewState(
                 locale ?? Locale,
@@ -112,7 +130,11 @@ namespace Orbis.Core
                 clearAdmin ? null : admin ?? Admin,
                 clearCity ? null : city ?? City,
                 selectedCityId ?? SelectedCityId,
-                filters ?? Filters);
+                filters ?? Filters,
+                clearWorld ? null : world ?? World,
+                clearSelection ? null : selection ?? Selection,
+                tool ?? Tool,
+                pendingOperation ?? PendingOperation);
         }
     }
 

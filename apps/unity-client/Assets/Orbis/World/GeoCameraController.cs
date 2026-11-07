@@ -12,6 +12,7 @@ namespace Orbis.World
 
         OrbisInputActions input;
         GameStore store;
+        GlobeRenderer globe;
         Camera worldCamera;
         GeoCoordinate focus;
         double altitudeMeters;
@@ -21,14 +22,17 @@ namespace Orbis.World
         Vector2 pressPointer;
         bool primaryWasPressed;
         bool orbitWasPressed;
+        bool pressBlocked;
 
         public GeoCoordinate Focus => focus;
         public double AltitudeMeters => altitudeMeters;
+        public event System.Action<GeoCoordinate> Selected;
 
-        public void Initialize(Camera camera, GameStore gameStore, GeoCoordinate initialFocus, double initialAltitudeMeters)
+        public void Initialize(Camera camera, GameStore gameStore, GlobeRenderer globeRenderer, GeoCoordinate initialFocus, double initialAltitudeMeters)
         {
             worldCamera = camera;
             store = gameStore;
+            globe = globeRenderer;
             focus = initialFocus;
             altitudeMeters = initialAltitudeMeters;
             input = new OrbisInputActions();
@@ -54,11 +58,16 @@ namespace Orbis.World
             var orbitPressed = input.OrbitDrag.IsPressed();
             var pointerDelta = pointer - lastPointer;
 
-            if (primaryPressed && !primaryWasPressed) pressPointer = pointer;
+            if (primaryPressed && !primaryWasPressed) { pressPointer = pointer; pressBlocked = HudInputGate.IsPointerBlocked; }
             if (orbitPressed && !orbitWasPressed) pressPointer = pointer;
 
             var passedThreshold = (pointer - pressPointer).sqrMagnitude >= DragThresholdPixels * DragThresholdPixels;
-            if (!HudInputGate.IsPointerBlocked && passedThreshold)
+            if (!primaryPressed && primaryWasPressed && !passedThreshold && !pressBlocked && !HudInputGate.IsPointerBlocked)
+            {
+                var selected = RaycastCoordinate(pointer);
+                if (selected.HasValue) Selected?.Invoke(selected.Value);
+            }
+            if (!HudInputGate.IsPointerBlocked && !pressBlocked && passedThreshold)
             {
                 if (primaryPressed) Pan(pointerDelta);
                 if (orbitPressed) Orbit(pointerDelta);
@@ -67,7 +76,7 @@ namespace Orbis.World
             if (!HudInputGate.IsPointerBlocked)
             {
                 var scroll = input.Scroll.ReadValue<Vector2>().y;
-                if (Mathf.Abs(scroll) > 0.01f) Zoom(scroll);
+                if (Mathf.Abs(scroll) > 0.01f) Zoom(scroll, pointer);
 
                 var keyboard = input.CameraMove.ReadValue<Vector2>();
                 if (keyboard.sqrMagnitude > 0.001f) Pan(keyboard * (220f * Time.unscaledDeltaTime));
@@ -79,6 +88,7 @@ namespace Orbis.World
             primaryWasPressed = primaryPressed;
             orbitWasPressed = orbitPressed;
             lastPointer = pointer;
+            globe?.SetView(focus, altitudeMeters);
             ApplyTransform();
         }
 
@@ -99,11 +109,48 @@ namespace Orbis.World
             pitchDegrees = Mathf.Clamp(pitchDegrees - deltaPixels.y * 0.14f, 0f, 75f);
         }
 
-        void Zoom(float scrollDelta)
+        void Zoom(float scrollDelta, Vector2 pointer)
         {
+            var anchor = RaycastCoordinate(pointer);
             var factor = Mathf.Exp(-scrollDelta * 0.0012f);
             altitudeMeters = System.Math.Clamp(altitudeMeters * factor, MinimumAltitudeMeters, MaximumAltitudeMeters);
+            if (anchor.HasValue)
+            {
+                var strength = Mathf.Clamp01(1f - factor) * 0.7f;
+                focus = new GeoCoordinate(
+                    Mathf.Lerp((float)focus.LatitudeDegrees, (float)anchor.Value.LatitudeDegrees, strength),
+                    Mathf.LerpAngle((float)focus.LongitudeDegrees, (float)anchor.Value.LongitudeDegrees, strength));
+            }
             PublishView();
+        }
+
+        GeoCoordinate? RaycastCoordinate(Vector2 pointer)
+        {
+            if (worldCamera == null || globe?.SurfaceCollider == null) return null;
+            var ray = worldCamera.ScreenPointToRay(pointer);
+            var city = store.State.City;
+            var location = CityPresentation.FindCity(store.State, store.State.SelectedCityId);
+            if (city != null && location?.Pos != null && altitudeMeters < 30000)
+            {
+                var origin = new GeoCoordinate(location.Pos.Lat, location.Pos.Lon);
+                var up = GeoMath.SurfaceNormal(origin);
+                var center = up * (float)((GeoMath.EarthRadiusMeters + globe.SampleHeightMeters(origin) + 1) / GeoMath.MetersPerUnityUnit);
+                if (new Plane(up, center).Raycast(ray, out var distance))
+                {
+                    var east = Vector3.Cross(Vector3.up, up).normalized;
+                    if (east.sqrMagnitude < .01f) east = Vector3.right;
+                    var north = Vector3.Cross(up, east).normalized;
+                    var offset = ray.GetPoint(distance) - center;
+                    var x = Vector3.Dot(offset, east) * 1000 / CityPresentation.CellMeters + city.Width / 2d;
+                    var y = city.Height / 2d - Vector3.Dot(offset, north) * 1000 / CityPresentation.CellMeters;
+                    if (x >= 0 && y >= 0 && x < city.Width && y < city.Height)
+                        return CityPresentation.CellCoordinate(origin, city.Width, city.Height, x, y);
+                }
+            }
+            if (!globe.SurfaceCollider.Raycast(ray, out var hit, (float)(MaximumAltitudeMeters / GeoMath.MetersPerUnityUnit * 2))) return null;
+            var normal = hit.point.normalized;
+            return GeoMath.FromEcef(new Double3(normal.x * GeoMath.EarthRadiusMeters,
+                normal.y * GeoMath.EarthRadiusMeters, normal.z * GeoMath.EarthRadiusMeters));
         }
 
         void ApplyTransform()
@@ -117,7 +164,8 @@ namespace Orbis.World
             var north = Vector3.Cross(surfaceNormal, east).normalized;
             var tangentDirection = Quaternion.AngleAxis(headingDegrees, surfaceNormal) * north;
             var tiltedNormal = Quaternion.AngleAxis(pitchDegrees, east) * surfaceNormal;
-            var focusPoint = surfaceNormal * (float)GeoMath.EarthRadiusUnity;
+            var surfaceHeight = globe == null ? 0f : globe.SampleHeightMeters(focus) / (float)GeoMath.MetersPerUnityUnit;
+            var focusPoint = surfaceNormal * ((float)GeoMath.EarthRadiusUnity + surfaceHeight);
             var cameraOffset = (tiltedNormal - tangentDirection * Mathf.Sin(pitchDegrees * Mathf.Deg2Rad) * 0.25f).normalized;
             worldCamera.transform.position = focusPoint + cameraOffset * (float)(altitudeMeters / GeoMath.MetersPerUnityUnit);
             worldCamera.transform.LookAt(focusPoint, north);

@@ -20,6 +20,7 @@ namespace Orbis.UI
         readonly Label status;
         readonly Label coordinates;
         readonly Label altitude;
+        readonly Label terrainStatus;
         readonly Label sessionLabel;
         readonly Button styleButton;
         readonly Button localeButton;
@@ -76,6 +77,7 @@ namespace Orbis.UI
             status = Require<Label>("connection-status");
             coordinates = Require<Label>("coordinates");
             altitude = Require<Label>("altitude");
+            terrainStatus = Require<Label>("terrain-status");
             sessionLabel = Require<Label>("session-label");
             styleButton = Require<Button>("style-toggle");
             localeButton = Require<Button>("locale-toggle");
@@ -173,6 +175,7 @@ namespace Orbis.UI
             status.text = string.IsNullOrWhiteSpace(state.Status) ? text["offline"] : state.Status;
             coordinates.text = $"{state.Focus.LatitudeDegrees:+00.0000;-00.0000;00.0000}°, {state.Focus.LongitudeDegrees:+000.0000;-000.0000;000.0000}°";
             altitude.text = FormatAltitude(state.AltitudeMeters);
+            terrainStatus.text = globe.PackageStatus;
             styleButton.text = state.VisualStyle == MapVisualStyle.Relief ? text["manuscript"] : text["relief"];
             localeButton.text = state.Locale == "en" ? "PT-BR" : "EN";
             root.Q<Label>("camera-hint").text = text["hint"];
@@ -185,7 +188,7 @@ namespace Orbis.UI
             sessionLabel.text = hasSession ? $"{state.Session.Username} · {state.Session.Role}" : string.Empty;
             adminPanel.style.display = isAdmin ? DisplayStyle.Flex : DisplayStyle.None;
             eventPanel.style.display = isAdmin ? DisplayStyle.Flex : DisplayStyle.None;
-            cityInspector.style.display = isAdmin && !string.IsNullOrEmpty(state.SelectedCityId) ? DisplayStyle.Flex : DisplayStyle.None;
+            cityInspector.style.display = !string.IsNullOrEmpty(state.SelectedCityId) ? DisplayStyle.Flex : DisplayStyle.None;
 
             if (!ReferenceEquals(renderedAdmin, state.Admin))
             {
@@ -270,7 +273,7 @@ namespace Orbis.UI
                 + $"População {Population(city.Population):N0} · água {city.Metrics?.Water:P0}\n"
                 + $"Densidade {city.Metrics?.Density:P0} · defesa {city.Metrics?.Defense:N1}\n"
                 + $"Alimento {city.Metrics?.FoodCapacity:N0} · moradia {city.Metrics?.HousingCapacity:N0}\n"
-                + $"Obras {city.Construction.Count} · eventos {city.Events.Count} · somente leitura";
+                + $"Obras {city.Construction.Count} · eventos {city.Events.Count} · {(city.Editable ? "edição autorizada" : "somente leitura")}";
             foreach (var building in city.Buildings)
             {
                 buildingList.Add(new Label($"{building.BuildingId} · ({building.X}, {building.Y}) · {(building.Complete ? "concluído" : "obra")}"));

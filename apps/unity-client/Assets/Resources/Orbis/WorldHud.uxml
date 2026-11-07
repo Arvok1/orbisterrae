@@ -14,6 +14,7 @@
         <ui:VisualElement name="world-info" class="world-info input-surface">
             <ui:Label name="coordinates" class="coordinates" text="00.0000°, 000.0000°" />
             <ui:Label name="altitude" class="altitude" text="Altitude: 18.000 km" />
+            <ui:Label name="terrain-status" class="altitude" text="Mapa global de segurança" />
         </ui:VisualElement>
 
         <ui:VisualElement name="login-panel" class="modal-card input-surface">
