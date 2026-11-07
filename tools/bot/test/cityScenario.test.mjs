@@ -8,8 +8,8 @@ const source = readFileSync(new URL('../../../scenarios/s1_2.toml', import.meta.
 test('city scenario validates bots, tick and acceptance thresholds', () => {
   const scenario = readCityScenario(source);
   assert.equal(scenario.bots, 3);
-  assert.equal(scenario.tickMs, 250);
-  assert.throws(() => readCityScenario(source.replace('tick_ms = 250', 'tick_ms = 50')));
+  assert.equal(scenario.tickMs, 1000);
+  assert.throws(() => readCityScenario(source.replace('tick_ms = 1000', 'tick_ms = 50')));
   assert.throws(() => readCityScenario(source.replace('minimum_growth_delta = 4', 'minimum_growth_delta = 0')));
   assert.throws(() => readCityScenario(source.replace('cities = 3', 'cities = 4')));
 });

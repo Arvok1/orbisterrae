@@ -6,7 +6,7 @@ seed = 42
 bots = 3
 concurrency = 3
 timeout_ms = 60000
-tick_ms = 250
+tick_ms = 1000
 
 [assertions]
 cities = 3
