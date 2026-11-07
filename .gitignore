@@ -11,6 +11,7 @@ apps/unity-client/Library/
 apps/unity-client/Logs/
 apps/unity-client/*.log
 apps/unity-client/TestResults-*.xml
+apps/unity-client/Assets/StreamingAssets/world-v2/
 apps/unity-client/Temp/
 apps/unity-client/Obj/
 apps/unity-client/Build/

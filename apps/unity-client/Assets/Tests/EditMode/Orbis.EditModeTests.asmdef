@@ -4,7 +4,8 @@
     "references": [
         "Orbis.Core",
         "Orbis.Protocol",
-        "Orbis.Network"
+        "Orbis.Network",
+        "Orbis.World"
     ],
     "includePlatforms": [
         "Editor"

@@ -14,6 +14,7 @@ namespace Orbis.Editor
         [MenuItem("Orbis/Build/Windows Development")]
         public static void BuildWindowsDevelopment()
         {
+            PrepareEmbeddedWorldFallback();
             RequiredAssetBuilder.Ensure();
             ConfigureDesktopPlayer(BuildTargetGroup.Standalone, BuildTarget.StandaloneWindows64);
             Build(
@@ -25,6 +26,7 @@ namespace Orbis.Editor
         [MenuItem("Orbis/Build/macOS Development")]
         public static void BuildMacDevelopment()
         {
+            PrepareEmbeddedWorldFallback();
             RequiredAssetBuilder.Ensure();
             ConfigureDesktopPlayer(BuildTargetGroup.Standalone, BuildTarget.StandaloneOSX);
             Build(
@@ -43,6 +45,20 @@ namespace Orbis.Editor
             PlayerSettings.defaultScreenWidth = 1280;
             PlayerSettings.defaultScreenHeight = 720;
             Debug.Log($"[Orbis] Configured {group}/{target} development player.");
+        }
+
+        static void PrepareEmbeddedWorldFallback()
+        {
+            var projectRoot = Directory.GetParent(Application.dataPath)?.FullName
+                ?? throw new InvalidOperationException("Unity project root was not found.");
+            var repositoryRoot = Directory.GetParent(Directory.GetParent(projectRoot)?.FullName ?? string.Empty)?.FullName
+                ?? throw new InvalidOperationException("Repository root was not found.");
+            var source = Path.Combine(repositoryRoot, "apps", "client", "src", "assets", "world-relief-v2.png");
+            if (!File.Exists(source)) throw new FileNotFoundException("Global relief fallback was not found.", source);
+            var destinationDirectory = Path.Combine(Application.streamingAssetsPath, "world-v2");
+            Directory.CreateDirectory(destinationDirectory);
+            File.Copy(source, Path.Combine(destinationDirectory, "global-relief.png"), true);
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
         }
 
         static void Build(BuildTarget target, string outputPath, BuildOptions options)
