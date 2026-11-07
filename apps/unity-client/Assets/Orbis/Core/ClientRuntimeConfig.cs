@@ -20,6 +20,9 @@ namespace Orbis.Core
         public string Locale { get; private set; }
         public int QualityLevel { get; private set; }
         public int CacheLimitMegabytes { get; private set; }
+        public string TestUsername { get; private set; }
+        public string TestPassword { get; private set; }
+        public bool HasTestCredentials => !string.IsNullOrWhiteSpace(TestUsername) && !string.IsNullOrEmpty(TestPassword);
 
         ClientRuntimeConfig(
             Uri httpEndpoint,
@@ -27,7 +30,9 @@ namespace Orbis.Core
             string terrainPackageRoot,
             string locale,
             int qualityLevel,
-            int cacheLimitMegabytes)
+            int cacheLimitMegabytes,
+            string testUsername,
+            string testPassword)
         {
             HttpEndpoint = httpEndpoint;
             WebSocketEndpoint = webSocketEndpoint;
@@ -35,6 +40,8 @@ namespace Orbis.Core
             Locale = locale;
             QualityLevel = qualityLevel;
             CacheLimitMegabytes = cacheLimitMegabytes;
+            TestUsername = testUsername;
+            TestPassword = testPassword;
         }
 
         public static ClientRuntimeConfig CreateDefaults(string persistentDataPath)
@@ -50,7 +57,9 @@ namespace Orbis.Core
                 Path.Combine(persistentDataPath, "world-packages"),
                 "pt-BR",
                 2,
-                4096);
+                4096,
+                null,
+                null);
         }
 
         public static ClientRuntimeConfig Parse(ClientRuntimeConfig defaults, IEnumerable<string> arguments)
@@ -63,7 +72,9 @@ namespace Orbis.Core
                 defaults.TerrainPackageRoot,
                 defaults.Locale,
                 defaults.QualityLevel,
-                defaults.CacheLimitMegabytes);
+                defaults.CacheLimitMegabytes,
+                defaults.TestUsername,
+                defaults.TestPassword);
 
             foreach (var argument in arguments ?? Array.Empty<string>())
             {
@@ -90,6 +101,14 @@ namespace Orbis.Core
                 else if (TryRead(argument, "--cache-mb", out var cache))
                 {
                     result.CacheLimitMegabytes = Math.Max(256, ParseNonNegativeInt(cache, "cache-mb"));
+                }
+                else if (TryRead(argument, "--user", out var user))
+                {
+                    result.TestUsername = user;
+                }
+                else if (TryRead(argument, "--password", out var password))
+                {
+                    result.TestPassword = password;
                 }
             }
 

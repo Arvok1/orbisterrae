@@ -17,7 +17,11 @@ namespace Orbis.World
         GameObject preview;
         Renderer previewRenderer;
         Material previewMaterial;
-        readonly MaterialPropertyBlock properties=new();
+        MaterialPropertyBlock properties;
+        GameObject selectionMarker;
+        Renderer selectionMarkerRenderer;
+        MaterialPropertyBlock markerProperties;
+        GeoCoordinate? renderedSelection;
         Vector2 pressedAt;
         bool wasPressed;
         bool blocked;
@@ -25,6 +29,7 @@ namespace Orbis.World
         public void Initialize(GameStore state,GlobeRenderer terrain,WorldCartography map,Action<uint,uint> editCell,Action<string> select)
         {
             store=state;globe=terrain;cartography=map;edit=editCell;selectCity=select;worldCamera=Camera.main;
+            properties=new MaterialPropertyBlock();
             input=new OrbisInputActions();input.Enable();
             preview=GameObject.CreatePrimitive(PrimitiveType.Cube);preview.name="Placement preview";
             preview.transform.SetParent(transform,false);Destroy(preview.GetComponent<Collider>());
@@ -32,6 +37,12 @@ namespace Orbis.World
             previewMaterial=new Material(Resources.Load<Material>("Orbis/WorldRelief"));
             previewRenderer.sharedMaterial=previewMaterial;
             preview.SetActive(false);
+            markerProperties=new MaterialPropertyBlock();
+            selectionMarker=GameObject.CreatePrimitive(PrimitiveType.Sphere);selectionMarker.name="Selection marker";
+            selectionMarker.transform.SetParent(transform,false);Destroy(selectionMarker.GetComponent<Collider>());
+            selectionMarkerRenderer=selectionMarker.GetComponent<Renderer>();
+            selectionMarkerRenderer.sharedMaterial=previewMaterial;
+            selectionMarker.SetActive(false);
         }
         void Update()
         {
@@ -82,6 +93,34 @@ namespace Orbis.World
                 }
             }
             wasPressed=pressed;
+            RefreshSelectionMarker();
+        }
+        /// <summary>The globe selection deserves a pin so admins see what a click picked.</summary>
+        void RefreshSelectionMarker()
+        {
+            if(selectionMarker==null||worldCamera==null) return;
+            var selection=store.State.Selection;
+            if(selection==null)
+            {
+                if(selectionMarker.activeSelf){selectionMarker.SetActive(false);renderedSelection=null;}
+                return;
+            }
+            var value=selection.Value;
+            var normal=GeoMath.SurfaceNormal(value);
+            var radius=(float)GeoMath.EarthRadiusUnity;
+            var height=globe.SampleHeightMeters(value);
+            var surface=normal*(radius+(float)(height/GeoMath.MetersPerUnityUnit));
+            var distance=(worldCamera.transform.position-surface).magnitude;
+            var size=Mathf.Clamp(distance*.02f,radius*.0025f,radius*.05f);
+            selectionMarker.transform.position=surface+normal*size*.9f;
+            selectionMarker.transform.localScale=Vector3.one*size;
+            markerProperties.SetColor("_BaseColor",new Color(.95f,.78f,.25f));
+            selectionMarkerRenderer.SetPropertyBlock(markerProperties);
+            var moved=!renderedSelection.HasValue
+                ||Math.Abs(renderedSelection.Value.LatitudeDegrees-value.LatitudeDegrees)>1e-9
+                ||Math.Abs(renderedSelection.Value.LongitudeDegrees-value.LongitudeDegrees)>1e-9;
+            if(moved&&!selectionMarker.activeSelf)selectionMarker.SetActive(true);
+            renderedSelection=value;
         }
         void OnDestroy() { input?.Dispose();if(previewMaterial!=null)Destroy(previewMaterial); }
     }

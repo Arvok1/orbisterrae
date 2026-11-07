@@ -29,6 +29,7 @@ namespace Orbis.UI
         readonly TextField usernameInput;
         readonly TextField passwordInput;
         readonly Button loginButton;
+        readonly Toggle autoLoginToggle;
         readonly VisualElement adminPanel;
         readonly Label adminSummary;
         readonly ScrollView cityList;
@@ -49,6 +50,10 @@ namespace Orbis.UI
         AdminSnapshot renderedAdmin;
         CitySnapshot renderedCity;
         string renderedLocale;
+
+        const string RememberKey = "orbis.auth.remember";
+        const string UsernameKey = "orbis.auth.username";
+        const string PasswordKey = "orbis.auth.password";
 
         static readonly IReadOnlyDictionary<string, string> Portuguese = new Dictionary<string, string>
         {
@@ -87,6 +92,8 @@ namespace Orbis.UI
             usernameInput = Require<TextField>("username-input");
             passwordInput = Require<TextField>("password-input");
             loginButton = Require<Button>("login-button");
+            autoLoginToggle = Require<Toggle>("auto-login-toggle");
+            autoLoginToggle.SetValueWithoutNotify(PlayerPrefs.GetInt(RememberKey, 0) == 1);
             adminPanel = Require<VisualElement>("admin-panel");
             adminSummary = Require<Label>("admin-summary");
             cityList = Require<ScrollView>("city-list");
@@ -107,6 +114,7 @@ namespace Orbis.UI
             styleButton.clicked += ToggleStyle;
             localeButton.clicked += ToggleLocale;
             loginButton.clicked += Login;
+            autoLoginToggle.RegisterValueChangedCallback(OnAutoLoginToggleChanged);
             logoutButton.clicked += network.Logout;
             applyFilters.clicked += ApplyFilters;
             passwordInput.RegisterCallback<KeyDownEvent>(OnPasswordKeyDown);
@@ -130,14 +138,50 @@ namespace Orbis.UI
             inputSurfaces.Add(surface);
             surface.RegisterCallback<PointerEnterEvent>(_ => HudInputGate.Enter(surface));
             surface.RegisterCallback<PointerLeaveEvent>(_ => HudInputGate.Leave(surface));
-            surface.RegisterCallback<FocusInEvent>(_ => HudInputGate.SetKeyboardFocus(true));
+            surface.RegisterCallback<FocusInEvent>(evt =>
+            {
+                var target=evt.target as VisualElement;
+                HudInputGate.SetKeyboardFocus(target is TextField||target?.GetFirstAncestorOfType<TextField>()!=null);
+            });
             surface.RegisterCallback<FocusOutEvent>(_ => HudInputGate.SetKeyboardFocus(false));
+        }
+
+        /// <summary>Stages the login panel from the command line and saved "remember me" preferences.</summary>
+        public void PrepareLogin(string commandLineUsername)
+        {
+            usernameInput.value = string.IsNullOrWhiteSpace(commandLineUsername)
+                ? PlayerPrefs.GetString(UsernameKey, string.Empty)
+                : commandLineUsername;
+            autoLoginToggle.SetValueWithoutNotify(PlayerPrefs.GetInt(RememberKey, 0) == 1);
         }
 
         void Login()
         {
-            network.Login(usernameInput.value, passwordInput.value);
+            var username = usernameInput.value;
+            var password = passwordInput.value;
+            Remember(autoLoginToggle.value, username, password);
+            network.Login(username, password);
             passwordInput.value = string.Empty;
+        }
+
+        void OnAutoLoginToggleChanged(ChangeEvent<bool> change)
+        {
+            Remember(change.newValue, usernameInput.value, passwordInput.value);
+        }
+
+        /// <summary>The auto-login toggle persists the account for the next launch.</summary>
+        void Remember(bool enabled, string username, string password)
+        {
+            PlayerPrefs.SetInt(RememberKey, enabled ? 1 : 0);
+            if (!enabled)
+            {
+                PlayerPrefs.DeleteKey(UsernameKey);
+                PlayerPrefs.DeleteKey(PasswordKey);
+                return;
+            }
+
+            PlayerPrefs.SetString(UsernameKey, (username ?? string.Empty).Trim());
+            PlayerPrefs.SetString(PasswordKey, password ?? string.Empty);
         }
 
         void OnPasswordKeyDown(KeyDownEvent evt)
@@ -183,6 +227,7 @@ namespace Orbis.UI
                 ("events-title","events"),("cities-title","cities"),("buildings-title","buildings") })
             { var label=root.Q<Label>(pair.Item1);if(label!=null)label.text=ClientText.Get(state.Locale,pair.Item2); }
             usernameInput.label=ClientText.Get(state.Locale,"username");passwordInput.label=ClientText.Get(state.Locale,"password");
+            autoLoginToggle.label=ClientText.Get(state.Locale,"auto_login");
             loginButton.text=ClientText.Get(state.Locale,"sign_in");logoutButton.text=ClientText.Get(state.Locale,"sign_out");
             applyFilters.text=ClientText.Get(state.Locale,"apply_filters");accountFilter.label=ClientText.Get(state.Locale,"account");
             kingdomFilter.label=ClientText.Get(state.Locale,"kingdom");cityFilter.label=ClientText.Get(state.Locale,"city");
@@ -315,6 +360,7 @@ namespace Orbis.UI
             styleButton.clicked -= ToggleStyle;
             localeButton.clicked -= ToggleLocale;
             loginButton.clicked -= Login;
+            autoLoginToggle.UnregisterValueChangedCallback(OnAutoLoginToggleChanged);
             logoutButton.clicked -= network.Logout;
             applyFilters.clicked -= ApplyFilters;
             passwordInput.UnregisterCallback<KeyDownEvent>(OnPasswordKeyDown);

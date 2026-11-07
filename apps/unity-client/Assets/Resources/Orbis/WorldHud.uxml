@@ -22,6 +22,7 @@
             <ui:Label name="login-help" class="panel-help" text="Use a conta administrativa provisionada localmente." />
             <ui:TextField name="username-input" label="Usuário" />
             <ui:TextField name="password-input" label="Senha" is-password-field="true" />
+            <ui:Toggle name="auto-login-toggle" class="auto-login-toggle" label="Entrar automaticamente" />
             <ui:Button name="login-button" class="primary-button" text="Entrar" />
         </ui:VisualElement>
 

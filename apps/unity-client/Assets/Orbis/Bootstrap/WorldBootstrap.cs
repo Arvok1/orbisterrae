@@ -21,6 +21,11 @@ namespace Orbis.Bootstrap
         PanelSettings runtimePanelSettings;
         VolumeProfile runtimeVolumeProfile;
 
+        GameStore store;
+        ClientRuntimeConfig config;
+        bool hintFromCommandLineLogin;
+        bool playerModeHintShown;
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void CreateRuntime()
         {
@@ -44,12 +49,14 @@ namespace Orbis.Bootstrap
 
             var defaults = ClientRuntimeConfig.CreateDefaults(Application.persistentDataPath);
             var config = ClientRuntimeConfig.Parse(defaults, Environment.GetCommandLineArgs());
+            this.config = config;
             var locale = PlayerPrefs.GetString("orbis.locale", config.Locale);
             var style = PlayerPrefs.GetString("orbis.visual-style", "relief") == "manuscript"
                 ? MapVisualStyle.Manuscript
                 : MapVisualStyle.Relief;
             var initialFocus = new GeoCoordinate(-22.9068, -43.1729);
-            var store = new GameStore(new ClientViewState(locale, style, initialFocus, InitialAltitudeMeters, string.Empty));
+            var state = new ClientViewState(locale, style, initialFocus, InitialAltitudeMeters, string.Empty);
+            store = new GameStore(state);
 
             networkClient = gameObject.AddComponent<GameNetworkClient>();
             if(!VisualAcceptanceRunner.Requested)networkClient.Initialize(config, store);
@@ -59,13 +66,37 @@ namespace Orbis.Bootstrap
             var globe = CreateGlobe(config, style);
             var cameraController = worldCamera.gameObject.AddComponent<GeoCameraController>();
             cameraController.Initialize(worldCamera, store, globe, initialFocus, InitialAltitudeMeters);
-            gameObject.AddComponent<CityWorldRenderer>().Initialize(store, globe);
+            if(VisualAcceptanceRunner.LegacyCityRequested)gameObject.AddComponent<LegacyCityReplayRenderer>().Initialize(store,globe);
+            else gameObject.AddComponent<CityWorldRenderer>().Initialize(store, globe);
             var cartography=gameObject.AddComponent<WorldCartography>();
             cartography.Initialize(store, globe);
             gameObject.AddComponent<GeographicOverlay>().Initialize(store, globe);
             gameObject.AddComponent<CityInteractionController>().Initialize(store,globe,cartography,networkClient.EditCell,networkClient.SelectCity);
             CreateHud(store, globe, networkClient);
+            if (!VisualAcceptanceRunner.Requested) StageAutomaticLogin(networkClient);
             if(VisualAcceptanceRunner.Requested)gameObject.AddComponent<VisualAcceptanceRunner>().Initialize(store,globe);
+        }
+
+        /// <summary>Logs an admin test account in automatically so the live world needs no typing.</summary>
+        void StageAutomaticLogin(GameNetworkClient network)
+        {
+            hudController.PrepareLogin(config.TestUsername);
+            var remembered = PlayerPrefs.GetString("orbis.auth.username", string.Empty);
+            var rememberedPassword = PlayerPrefs.GetString("orbis.auth.password", string.Empty);
+            var rememberEnabled = PlayerPrefs.GetInt("orbis.auth.remember", 0) == 1;
+            var staged = AutoLoginPlan.Choose(config, store.State.Session != null, remembered, rememberedPassword, rememberEnabled);
+            if (!staged.HasCredentials) return;
+            hintFromCommandLineLogin = staged.FromCommandLine;
+            network.Login(staged.Username, staged.Password);
+        }
+
+        void Update()
+        {
+            if (store == null || !hintFromCommandLineLogin) return;
+            var plain = store.State.Session != null && !store.State.Session.IsAdmin;
+            if (plain == playerModeHintShown) return;
+            playerModeHintShown = plain;
+            if (plain) store.Update(store.State.With(status: "player_mode"));
         }
 
         static Camera CreateCamera()

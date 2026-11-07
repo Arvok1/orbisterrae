@@ -5,7 +5,9 @@ param(
     [string]$WebSocketEndpoint = "ws://127.0.0.1:8080/ws",
     [string]$TerrainRoot = "D:\OrbisTerrae\world-v2",
     [ValidateSet("pt-BR", "en")]
-    [string]$Locale = "pt-BR"
+    [string]$Locale = "pt-BR",
+    [string]$Username = "",
+    [string]$Password = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -50,6 +52,14 @@ if (Test-WorldPackage $TerrainRoot) {
 } else {
     Write-Warning "Pacote externo não encontrado; o Player usará o globo global embutido. Gere com .\scripts\build-world-pack.ps1."
 }
-$runtimeArgumentLine = "--http=$HttpEndpoint --ws=$WebSocketEndpoint --locale=$Locale$terrainArgument -screen-fullscreen 0 -screen-width 1280 -screen-height 720"
+$authArgument = ""
+if ($Username) {
+    if ($Password) {
+        $authArgument = " --user=$Username --password=`"$Password`""
+    } else {
+        $authArgument = " --user=$Username"
+    }
+}
+$runtimeArgumentLine = "--http=$HttpEndpoint --ws=$WebSocketEndpoint --locale=$Locale$terrainArgument$authArgument -screen-fullscreen 0 -screen-width 1280 -screen-height 720"
 Start-Process -FilePath $executable -ArgumentList $runtimeArgumentLine -WorkingDirectory $buildRoot
 Write-Host "Orbis Terrae iniciado: $executable"

@@ -1,5 +1,13 @@
 # Diário de bordo
 
+## 2026-11-07 — Globo Unity detalhado e login admin automático
+
+- O pacote `orbis-world-v2` (manifest + 36 shards + visuais conferidos por SHA-256) agora vive em `Assets/StreamingAssets/world-v2/`: o Player mostra o relevo em LOD até 5 sem depender do `--terrain-root` externo (o argumento segue como override).
+- O clique no globo (ferramenta Seleção) deixa um pino visível, escalado pela distância da câmera e apoiado na amostra de altura do terreno.
+- Login automático de teste: `--user=`/`--password=` na linha de comando entram sozinhos quando não há sessão salva; o painel ganhou toggle "Entrar automaticamente" (persistido em PlayerPrefs, com prefill do usuário do CLI); contas sem papel admin mostram o aviso `player_mode` apontando `scripts/provision-admin.ps1`.
+- `start-unity-preview.ps1` aceita `-Username`/`-Password` para criar builds de teste com autologin admin.
+- Verificação: EditMode 34/34 testes verdos (incluindo parse de credenciais e decisão de autologin), build Windows Development novo e sessão confirmada (`session.json` com `unityadmin` role `admin`, 13 s após abrir).
+
 ## 2026-11-06 — S1.2c, rede e observatório Unity
 
 - Unity agora entra via HTTP/JWT, autentica WebSocket protobuf, reconecta, mantém snapshot administrativo incremental e inspeciona qualquer cidade em modo somente leitura. A HUD oferece filtros, cidades, eventos, foco da câmera e encerra a visão admin após revogação.
