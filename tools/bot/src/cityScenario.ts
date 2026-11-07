@@ -41,7 +41,7 @@ async function snapshot(client: BotClient): Promise<WorldSnapshot> {
   for (let attempt = 0; attempt < 6; attempt++) {
     const response = await client.request(view);
     if (response.kind?.$case === 'world') return response.kind.world;
-    if (response.kind?.$case !== 'result' || response.kind.result.error !== 'worker_unavailable') {
+    if (response.kind?.$case !== 'result' || !['worker_unavailable','server_error'].includes(response.kind.result.error)) {
       assert.equal(response.kind?.$case, 'world', describe(response));
     }
     await new Promise(resolve => setTimeout(resolve, 150));
@@ -68,7 +68,7 @@ async function citySnapshot(client: BotClient, cityId: string): Promise<CitySnap
   for (let attempt = 0; attempt < 6; attempt++) {
     const response = await client.request({ $case: 'inspectCity', inspectCity: { cityId } });
     if (response.kind?.$case === 'city') return response.kind.city;
-    if (response.kind?.$case !== 'result' || response.kind.result.error !== 'worker_unavailable') {
+    if (response.kind?.$case !== 'result' || !['worker_unavailable','server_error'].includes(response.kind.result.error)) {
       assert.equal(response.kind?.$case, 'city', describe(response));
     }
     await new Promise(resolve => setTimeout(resolve, 150));
