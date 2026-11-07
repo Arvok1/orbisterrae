@@ -5,6 +5,7 @@
         "Orbis.Core",
         "Orbis.Protocol",
         "Unity.InputSystem",
+        "Unity.Profiling.Core",
         "Unity.RenderPipelines.Core.Runtime",
         "Unity.RenderPipelines.Universal.Runtime"
     ],
@@ -13,7 +14,8 @@
     "allowUnsafeCode": false,
     "overrideReferences": true,
     "precompiledReferences": [
-        "Google.Protobuf.dll"
+        "Google.Protobuf.dll",
+        "Newtonsoft.Json.dll"
     ],
     "autoReferenced": true,
     "defineConstraints": [],

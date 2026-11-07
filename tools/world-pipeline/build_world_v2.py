@@ -148,6 +148,9 @@ def build(elevation_path: Path, relief_path: Path, biome_path: Path, hydrography
             "biomes": copy_asset(biome_path, staging / "global-biomes.png"),
             "hydrography": copy_asset(hydrography_path, staging / "hydrography.json"),
         }
+        coastline = hydrography_path.with_name("world-land-v1.json")
+        if coastline.is_file():
+            visual["coastlines"] = copy_asset(coastline, staging / "coastlines.json")
         total = sum(path.stat().st_size for path in staging.rglob("*") if path.is_file())
         if total > max_bytes:
             raise ValueError(f"world package is {total} bytes, above limit {max_bytes}")
@@ -163,9 +166,9 @@ def build(elevation_path: Path, relief_path: Path, biome_path: Path, hydrography
             "projection": "cube-sphere-wgs84",
             "package_bytes": total,
             "sources": {
-                "elevation": {"dataset": "ETOPO 2022 Ice Surface", "sha256": sha256(elevation_path)},
-                "biomes": {"dataset": "RESOLVE Ecoregions 2017"},
-                "hydrography": {"dataset": "Natural Earth preview; HydroRIVERS/HydroLAKES production target"},
+                "elevation": {"dataset": "ETOPO 2022", "resolution_arc_seconds": 60, "sha256": sha256(elevation_path)},
+                "biomes": {"dataset": "RESOLVE Ecoregions 2017", "sha256": sha256(biome_path), "projection": "web-mercator"},
+                "hydrography": {"dataset": "Natural Earth", "sha256": sha256(hydrography_path)},
             },
             "visual": visual,
             "shards": shards,

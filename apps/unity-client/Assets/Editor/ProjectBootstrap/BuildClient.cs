@@ -58,6 +58,8 @@ namespace Orbis.Editor
             var destinationDirectory = Path.Combine(Application.streamingAssetsPath, "world-v2");
             Directory.CreateDirectory(destinationDirectory);
             File.Copy(source, Path.Combine(destinationDirectory, "global-relief.png"), true);
+            foreach (var pair in new[] { ("world-biomes-v1.png", "global-biomes.png"), ("world-terrain-v1.json", "hydrography.json"), ("world-land-v1.json", "coastlines.json") })
+                File.Copy(Path.Combine(repositoryRoot, "apps", "client", "src", "assets", pair.Item1), Path.Combine(destinationDirectory, pair.Item2), true);
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
         }
 

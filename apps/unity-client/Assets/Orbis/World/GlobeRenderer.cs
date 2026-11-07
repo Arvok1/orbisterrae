@@ -12,19 +12,22 @@ namespace Orbis.World
         const float TerrainExaggeration = 1.45f;
         static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
         static readonly int BaseMap = Shader.PropertyToID("_BaseMap");
-        static readonly int Metallic = Shader.PropertyToID("_Metallic");
-        static readonly int Smoothness = Shader.PropertyToID("_Smoothness");
 
         Material material;
         Mesh globeMesh;
         Mesh patchMesh;
         GameObject patchObject;
         Texture2D globalTexture;
+        Texture2D biomeTexture;
         WorldPackage package;
         WorldHeightTile currentTile;
         WorldTileKey requestedKey;
         Task<WorldHeightTile> tileLoad;
         bool hasRequestedKey;
+        float retryAfter;
+        public int TerrainRevision { get; private set; }
+        public string HydrographyPath { get; private set; }
+        public string CoastlinePath { get; private set; }
 
         public Collider SurfaceCollider { get; private set; }
         public MapVisualStyle VisualStyle { get; private set; }
@@ -50,21 +53,32 @@ namespace Orbis.World
                     package = new WorldPackage(packageRoot);
                     PackageStatus = $"orbis-world-v2 LOD {package.Manifest.max_lod}";
                     globalTexture = LoadTexture(package.ResolveVisual(package.Manifest.visual?.relief));
+                    biomeTexture = LoadTexture(package.ResolveVisual(package.Manifest.visual?.biomes));
+                    HydrographyPath = package.ResolveVisual(package.Manifest.visual?.hydrography);
+                    CoastlinePath = package.ResolveVisual(package.Manifest.visual?.coastlines);
                 }
                 catch (Exception exception)
                 {
-                    PackageStatus = $"Pacote inválido: {exception.Message}";
-                    Debug.LogError(PackageStatus);
+                    PackageStatus = "terrain_invalid";
+                    package = null;
+                    if(globalTexture!=null)Destroy(globalTexture);
+                    if(biomeTexture!=null)Destroy(biomeTexture);
+                    globalTexture=null;biomeTexture=null;
+                    Debug.LogWarning($"{PackageStatus}: {exception.Message}");
                 }
             }
             if (globalTexture == null)
             {
                 var embedded = Path.Combine(Application.streamingAssetsPath, "world-v2", "global-relief.png");
                 globalTexture = LoadTexture(embedded) ?? Texture2D.grayTexture;
+                biomeTexture = LoadTexture(Path.Combine(Application.streamingAssetsPath, "world-v2", "global-biomes.png"));
+                HydrographyPath = Path.Combine(Application.streamingAssetsPath, "world-v2", "hydrography.json");
+                CoastlinePath = Path.Combine(Application.streamingAssetsPath, "world-v2", "coastlines.json");
                 if (string.IsNullOrEmpty(PackageStatus))
-                    PackageStatus = "Pacote externo ausente; usando mapa global de segurança.";
+                    PackageStatus = globalTexture==Texture2D.grayTexture?"terrain_missing":"terrain_fallback";
             }
             material.SetTexture(BaseMap, globalTexture);
+            material.SetTexture("_BiomeMap", biomeTexture != null ? biomeTexture : Texture2D.blackTexture);
             SetVisualStyle(MapVisualStyle.Relief);
         }
 
@@ -74,7 +88,7 @@ namespace Orbis.World
             var desiredLod = DesiredLod(altitudeMeters, package.Manifest.max_lod);
             var normal = GeoMath.SurfaceNormal(focus);
             var key = CubeSphereProjection.TileFor(normal, desiredLod, out _);
-            if ((!hasRequestedKey || !requestedKey.Equals(key)) && tileLoad == null)
+            if ((!hasRequestedKey || !requestedKey.Equals(key)) && tileLoad == null && Time.unscaledTime >= retryAfter)
             {
                 requestedKey = key;
                 hasRequestedKey = true;
@@ -83,8 +97,10 @@ namespace Orbis.World
             if (tileLoad == null || !tileLoad.IsCompleted) return;
             if (tileLoad.IsFaulted)
             {
-                Debug.LogError($"Falha ao carregar tile {requestedKey}: {tileLoad.Exception?.GetBaseException().Message}");
+                Debug.LogWarning($"Falha ao carregar tile {requestedKey}: {tileLoad.Exception?.GetBaseException().Message}");
                 tileLoad = null;
+                hasRequestedKey = false;
+                retryAfter = Time.unscaledTime + 2;
                 return;
             }
             var loaded = tileLoad.Result;
@@ -92,6 +108,7 @@ namespace Orbis.World
             if (!loaded.Key.Equals(key)) { hasRequestedKey = false; return; }
             if (currentTile != null && currentTile.Key.Equals(loaded.Key)) return;
             currentTile = loaded;
+            TerrainRevision++;
             ApplyPatch(loaded);
         }
 
@@ -110,8 +127,7 @@ namespace Orbis.World
                 ? new Color(0.78f, 0.62f, 0.39f)
                 : new Color(0.78f, 0.86f, 0.72f);
             material.SetColor(BaseColor, color);
-            material.SetFloat(Metallic, 0f);
-            material.SetFloat(Smoothness, style == MapVisualStyle.Manuscript ? 0.02f : 0.13f);
+            material.SetFloat("_Manuscript", style == MapVisualStyle.Manuscript ? 1 : 0);
         }
 
         void ApplyPatch(WorldHeightTile tile)
@@ -214,6 +230,8 @@ namespace Orbis.World
 
         Material CreateMaterial(string materialName)
         {
+            var cartographyShader = Resources.Load<Shader>("Orbis/Cartography");
+            if (cartographyShader != null) return new Material(cartographyShader) { name = materialName };
             var resourceMaterial = Resources.Load<Material>("Orbis/WorldRelief");
             var pipelineMaterial = GraphicsSettings.currentRenderPipeline == null ? null : GraphicsSettings.currentRenderPipeline.defaultMaterial;
             if (resourceMaterial != null) return new Material(resourceMaterial) { name = materialName };
@@ -238,7 +256,7 @@ namespace Orbis.World
                 var sinLatitude = Mathf.Sin(latitudeRadians);
                 for (var longitude = 0; longitude <= longitudeSegments; longitude++)
                 {
-                    var longitudeRadians = Mathf.PI * 2f * longitude / longitudeSegments;
+                    var longitudeRadians = Mathf.PI * 2f * longitude / longitudeSegments - Mathf.PI;
                     var normal = new Vector3(cosLatitude * Mathf.Sin(longitudeRadians), sinLatitude, cosLatitude * Mathf.Cos(longitudeRadians));
                     vertices[vertexIndex] = normal * radius;
                     normals[vertexIndex] = normal;
@@ -309,7 +327,8 @@ namespace Orbis.World
         void OnDestroy()
         {
             if (material != null) Destroy(material);
-            if (globalTexture != null) Destroy(globalTexture);
+            if (globalTexture != null && globalTexture != Texture2D.grayTexture) Destroy(globalTexture);
+            if (biomeTexture != null) Destroy(biomeTexture);
             if (globeMesh != null) Destroy(globeMesh);
             if (patchMesh != null) Destroy(patchMesh);
         }

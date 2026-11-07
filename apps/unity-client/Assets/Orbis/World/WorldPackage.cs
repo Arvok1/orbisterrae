@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Security.Cryptography;
 using UnityEngine;
 
 namespace Orbis.World
@@ -25,6 +26,7 @@ namespace Orbis.World
         public WorldFileDescriptor relief;
         public WorldFileDescriptor biomes;
         public WorldFileDescriptor hydrography;
+        public WorldFileDescriptor coastlines;
     }
 
     [Serializable]
@@ -106,6 +108,7 @@ namespace Orbis.World
         const long MaximumPackageBytes = 8L * 1024 * 1024 * 1024;
         static readonly byte[] Magic = { (byte)'O', (byte)'R', (byte)'B', (byte)'W', (byte)'2', 0, 0, 0 };
         readonly Dictionary<(int Face, int Lod), WorldShardDescriptor> shards = new();
+        readonly HashSet<string> verified = new(StringComparer.OrdinalIgnoreCase);
 
         public string Root { get; }
         public WorldPackageManifest Manifest { get; }
@@ -118,7 +121,7 @@ namespace Orbis.World
             Manifest = JsonUtility.FromJson<WorldPackageManifest>(File.ReadAllText(manifestPath));
             if (Manifest == null || Manifest.format != "orbis-world-v2" || Manifest.version != 2)
                 throw new InvalidDataException("Unsupported world package manifest.");
-            if (Manifest.tile_side < 2 || Manifest.max_lod < 0 || Manifest.max_lod > 7)
+            if (Manifest.tile_side < 2 || Manifest.tile_side > 257 || Manifest.max_lod < 0 || Manifest.max_lod > 7)
                 throw new InvalidDataException("World package dimensions are invalid.");
             if (Manifest.package_bytes < 0 || Manifest.package_bytes > MaximumPackageBytes)
                 throw new InvalidDataException("World package exceeds the 8 GB contract.");
@@ -133,7 +136,34 @@ namespace Orbis.World
         public string ResolveVisual(WorldFileDescriptor descriptor)
         {
             if (descriptor == null || string.IsNullOrWhiteSpace(descriptor.path)) return string.Empty;
-            return Path.GetFullPath(Path.Combine(Root, descriptor.path));
+            return VerifyFile(descriptor.path, descriptor.bytes, descriptor.sha256);
+        }
+
+        public string ResolveContained(string relative)
+        {
+            var path = Path.GetFullPath(Path.Combine(Root, relative));
+            if (!path.StartsWith(Root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("package_path_escape");
+            return path;
+        }
+
+        string VerifyFile(string relative, long bytes, string hash)
+        {
+            var path = ResolveContained(relative);
+            lock (verified)
+            {
+                if (verified.Contains(path)) return path;
+                if (bytes < 0 || bytes > MaximumPackageBytes || new FileInfo(path).Length != bytes)
+                    throw new InvalidDataException("package_size_mismatch");
+                using var stream = File.OpenRead(path);
+                using var algorithm = SHA256.Create();
+                var actual = BitConverter.ToString(algorithm.ComputeHash(stream)).Replace("-", "");
+                if (!string.Equals(actual, hash, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException("package_hash_mismatch");
+                verified.Add(path);
+                return path;
+            }
         }
 
         public WorldHeightTile ReadTile(WorldTileKey key)
@@ -143,9 +173,7 @@ namespace Orbis.World
             var axis = 1 << key.Lod;
             if (key.X < 0 || key.X >= axis || key.Y < 0 || key.Y >= axis)
                 throw new ArgumentOutOfRangeException(nameof(key));
-            var path = Path.GetFullPath(Path.Combine(Root, descriptor.path));
-            if (!path.StartsWith(Root, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidDataException("Shard path escapes the package root.");
+            var path = VerifyFile(descriptor.path, descriptor.bytes, descriptor.sha256);
             using var stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read);
             using var reader = new BinaryReader(stream);
             var magic = reader.ReadBytes(8);
@@ -166,7 +194,9 @@ namespace Orbis.World
             var maximum = reader.ReadInt16();
             var error = reader.ReadSingle();
             var expectedLength = checked(side * side * sizeof(short));
-            if (rawLength != expectedLength || packedLength == 0 || offset + packedLength > (ulong)stream.Length)
+            if (rawLength != expectedLength || packedLength == 0 || packedLength > expectedLength + 1024
+                || offset < 16UL + tileCount * entryBytes || offset > (ulong)stream.Length
+                || packedLength > (ulong)stream.Length - offset)
                 throw new InvalidDataException("World tile index is corrupt.");
             stream.Seek((long)offset, SeekOrigin.Begin);
             var packed = reader.ReadBytes((int)packedLength);
@@ -174,6 +204,7 @@ namespace Orbis.World
             using var deflate = new DeflateStream(packedStream, CompressionMode.Decompress);
             var raw = new byte[rawLength];
             ReadExactly(deflate, raw);
+            if (deflate.ReadByte() != -1) throw new InvalidDataException("Oversized world tile.");
             var heights = new short[side * side];
             Buffer.BlockCopy(raw, 0, heights, 0, raw.Length);
             return new WorldHeightTile(key, side, heights, minimum, maximum, error);
