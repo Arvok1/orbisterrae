@@ -1,4 +1,4 @@
-param([switch]$SkipBuild)
+param([switch]$SkipBuild, [switch]$Isolated, [ValidateRange(1024,65535)][int]$Port=18081, [ValidateRange(1024,65535)][int]$NatsPort=14222)
 $ErrorActionPreference = "Stop"
 $orbisRoot = Split-Path $PSScriptRoot -Parent
 $orbisWindows = [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT
@@ -8,12 +8,19 @@ if ($orbisDatabase -notmatch '^orbis_test_[a-f0-9]{32}$') { throw "Nome de banco
 $orbisProcesses = @()
 $orbisCreated = $false
 $orbisMainRunning = $false
+$orbisNatsContainer=$null
 $orbisSavedEnv = @{}
-foreach ($orbisKey in @("DATABASE_URL","ORBIS_BIND","ORBIS_HTTP_URL","ORBIS_WS_URL","JWT_SECRET")) { $orbisSavedEnv[$orbisKey] = [Environment]::GetEnvironmentVariable($orbisKey,"Process") }
+foreach ($orbisKey in @("DATABASE_URL","ORBIS_BIND","ORBIS_HTTP_URL","ORBIS_WS_URL","JWT_SECRET","NATS_URL")) { $orbisSavedEnv[$orbisKey] = [Environment]::GetEnvironmentVariable($orbisKey,"Process") }
 Push-Location $orbisRoot
 try {
     try { $orbisMainRunning = (Invoke-WebRequest http://127.0.0.1:8080/ready -TimeoutSec 2).StatusCode -eq 200 } catch {}
-    if ($orbisWindows) { & "$orbisRoot/stop.ps1"; $env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH" }
+    if ($orbisWindows) { if(-not $Isolated) { & "$orbisRoot/stop.ps1" }; $env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH" }
+    if($Isolated) {
+        $orbisNatsContainer="orbis-village-test-"+[Guid]::NewGuid().ToString("N")
+        & docker run --rm -d --name $orbisNatsContainer -p "127.0.0.1:${NatsPort}:4222" nats:2 | Out-Null
+        if($LASTEXITCODE -ne 0) { $orbisNatsContainer=$null;throw "Não foi possível isolar o NATS." }
+        $env:NATS_URL="nats://127.0.0.1:$NatsPort"
+    }
     if (-not $SkipBuild) {
         cargo build -p orbis-gateway --bins --example test_database
         if ($LASTEXITCODE -ne 0) { throw "Falha ao compilar integração S1.1." }
@@ -30,9 +37,9 @@ try {
     $orbisBuilder = [UriBuilder]::new($orbisUrl)
     $orbisBuilder.Path = "/$orbisDatabase"
     $env:DATABASE_URL = $orbisBuilder.Uri.AbsoluteUri
-    $env:ORBIS_BIND = "127.0.0.1:8081"
-    $env:ORBIS_HTTP_URL = "http://127.0.0.1:8081"
-    $env:ORBIS_WS_URL = "ws://127.0.0.1:8081/ws"
+    $env:ORBIS_BIND = "127.0.0.1:$Port"
+    $env:ORBIS_HTTP_URL = "http://127.0.0.1:$Port"
+    $env:ORBIS_WS_URL = "ws://127.0.0.1:$Port/ws"
     $env:JWT_SECRET = [Guid]::NewGuid().ToString("N") + [Guid]::NewGuid().ToString("N")
     New-Item -ItemType Directory -Path "$orbisRoot/.local" -Force | Out-Null
     foreach ($orbisService in @(@{name="worker0";binary="orbis-shard-worker";args=@("--slot","0")},@{name="worker1";binary="orbis-shard-worker";args=@("--slot","1")},@{name="gateway";binary="orbis-gateway";args=@()})) {
@@ -45,7 +52,7 @@ try {
     }
     $orbisReady = $false
     for ($orbisAttempt = 0; $orbisAttempt -lt 40; $orbisAttempt++) {
-        try { if ((Invoke-WebRequest http://127.0.0.1:8081/ready -TimeoutSec 2).StatusCode -eq 200) { $orbisReady = $true; break } } catch {}
+        try { if ((Invoke-WebRequest "$env:ORBIS_HTTP_URL/ready" -TimeoutSec 2).StatusCode -eq 200) { $orbisReady = $true; break } } catch {}
         Start-Sleep -Milliseconds 250
     }
     if (-not $orbisReady) { throw "Serviços de teste indisponíveis; consulte .local/s1-1-*.err.log." }
@@ -60,6 +67,7 @@ try {
     }
     if ($orbisCreated) { & $orbisHelper drop $orbisDatabase; if ($LASTEXITCODE -ne 0) { Write-Warning "Banco de teste não removido: $orbisDatabase" } }
     foreach ($orbisKey in $orbisSavedEnv.Keys) { [Environment]::SetEnvironmentVariable($orbisKey,$orbisSavedEnv[$orbisKey],"Process") }
-    if ($orbisMainRunning -and $orbisWindows) { & "$orbisRoot/scripts/start-services.ps1" }
+    if($orbisNatsContainer) { & docker stop $orbisNatsContainer | Out-Null }
+    if ($orbisMainRunning -and $orbisWindows -and -not $Isolated) { & "$orbisRoot/scripts/start-services.ps1" }
     Pop-Location
 }

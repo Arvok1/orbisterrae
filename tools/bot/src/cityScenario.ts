@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { CitySnapshot as CityWire, WorldSnapshot as WorldWire } from '@orbis/protocol';
 import type { CityCellEdit, CitySnapshot, LatLon, ServerMsg, WorldSnapshot } from '@orbis/protocol';
 import { BotClient } from './client.js';
 import { readCityScenario } from './cityScenarioReader.js';
@@ -17,6 +19,8 @@ const base = process.env.ORBIS_HTTP_URL ?? 'http://127.0.0.1:8080';
 const ws = process.env.ORBIS_WS_URL ?? 'ws://127.0.0.1:8080/ws';
 const prefix = `citybot_${Date.now().toString(36)}`;
 const clients: BotClient[] = [];
+const tokens = new Map<BotClient,string>();
+let offset = 0;
 const started = performance.now();
 const view = { $case: 'viewport' as const, viewport: { center: { lat: 0, lon: 0 }, zoom: 0, widthPx: 1024, heightPx: 768 } };
 
@@ -56,6 +60,7 @@ async function register(index: number, start: LatLon): Promise<BotClient> {
   const data = await response.json() as { token: string };
   const client = await BotClient.open(ws, scenario.timeoutMs);
   clients.push(client);
+  tokens.set(client,data.token);
   accepted(await client.request({ $case: 'authenticate', authenticate: { token: data.token } }));
   return client;
 }
@@ -76,7 +81,7 @@ function populationTotal(city: CitySnapshot): number {
 }
 function zoneCells(x0: number, x1: number, y0: number, y1: number, value: string): CityCellEdit[] {
   const edits: CityCellEdit[] = [];
-  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) edits.push({ x, y, layer: 'zone', value });
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) edits.push({ x:x+offset, y:y+offset, layer: 'zone', value });
   return edits;
 }
 async function waitFor<T>(label: string, poll: () => Promise<T>, ready: (value: T) => boolean): Promise<T> {
@@ -140,6 +145,8 @@ async function applyEdits(client: BotClient, cityId: string, edits: CityCellEdit
   throw new Error('applyCityEdits still stale after retries');
 }
 async function queue(client: BotClient, cityId: string, expected: bigint, buildingId: string, x: number, y: number): Promise<bigint> {
+  x += offset;
+  y += offset;
   let revision = expected;
   for (let attempt = 0; attempt < 10; attempt++) {
     const response = await client.request({
@@ -175,8 +182,9 @@ try {
 
   // Builder: tower for measurable defense, well and extra house for measurable growth.
   let city = await citySnapshot(builder, builderCity);
-  assert.equal(city.width, 96);
-  assert.equal(city.height, 96);
+  assert.equal(city.width, 256);
+  assert.equal(city.height, 256);
+  offset = (city.width - 96) / 2;
   assert.equal(city.buildings.length, 3);
   assert.ok(city.editable);
   const initialDefense = city.metrics?.defense ?? 0;
@@ -224,12 +232,48 @@ try {
   const world = await snapshot(builder);
   assert.equal(world.cities.filter(city => city.active).length, scenario.cities);
   assert.equal(new Set(world.cities.map(city => city.id)).size, scenario.cities);
+  const foreign = await citySnapshot(builder,idleCity);
+  assert.equal(foreign.editable,false,'foreign city is read-only');
+  const unauthorized = await builder.request({$case:'applyCityEdits',applyCityEdits:{cityId:idleCity,expectedRevision:foreign.revision,edits:[{x:0,y:0,layer:'road',value:'road'}]}});
+  assert.equal(unauthorized.kind?.$case,'result');
+  if(unauthorized.kind?.$case==='result') assert.equal(unauthorized.kind.result.ok,false);
+  const stale = await builder.request({$case:'applyCityEdits',applyCityEdits:{cityId:builderCity,expectedRevision:0n,edits:[{x:0,y:0,layer:'road',value:'road'}]}});
+  assert.equal(stale.kind?.$case,'result');
+  if(stale.kind?.$case==='result') assert.equal(stale.kind.result.ok,false);
+  revision = await applyEdits(builder,builderCity,[...zoneCells(60,61,60,61,'residential'),{x:offset+10,y:offset+10,layer:'road',value:'road'}]);
+  revision = await queue(builder,builderCity,revision,'house',60,60);
+  const pending = await citySnapshot(builder,builderCity);
+  const order = pending.construction.find(candidate=>candidate.buildingId==='house'&&(candidate.status==='active'||candidate.status==='queued'));
+  assert.ok(order,'new construction can be cancelled');
+  let cancelled=false;
+  for(let attempt=0;attempt<10&&!cancelled;attempt++) {
+    const fresh=await citySnapshot(builder,builderCity);
+    const response=await builder.request({$case:'cancelConstruction',cancelConstruction:{cityId:builderCity,expectedRevision:fresh.revision,orderId:order.id}});
+    if(response.kind?.$case==='city') cancelled=true;
+    else if(response.kind?.$case!=='result'||response.kind.result.error!=='stale_city_revision') throw new Error(`cancel failed: ${describe(response)}`);
+  }
+  assert.ok(cancelled,'construction cancellation confirmed');
+  builder.close();
+  const reconnected=await BotClient.open(ws,scenario.timeoutMs);clients.push(reconnected);
+  accepted(await reconnected.request({$case:'authenticate',authenticate:{token:tokens.get(builder)!}}));
+  const restored=await citySnapshot(reconnected,builderCity);
+  assert.ok(restored.revision>=revision,'reconnection restores confirmed revision');
+  assert.equal(restored.buildings.filter(building=>building.id===pending.buildings.find(candidate=>candidate.x===offset+60&&candidate.y===offset+60)?.id).length,0,'cancelled building remains absent after reconnect');
+  const exportRoot=process.env.ORBIS_ACCEPTANCE_EXPORT;
+  if(exportRoot) {
+    await mkdir(exportRoot,{recursive:true});
+    await writeFile(join(exportRoot,'world.bin'),WorldWire.encode(await snapshot(reconnected)).finish());
+    await writeFile(join(exportRoot,'city.bin'),CityWire.encode(restored).finish());
+    await writeFile(join(exportRoot,'city-idle.bin'),CityWire.encode(await citySnapshot(reconnected,idleCity)).finish());
+    await writeFile(join(exportRoot,'city-starving.bin'),CityWire.encode(await citySnapshot(reconnected,starvingCity)).finish());
+  }
   console.log(JSON.stringify({
     result: 'passed',
     cities: world.cities.length,
     defenseDelta: defenseBuilt - initialDefense,
     growthDelta: populationTotal(grown.a) - populationTotal(grown.b),
     faminePopulation,
+    reconnection: true, staleRevisionRejected: true, foreignCityReadOnly: true, cancellation: true,
     elapsedMs: performance.now() - started,
   }));
 } finally {
