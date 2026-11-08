@@ -16,7 +16,7 @@ namespace Orbis.World
         [Serializable] sealed class Sample { public double seconds; public long memory; public int objects; public long drawCalls; }
         [Serializable] sealed class Report
         {
-            public string fixture="authorized server snapshots, offline replay";
+            public string fixture="authorized server snapshots, offline replay; urban-kit-15-roles.png is an explicitly synthetic art fixture";
             public string unity;
             public string gpu;
             public double seconds;
@@ -29,21 +29,14 @@ namespace Orbis.World
         string source;
         string output;
         WorldSnapshot world;
+        WorldSnapshot[] worlds;
         CitySnapshot[] cities;
         readonly List<double> frames=new();
         readonly List<Sample> samples=new();
         static string Argument(string name)=>Environment.GetCommandLineArgs().FirstOrDefault(value=>value.StartsWith(name+"=",StringComparison.Ordinal))?.Substring(name.Length+1);
-        public static bool Requested
-        {
-            get
-            {
-#if DEVELOPMENT_BUILD || UNITY_EDITOR
-                return !string.IsNullOrEmpty(Argument("--acceptance-export"));
-#else
-                return false;
-#endif
-            }
-        }
+        public static bool Requested => (Application.isEditor || Debug.isDebugBuild)
+            && !string.IsNullOrEmpty(Argument("--acceptance-export"));
+        public static bool LegacyCityRequested => Requested && Environment.GetCommandLineArgs().Contains("--acceptance-legacy-city");
         public void Initialize(GameStore state,GlobeRenderer terrain)
         {
             store=state;globe=terrain;source=Path.GetFullPath(Argument("--acceptance-export"));
@@ -55,6 +48,7 @@ namespace Orbis.World
         {
             Directory.CreateDirectory(output);
             world=WorldSnapshot.Parser.ParseFrom(File.ReadAllBytes(Path.Combine(source,"world.bin")));
+            worlds=Directory.GetFiles(source,"world*.bin").Select(path=>WorldSnapshot.Parser.ParseFrom(File.ReadAllBytes(path))).ToArray();
             var files=Directory.GetFiles(source,"city*.bin");
             cities=files.Select(path=>CitySnapshot.Parser.ParseFrom(File.ReadAllBytes(path))).GroupBy(city=>city.CityId).Select(group=>group.First()).ToArray();
             store.Update(store.State.With(world:world,city:cities[0],selectedCityId:cities[0].CityId,
@@ -77,6 +71,20 @@ namespace Orbis.World
                     }
                 }
             }
+            var kit=cities[0].Clone();kit.Buildings.Clear();kit.Construction.Clear();
+            var ordinal=0;
+            foreach(var definition in kit.Definitions)
+            {
+                kit.Buildings.Add(new BuildingState { Id="visual-kit-"+ordinal,BuildingId=definition.Id,X=(uint)(112+ordinal%5*7),
+                    Y=(uint)(112+ordinal/5*10),Complete=true,Orientation=(uint)(ordinal%4) });ordinal++;
+            }
+            store.Update(store.State.With(city:kit,session:new SessionInfo{Username="VISUAL KIT FIXTURE",Role="player"}));
+            var kitLocation=world.Cities.First(value=>value.Id==kit.CityId);
+            store.Focus(new GeoCoordinate(kitLocation.Pos.Lat,kitLocation.Pos.Lon),600);
+            for(var frame=0;frame<8;frame++)yield return null;
+            yield return new WaitForEndOfFrame();
+            var contact=ScreenCapture.CaptureScreenshotAsTexture();File.WriteAllBytes(Path.Combine(output,"urban-kit-15-roles.png"),contact.EncodeToPNG());Destroy(contact);
+            store.Update(store.State.With(session:new SessionInfo{Username="OFFLINE SNAPSHOT REPLAY",Role="player"}));
             var seconds=double.TryParse(Argument("--acceptance-seconds"),System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.InvariantCulture,out var requested)?Math.Max(1,requested):300;
             var start=Time.realtimeSinceStartupAsDouble;
             var previous=start;
@@ -109,8 +117,9 @@ namespace Orbis.World
         void Focus(int index,double altitude)
         {
             var city=cities[index];
+            world=worlds.First(snapshot=>snapshot.Cities.Any(value=>value.Id==city.CityId));
             var location=world.Cities.First(value=>value.Id==city.CityId);
-            store.Update(store.State.With(city:city,selectedCityId:city.CityId));
+            store.Update(store.State.With(world:world,city:city,selectedCityId:city.CityId));
             store.Focus(new GeoCoordinate(location.Pos.Lat,location.Pos.Lon),altitude);
         }
     }

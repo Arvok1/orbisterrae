@@ -24,6 +24,13 @@ message Command {
     CreateDesign create_design = 20;
     StartCraft start_craft = 21;
     ResolveCheckpoint resolve_checkpoint = 22;
+    // Economy (S1.3)
+    CreateCaravan create_caravan = 40;
+    CreateShip create_ship = 41;
+    PlaceOrder place_order = 42;
+    CancelOrder cancel_order = 43;
+    GetMarket get_market = 44;
+    GetHub get_hub = 45;
   }
 }
 
@@ -36,6 +43,40 @@ message CityCellEdit { uint32 x = 1; uint32 y = 2; string layer = 3; string valu
 message ApplyCityEdits { string city_id = 1; uint64 expected_revision = 2; repeated CityCellEdit edits = 3; }
 message QueueBuilding { string city_id = 1; uint64 expected_revision = 2; string building_id = 3; uint32 x = 4; uint32 y = 5; uint32 orientation = 6; }
 message CancelConstruction { string city_id = 1; uint64 expected_revision = 2; string order_id = 3; }
+
+// Economy commands (S1.3)
+message CreateCaravan {
+  string city_id = 1;
+  uint64 expected_revision = 2;
+  string hub_id = 3;
+  map<string, uint32> cargo = 4;
+  uint64 metal = 5;
+}
+message CreateShip {
+  string city_id = 1;
+  uint64 expected_revision = 2;
+  string hub_id = 3;
+  map<string, uint32> cargo = 4;
+  uint64 metal = 5;
+}
+message PlaceOrder {
+  string hub_id = 1;
+  string commodity = 2;
+  int32 side = 3; // 0 = buy, 1 = sell
+  double price = 4;
+  uint32 quantity = 5;
+}
+message CancelOrder {
+  string order_id = 1;
+}
+message GetMarket {
+  string hub_id = 1;
+  string commodity = 2;
+}
+message GetHub {
+  string hub_id = 1;
+}
+
 message AdminSnapshotRequest {
   uint64 after_event_seq = 1; string account_id = 2; string kingdom_id = 3;
   string city_id = 4; uint64 shard = 5; uint32 event_kind = 6;
@@ -106,6 +147,62 @@ message MaterialSlotRef { string slot = 1; string batch_id = 2; }
 message StartCraft { string design_id = 1; string workshop_id = 2; string craftsman_id = 3; repeated MaterialSlotRef slots = 4; }
 message ResolveCheckpoint { string craft_id = 1; string checkpoint_id = 2; repeated DesignParam params = 3; }
 
+// Economy server messages (S1.3)
+message CaravanState {
+  string id = 1;
+  string kingdom_id = 2;
+  string from_city = 3;
+  string to_hub = 4;
+  MoveSegment journey = 5;
+  map<string, uint32> cargo = 6;
+  uint64 metal = 7;
+  uint64 revision = 8;
+  string status = 9; // queued, traveling, at_hub
+  double due_at_ms = 10;
+}
+message ShipState {
+  string id = 1;
+  string kingdom_id = 2;
+  string from_city = 3;
+  string to_hub = 4;
+  MoveSegment journey = 5;
+  map<string, uint32> cargo = 6;
+  uint64 metal = 7;
+  uint64 revision = 8;
+  string status = 9; // queued, traveling, at_hub
+  double due_at_ms = 10;
+}
+message HubState {
+  string id = 1;
+  string name = 2;
+  LatLon pos = 3;
+  string kingdom_id = 4;
+  map<string, uint32> stock = 5;
+  uint64 metal = 6;
+  double fee = 7;
+}
+message OrderState {
+  string id = 1;
+  string hub_id = 2;
+  string kingdom_id = 3;
+  string commodity = 4;
+  int32 side = 5;
+  double price = 6;
+  uint32 quantity = 7;
+  uint32 filled_quantity = 8;
+  uint64 placed_at_ms = 9;
+  string status = 10;
+}
+message MarketSnapshot {
+  string hub_id = 1;
+  string commodity = 2;
+  repeated OrderState buy_orders = 3;
+  repeated OrderState sell_orders = 4;
+  repeated OrderState recent_fills = 5;
+  double local_price = 6;
+  uint64 observed_at_ms = 7;
+}
+
 message ServerMsg {
   oneof kind {
     CommandResult result = 1;
@@ -117,5 +214,11 @@ message ServerMsg {
     WorldSnapshot world = 10;
     CitySnapshot city = 11;
     AdminSnapshot admin = 12;
+    // Economy (S1.3)
+    CaravanState caravan = 13;
+    ShipState ship = 14;
+    HubState hub = 15;
+    OrderState order = 16;
+    MarketSnapshot market = 17;
   }
 }

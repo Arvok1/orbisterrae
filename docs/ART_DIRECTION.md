@@ -10,7 +10,7 @@ volume isométrico.
 
 ## Sistema visual
 
-- Renderer: Three.js para todo o conteúdo do mundo; React/HTML somente para HUD, formulários e controles acessíveis.
+- Renderer em migração: Unity URP para o mundo e UI Toolkit para a HUD; Three.js/React permanecem como referência web até o cutover.
 - Mundo distante: esfera com textura cartográfica própria em pergaminho escuro e hachuras; a textura Mercator é reprojetada para latitude/longitude antes de vestir o globo.
 - Escurecimento em tempo real: os PNGs de bioma/relevo permanecem intactos e são
   escurecidos via tint/filtro (ColorMatrixFilter "grim"), preservando a paleta de
@@ -43,6 +43,14 @@ volume isométrico.
 Assets geográficos e sua procedência ficam registrados em
 `assets/art-manifest.json`. Aprovação técnica e visual exige inspeção no
 navegador em tamanho desktop e mobile.
+
+## Kit urbano Unity — S1.2c
+
+Arquitetura pré-industrial modular original, sem pacote externo: telhados inclinados, postes e vigas de madeira, reboco/pedra, portas, bancadas, chaminés, cais e ameias. Cada um dos quinze papéis existentes tem silhueta própria. Campo usa sulcos/cultivo; poço, torre, templo, porto e estaleiro não reutilizam apenas a silhueta da casa.
+
+O pivô é o centro no solo de um módulo de referência de 10 m; o footprint e a orientação confirmados controlam a instância. Variantes são estáveis por identidade. Três LODs reduzem detalhes conforme a escala, enquanto canteiros usam fundação/andaimes até conclusão autorizada. Materiais compartilhados: pedra/reboco, madeira escura, cobertura e cultivo/tecido. A paleta permanece sóbria; não há materiais fotorealistas nem recursos/collision atribuídos à decoração.
+
+Os prefabs e as malhas são reproduzíveis pelo menu `Orbis/Build/Urban Kit`. A prancha de quinze papéis do diagnóstico é explicitamente uma fixture visual, separada do replay de cidades confirmadas pelo servidor.
 
 Uma prévia raster foi usada durante P0.4a e removida integralmente em S1.1.
 A implementação atual não distribui nem carrega imagem estática de vila.

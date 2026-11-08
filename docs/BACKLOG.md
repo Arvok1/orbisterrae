@@ -68,7 +68,7 @@ Formato: `Tn.m` = tarefa. **Escopo** diz o que fazer; **Aceite** diz como saber 
 
 - [ ] **T3.1 Entidades móveis.** `Caravan` e `Ship` com `MoveSegment`, carga, custo, velocidade.
 - [ ] **T3.2 Preços locais.** Fórmula oferta/demanda, `price_observations`, consulta com idade da informação.
-- [ ] **T3.3 Hubs e order book.** Matching price-time, frete, tarifa do dono.
+- [x] **T3.3 Hubs e order book (v0 do S1.3).** Matching price-time no sim, tarifa do dono, estoque/metal e preço local nos hubs; ordens de repouso persistidas no gateway (o preenchimento/câmbio físico acontece na chegada do transportador) — complemento em P2.
 - [ ] **T3.4 Hubs IA iniciais.** Seed do mundo com hubs em pontos estratégicos (script de geração).
 - [ ] **T3.5 Interceptação.** Encontros em rota, escolta, seguro, relatórios.
 - [ ] **T3.6 Moeda e sinks.** Escambo→metal→cunhagem; impostos, perdas, manutenção.

@@ -4,7 +4,9 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::world::{CityId, Journey, KingdomId, Position};
+use crate::world::{CityId, KingdomId, Position};
+
+pub use crate::world::Journey;
 
 macro_rules! identifier {
     ($name:ident) => {
@@ -38,6 +40,9 @@ pub struct Hub {
     pub kingdom: Option<KingdomId>,
     pub stock: Stock,
     pub metal: u64,
+    /// Hub fee taken as a fraction of every trade, from the balance config.
+    #[serde(default)]
+    pub fee: f64,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

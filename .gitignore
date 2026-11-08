@@ -9,9 +9,11 @@ __pycache__/
 .local/
 apps/unity-client/Library/
 apps/unity-client/Logs/
+Logs/
 apps/unity-client/*.log
 apps/unity-client/TestResults-*.xml
 apps/unity-client/Assets/StreamingAssets/world-v2/
+apps/unity-client/Assets/StreamingAssets/world-v2.meta
 apps/unity-client/Temp/
 apps/unity-client/Obj/
 apps/unity-client/Build/

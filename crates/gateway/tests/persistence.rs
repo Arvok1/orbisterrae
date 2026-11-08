@@ -163,6 +163,8 @@ async fn exercise(context: &mut Context) -> Result<(), Box<dyn std::error::Error
         territory: context.territory.clone(),
         city_catalog: context.city_catalog.clone(),
         city_balance: context.city_balance.clone(),
+        economy_catalog: context.economy_catalog.clone(),
+        economy_balance: context.economy_balance.clone(),
     };
     assert!(!context.process_due(world::worker(source), 1001).await?);
     assert!(
@@ -337,6 +339,8 @@ async fn exercise(context: &mut Context) -> Result<(), Box<dyn std::error::Error
         territory: context.territory.clone(),
         city_catalog: context.city_catalog.clone(),
         city_balance: context.city_balance.clone(),
+        economy_catalog: context.economy_catalog.clone(),
+        economy_balance: context.economy_balance.clone(),
     };
     assert!(
         context
@@ -482,6 +486,8 @@ async fn exercise(context: &mut Context) -> Result<(), Box<dyn std::error::Error
             balance.simulation.tick_ms = 1000;
             balance
         }),
+        economy_catalog: context.economy_catalog.clone(),
+        economy_balance: context.economy_balance.clone(),
     };
     let slot = world::worker(source);
     // Without a well the water coverage stays below 1.0 and the village cannot grow.

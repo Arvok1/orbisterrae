@@ -104,3 +104,15 @@ trechos de rio. Conferir no navegador a seleção após pan, os dois estilos e a
 legibilidade de água e bosque em z15, z21 e z25. A fonte ETOPO 60″ define apenas
 o relevo macro; detalhes de vegetação são decoração determinística e não devem
 ser descritos como cobertura florestal de precisão métrica.
+
+### S1.3 — economia fechada
+
+O aceite dos 7 dias simulados sem hiperinflação roda como teste determinístico
+`bots_trade_without_inflation_for_seven_days` em `crates/sim/src/economy.rs`:
+bots compram e vendem lotes nos hubs semeados (seed da `economy.toml`) por 7 dias
+simulados, com metal conservado, estoque por mercadoria invariante e grão dentro
+de ±`max_monthly_inflation`. Pelo mesmo caminho, os testes de gateway cobrem
+invariantes de persistência. O cenário completo do harness pelo protocolo real
+(`scenarios/s1_3.toml`) segue o padrão de S1.2 e fica para o soak de S1.10;
+enquanto isso, a governança de economia vive nível sim (mesmas funções puras
+que o gateway usa por comandos autoritativos).

@@ -16,6 +16,9 @@ identifier!(AccountId);
 identifier!(KingdomId);
 identifier!(RulerId);
 identifier!(CityId);
+identifier!(CaravanId);
+identifier!(ShipId);
+identifier!(HubId);
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Position {
@@ -104,6 +107,13 @@ pub enum Action {
     CityTick {
         city: CityId,
         tick: u64,
+    },
+    // Economy (S1.3)
+    CompleteCaravan {
+        caravan: CaravanId,
+    },
+    CompleteShip {
+        ship: ShipId,
     },
 }
 

@@ -24,6 +24,8 @@ initial_city_metal = 500
 initial_hub_metal = 50000
 
 [hub_seed]
+seed = 42
 count = 3
 step_deg = 3.0
 min_separation_m = 500000.0
+liquidity_units = 1000

@@ -3,6 +3,13 @@
   "art_direction_brief": "docs/ART_DIRECTION.md",
   "assets": [
     {
+      "id": "unity-urban-kit-v1",
+      "role": "original modular pre-industrial architecture: 15 visual roles, three variants and three LODs",
+      "path": "apps/unity-client/Assets/Resources/Orbis/UrbanKit",
+      "source": {"kind": "original-procedural-mesh", "url_or_tool": "apps/unity-client/Assets/Orbis/World/UrbanKit.cs; Orbis.Editor.UrbanKitAssetBuilder.Ensure", "license": "Original project assets; no external asset pack", "prompt_or_source_record": "docs/ART_DIRECTION.md"},
+      "technical": {"units": "metres", "reference_footprint_m": [10, 10], "pivot": "ground-centre", "materials": ["stone-plaster", "timber", "dark-roof", "crops-cloth"], "variants": 3, "lods": 3, "collision": "visual only; authoritative grid remains server-owned"}
+    },
+    {
       "id": "world-terrain-v1",
       "role": "global cartoon hydrography, biome colors and relief glyph locations",
       "path": "apps/client/src/assets/world-terrain-v1.json",

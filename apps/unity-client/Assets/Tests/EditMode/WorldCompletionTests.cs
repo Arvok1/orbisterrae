@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Reflection;
 using NUnit.Framework;
 using Orbis.Core;
 using Orbis.Network;
@@ -91,5 +92,55 @@ namespace Orbis.Tests.EditMode
             Assert.That(ClientText.Get("pt-BR","house"),Is.EqualTo("Casa"));Assert.That(ClientText.Get("en","house"),Is.EqualTo("House"));
             Assert.That(ClientText.Remaining(120000,30000),Is.EqualTo("01:30"));Assert.That(ClientText.Remaining(1000,2000),Is.EqualTo("00:00"));
         }
+        [Test]
+        public void OverlayKeepsCachedLevelsAliveAcrossZoomSwitches()
+        {
+            var store=new GameStore(new ClientViewState("en",MapVisualStyle.Relief,new GeoCoordinate(0,0),3000000,""));
+            var host=new GameObject("overlay-cache-test");
+            try
+            {
+                var terrain=host.AddComponent<GlobeRenderer>();
+                terrain.Initialize(ClientRuntimeConfig.CreateDefaults(Application.temporaryCachePath));
+                Field(terrain,"<HydrographyPath>k__BackingField",string.Empty);
+                var overlay=host.AddComponent<GeographicOverlay>();
+                overlay.Initialize(store,terrain);
+                LateUpdate(overlay);
+                var levels=(System.Collections.IDictionary)Field(overlay,"levels");
+                var orbital=Field(overlay,"current");
+                Assert.That(orbital,Is.Not.Null);Assert.That(levels.Count,Is.EqualTo(1));
+                store.Update(store.State.With(altitudeMeters:300000));
+                LateUpdate(overlay);
+                var mid=Field(overlay,"current");
+                store.Update(store.State.With(altitudeMeters:30000));
+                LateUpdate(overlay);
+                Assert.That(levels.Count,Is.EqualTo(3));Assert.That(Field(overlay,"current"),Is.Not.SameAs(mid));
+                store.Update(store.State.With(altitudeMeters:3000000));
+                LateUpdate(overlay);
+                Assert.That(Field(overlay,"current"),Is.SameAs(orbital));Assert.That(levels.Count,Is.EqualTo(3));
+            }
+            finally { UnityEngine.Object.DestroyImmediate(host); }
+        }
+        static object Field(object target,string name)
+        {
+            var type=target.GetType();
+            while(type!=null)
+            {
+                var field=type.GetField(name,BindingFlags.NonPublic|BindingFlags.Instance);
+                if(field!=null)return field.GetValue(target);
+                type=type.BaseType;
+            }
+            throw new MissingFieldException(target.GetType().Name,name);
+        }
+        static void Field(object target,string name,object value)
+        {
+            var type=target.GetType();
+            while(type!=null)
+            {
+                var field=type.GetField(name,BindingFlags.NonPublic|BindingFlags.Instance);
+                if(field!=null) { field.SetValue(target,value);return; }
+                type=type.BaseType;
+            }
+        }
+        static void LateUpdate(object behaviour)=>behaviour.GetType().GetMethod("LateUpdate",BindingFlags.NonPublic|BindingFlags.Instance).Invoke(behaviour,null);
     }
 }

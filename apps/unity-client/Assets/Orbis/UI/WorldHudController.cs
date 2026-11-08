@@ -239,6 +239,7 @@ namespace Orbis.UI
 
             var hasSession = state.Session != null;
             var isAdmin = state.Session?.IsAdmin == true;
+            root.EnableInClassList("admin-active", isAdmin);
             loginPanel.style.display = hasSession ? DisplayStyle.None : DisplayStyle.Flex;
             logoutButton.style.display = hasSession ? DisplayStyle.Flex : DisplayStyle.None;
             sessionLabel.text = hasSession ? $"{state.Session.Username} · {state.Session.Role}" : string.Empty;

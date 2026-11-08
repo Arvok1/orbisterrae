@@ -277,6 +277,14 @@
     top: 64px;
 }
 
+.admin-active .world-info {
+    left: 324px;
+}
+
+.compact-layout.admin-active .world-info {
+    left: 266px;
+}
+
 .compact-layout .camera-hint {
     display: none;
 }

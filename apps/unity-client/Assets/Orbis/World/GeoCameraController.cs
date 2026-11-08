@@ -58,7 +58,7 @@ namespace Orbis.World
             var pointerDelta = pointer - lastPointer;
 
             if (primaryPressed && !primaryWasPressed) { pressPointer = pointer; pressBlocked = HudInputGate.IsPointerBlocked; }
-            if (orbitPressed && !orbitWasPressed) pressPointer = pointer;
+            if (orbitPressed && !orbitWasPressed) { pressPointer=pointer;pressBlocked=HudInputGate.IsPointerBlocked; }
 
             var passedThreshold = (pointer - pressPointer).sqrMagnitude >= DragThresholdPixels * DragThresholdPixels;
             if (!HudInputGate.IsPointerBlocked && !pressBlocked && passedThreshold)
@@ -131,6 +131,7 @@ namespace Orbis.World
         void ApplyTransform()
         {
             if (worldCamera == null) return;
+            worldCamera.nearClipPlane=Mathf.Clamp((float)(altitudeMeters/GeoMath.MetersPerUnityUnit)*.001f,.0001f,10f);
 
             var surfaceNormal = GeoMath.SurfaceNormal(focus);
             var east = Vector3.Cross(Vector3.up, surfaceNormal);

@@ -1,16 +1,27 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using Newtonsoft.Json.Linq;
 using Orbis.Core;
 using UnityEngine;
 using UnityEngine.Rendering;
+using Debug = UnityEngine.Debug;
 
 namespace Orbis.World
 {
+    /// <summary>
+    /// Draws hydrography (rivers, lakes, coastlines) on the globe.
+    /// Geometry samples relief straight from the terrain package at a fixed LOD per
+    /// zoom level, is cached per level and is built across frames with a small time
+    /// budget, so streaming terrain never forces a single-frame full rebuild.
+    /// </summary>
     public sealed class GeographicOverlay : MonoBehaviour
     {
+        /// <summary>Maximum milliseconds spent extending overlay geometry per frame.</summary>
+        const float BuildBudgetMs = 8f;
+
         sealed class Stroke
         {
             public GeoCoordinate[] Points;
@@ -21,16 +32,31 @@ namespace Orbis.World
             public double West;
             public double East;
         }
+
+        /// <summary>Built chunks plus a resumable build cursor for one zoom level.</summary>
+        sealed class LevelState
+        {
+            public int Zoom;
+            public int SampleLod;
+            public int Sector;
+            public int StrokeCursor;
+            public int PointCursor = -1;
+            public readonly List<GameObject> Chunks = new();
+            public readonly List<Vector3> River = new();
+            public readonly List<Vector3> Lake = new();
+        }
+
         readonly List<Stroke> strokes = new();
+        readonly List<int>[] sectorStrokes = new List<int>[8];
         readonly List<Mesh> meshes = new();
-        readonly List<GameObject> chunks = new();
-        readonly Dictionary<int,List<GameObject>> cache=new();
+        readonly Dictionary<int, LevelState> levels = new();
+        readonly Stopwatch budget = new();
         GlobeRenderer globe;
         GameStore store;
         Material water;
         Material lakeMaterial;
-        int revision = -1;
         int level = -1;
+        LevelState current;
 
         public void Initialize(GameStore gameStore, GlobeRenderer terrain)
         {
@@ -66,80 +92,112 @@ namespace Orbis.World
             if(lake&&points.Length>3&&GeoMath.SurfaceNormal(points[0])==GeoMath.SurfaceNormal(points[points.Length-1]))points=points.Take(points.Length-1).ToArray();
             strokes.Add(new Stroke { Points = points, Lake = lake, Sector = sector,South=points.Min(point=>point.LatitudeDegrees),
                 North=points.Max(point=>point.LatitudeDegrees),West=points.Min(point=>point.LongitudeDegrees),East=points.Max(point=>point.LongitudeDegrees) });
+            (sectorStrokes[sector] ??= new List<int>()).Add(strokes.Count - 1);
         }
 
         void LateUpdate()
         {
             if (store == null) return;
-            var nextLevel = store.State.AltitudeMeters > 2000000 ? 2 : store.State.AltitudeMeters > 100000 ? 1 : 0;
-            if (revision == globe.TerrainRevision && nextLevel == level) return;
-            if(revision!=globe.TerrainRevision)
-            {
-                foreach(var chunk in chunks)Destroy(chunk);
-                foreach(var mesh in meshes)Destroy(mesh);
-                chunks.Clear();meshes.Clear();cache.Clear();
-            }
-            revision=globe.TerrainRevision;level=nextLevel;
-            foreach(var chunk in chunks)chunk.SetActive(false);
-            if(cache.TryGetValue(level,out var retained)) { foreach(var chunk in retained)chunk.SetActive(true);return; }
-            var firstChunk=chunks.Count;
-            for (var sector = 0; sector < 8; sector++)
-            {
-                var vertices = new List<Vector3>();
-                var lakeVertices=new List<Vector3>();
-                foreach (var stroke in strokes)
-                {
-                    if (stroke.Sector != sector) continue;
-                    if(stroke.Lake)
-                    {
-                        var origin=stroke.Points[0].LongitudeDegrees;
-                        var flat=stroke.Points.Select(point=>new Vector2((float)GeoMath.WrapLongitude(point.LongitudeDegrees-origin),(float)point.LatitudeDegrees)).ToArray();
-                        var triangles=PolygonTriangulator.Triangulate(flat);
-                        for(var index=0;index<triangles.Length;index+=3)
-                        {
-                            var first=Position(stroke.Points[triangles[index]]);
-                            var second=Position(stroke.Points[triangles[index+1]]);
-                            var third=Position(stroke.Points[triangles[index+2]]);
-                            if(Vector3.Dot(Vector3.Cross(second-first,third-first),first)<0)(second,third)=(third,second);
-                            lakeVertices.Add(first);lakeVertices.Add(second);lakeVertices.Add(third);
-                        }
-                    }
-                    var stride = 1 << level;
-                    for (var index = 0; index < stroke.Points.Length - 1; index += stride)
-                    {
-                        var end = Math.Min(index + stride, stroke.Points.Length - 1);
-                        var from = stroke.Points[index];
-                        var to = stroke.Points[end];
-                        if (!stroke.Lake && InLake(GeoPresentation.FromNormal((GeoMath.SurfaceNormal(from) + GeoMath.SurfaceNormal(to)).normalized))) continue;
-                        var fromNormal = GeoMath.SurfaceNormal(from);
-                        var toNormal = GeoMath.SurfaceNormal(to);
-                        var steps = Math.Max(1, (int)Math.Ceiling(Vector3.Angle(fromNormal, toNormal)));
-                        for (var step = 0; step < steps; step++)
-                        {
-                            vertices.Add(Position(GeoPresentation.FromNormal(Vector3.Slerp(fromNormal, toNormal, step / (float)steps))));
-                            vertices.Add(Position(GeoPresentation.FromNormal(Vector3.Slerp(fromNormal, toNormal, (step + 1f) / steps))));
-                        }
-                    }
-                }
-                if(lakeVertices.Count>0)
-                {
-                    var lakeMesh=new Mesh { name="Lakes "+sector,indexFormat=IndexFormat.UInt32 };
-                    lakeMesh.SetVertices(lakeVertices);lakeMesh.SetTriangles(Enumerable.Range(0,lakeVertices.Count).ToArray(),0);lakeMesh.RecalculateNormals();lakeMesh.RecalculateBounds();
-                    AddChunk(lakeMesh,true);
-                }
-                if (vertices.Count == 0) continue;
-                var mesh = LineMesh(vertices, "Hydrography " + sector);
-                AddChunk(mesh);
-            }
-            cache[level]=chunks.Skip(firstChunk).ToList();
+            UpdateLevel();
+            if (current == null || current.Sector >= 8) return;
+            budget.Restart();
+            while (budget.Elapsed.TotalMilliseconds < BuildBudgetMs && current.Sector < 8)
+                ExtendLevel(current);
         }
 
-        void AddChunk(Mesh mesh,bool filled=false)
+        /// <summary>Switches the active zoom level. Cached levels are kept and re-activated; nothing is rebuilt.</summary>
+        void UpdateLevel()
+        {
+            var nextLevel = store.State.AltitudeMeters > 2000000 ? 2 : store.State.AltitudeMeters > 100000 ? 1 : 0;
+            if (nextLevel == level && current != null) return;
+            if (current != null) foreach (var chunk in current.Chunks) chunk.SetActive(false);
+            level = nextLevel;
+            if (!levels.TryGetValue(level, out current))
+                current = levels[level] = new LevelState { Zoom = level, SampleLod = SampleLod(level) };
+            foreach (var chunk in current.Chunks) chunk.SetActive(true);
+        }
+
+        /// <summary>Relief LOD sampled for each zoom level: fine close up, coarse from orbit.</summary>
+        static int SampleLod(int level) => level switch { 0 => 4, 1 => 2, _ => 0 };
+
+        void ExtendLevel(LevelState target)
+        {
+            var list = sectorStrokes[target.Sector];
+            if (list == null)
+            {
+                target.Sector++;
+                target.StrokeCursor = 0;
+                return;
+            }
+            var stroke = strokes[list[target.StrokeCursor]];
+            var points = stroke.Points;
+            var lod = target.SampleLod;
+            if (target.PointCursor < 0)
+            {
+                target.PointCursor = 0;
+                if (stroke.Lake)
+                {
+                    var origin = points[0].LongitudeDegrees;
+                    var flat = points.Select(point => new Vector2((float)GeoMath.WrapLongitude(point.LongitudeDegrees-origin),(float)point.LatitudeDegrees)).ToArray();
+                    var triangles = PolygonTriangulator.Triangulate(flat);
+                    for(var index=0;index<triangles.Length;index+=3)
+                    {
+                        var first=Position(points[triangles[index]],lod);
+                        var second=Position(points[triangles[index+1]],lod);
+                        var third=Position(points[triangles[index+2]],lod);
+                        if(Vector3.Dot(Vector3.Cross(second-first,third-first),first)<0)(second,third)=(third,second);
+                        target.Lake.Add(first);target.Lake.Add(second);target.Lake.Add(third);
+                    }
+                }
+            }
+            var stride = 1 << target.Zoom;
+            for (var index = target.PointCursor; index < points.Length - 1; index += stride)
+            {
+                var end = Math.Min(index + stride, points.Length - 1);
+                var fromNormal = GeoMath.SurfaceNormal(points[index]);
+                var toNormal = GeoMath.SurfaceNormal(points[end]);
+                if (!stroke.Lake && InLake(GeoPresentation.FromNormal((fromNormal + toNormal).normalized))) { target.PointCursor = end; continue; }
+                var steps = Math.Max(1, (int)Math.Ceiling(Vector3.Angle(fromNormal, toNormal)));
+                for (var step = 0; step < steps; step++)
+                {
+                    target.River.Add(Position(GeoPresentation.FromNormal(Vector3.Slerp(fromNormal, toNormal, step / (float)steps)), lod));
+                    target.River.Add(Position(GeoPresentation.FromNormal(Vector3.Slerp(fromNormal, toNormal, (step + 1f) / steps)), lod));
+                }
+                target.PointCursor = end;
+                if (budget.ElapsedMilliseconds >= 20) return;  // resume this stroke next frame
+            }
+            target.PointCursor = -1;
+            target.StrokeCursor++;
+            if (target.StrokeCursor >= list.Count) FinishSector(target);
+        }
+
+        /// <summary>Turns the buffered vertices of a finished sector into persistent chunks.</summary>
+        void FinishSector(LevelState target)
+        {
+            if (target.Lake.Count > 0)
+            {
+                var lakeMesh=new Mesh { name="Lakes "+target.Sector,indexFormat=IndexFormat.UInt32 };
+                lakeMesh.SetVertices(target.Lake);lakeMesh.SetTriangles(Enumerable.Range(0,target.Lake.Count).ToArray(),0);lakeMesh.RecalculateNormals();lakeMesh.RecalculateBounds();
+                AddChunk(target,lakeMesh,true);
+            }
+            if (target.River.Count > 0)
+            {
+                AddChunk(target, LineMesh(target.River, "Hydrography " + target.Sector), false);
+            }
+            target.Sector++;
+            target.StrokeCursor = 0;
+            target.PointCursor = -1;
+            target.River.Clear();target.Lake.Clear();
+        }
+
+        void AddChunk(LevelState levelState, Mesh mesh, bool filled)
         {
             meshes.Add(mesh);
             var host=new GameObject(mesh.name);host.transform.SetParent(transform,false);
             host.AddComponent<MeshFilter>().sharedMesh=mesh;
-            host.AddComponent<MeshRenderer>().sharedMaterial=filled?lakeMaterial:water;chunks.Add(host);
+            host.AddComponent<MeshRenderer>().sharedMaterial=filled?lakeMaterial:water;
+            host.SetActive(levelState == current);
+            levelState.Chunks.Add(host);
         }
 
         bool InLake(GeoCoordinate point)
@@ -166,8 +224,8 @@ namespace Orbis.World
             return false;
         }
 
-        Vector3 Position(GeoCoordinate point) => GeoMath.SurfaceNormal(point)
-            * (float)((GeoMath.EarthRadiusMeters + globe.SampleHeightMeters(point) + 12) / GeoMath.MetersPerUnityUnit);
+        Vector3 Position(GeoCoordinate point, int lod) => GeoMath.SurfaceNormal(point)
+            * (float)((GeoMath.EarthRadiusMeters + globe.SampleHeightMeters(point, lod) + 12) / GeoMath.MetersPerUnityUnit);
 
         public static Mesh LineMesh(List<Vector3> vertices, string label)
         {

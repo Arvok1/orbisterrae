@@ -34,6 +34,14 @@ export interface Command {
     | { $case: "createDesign"; createDesign: CreateDesign }
     | { $case: "startCraft"; startCraft: StartCraft }
     | { $case: "resolveCheckpoint"; resolveCheckpoint: ResolveCheckpoint }
+    | //
+    /** Economy (S1.3) */
+    { $case: "createCaravan"; createCaravan: CreateCaravan }
+    | { $case: "createShip"; createShip: CreateShip }
+    | { $case: "placeOrder"; placeOrder: PlaceOrder }
+    | { $case: "cancelOrder"; cancelOrder: CancelOrder }
+    | { $case: "getMarket"; getMarket: GetMarket }
+    | { $case: "getHub"; getHub: GetHub }
     | undefined;
 }
 
@@ -87,6 +95,55 @@ export interface CancelConstruction {
   cityId: string;
   expectedRevision: bigint;
   orderId: string;
+}
+
+/** Economy commands (S1.3) */
+export interface CreateCaravan {
+  cityId: string;
+  expectedRevision: bigint;
+  hubId: string;
+  cargo: { [key: string]: number };
+  metal: bigint;
+}
+
+export interface CreateCaravan_CargoEntry {
+  key: string;
+  value: number;
+}
+
+export interface CreateShip {
+  cityId: string;
+  expectedRevision: bigint;
+  hubId: string;
+  cargo: { [key: string]: number };
+  metal: bigint;
+}
+
+export interface CreateShip_CargoEntry {
+  key: string;
+  value: number;
+}
+
+export interface PlaceOrder {
+  hubId: string;
+  commodity: string;
+  /** 0 = buy, 1 = sell */
+  side: number;
+  price: number;
+  quantity: number;
+}
+
+export interface CancelOrder {
+  orderId: string;
+}
+
+export interface GetMarket {
+  hubId: string;
+  commodity: string;
+}
+
+export interface GetHub {
+  hubId: string;
 }
 
 export interface AdminSnapshotRequest {
@@ -319,6 +376,83 @@ export interface ResolveCheckpoint {
   params: DesignParam[];
 }
 
+/** Economy server messages (S1.3) */
+export interface CaravanState {
+  id: string;
+  kingdomId: string;
+  fromCity: string;
+  toHub: string;
+  journey: MoveSegment | undefined;
+  cargo: { [key: string]: number };
+  metal: bigint;
+  revision: bigint;
+  /** queued, traveling, at_hub */
+  status: string;
+  dueAtMs: number;
+}
+
+export interface CaravanState_CargoEntry {
+  key: string;
+  value: number;
+}
+
+export interface ShipState {
+  id: string;
+  kingdomId: string;
+  fromCity: string;
+  toHub: string;
+  journey: MoveSegment | undefined;
+  cargo: { [key: string]: number };
+  metal: bigint;
+  revision: bigint;
+  /** queued, traveling, at_hub */
+  status: string;
+  dueAtMs: number;
+}
+
+export interface ShipState_CargoEntry {
+  key: string;
+  value: number;
+}
+
+export interface HubState {
+  id: string;
+  name: string;
+  pos: LatLon | undefined;
+  kingdomId: string;
+  stock: { [key: string]: number };
+  metal: bigint;
+  fee: number;
+}
+
+export interface HubState_StockEntry {
+  key: string;
+  value: number;
+}
+
+export interface OrderState {
+  id: string;
+  hubId: string;
+  kingdomId: string;
+  commodity: string;
+  side: number;
+  price: number;
+  quantity: number;
+  filledQuantity: number;
+  placedAtMs: bigint;
+  status: string;
+}
+
+export interface MarketSnapshot {
+  hubId: string;
+  commodity: string;
+  buyOrders: OrderState[];
+  sellOrders: OrderState[];
+  recentFills: OrderState[];
+  localPrice: number;
+  observedAtMs: bigint;
+}
+
 export interface ServerMsg {
   kind?:
     | { $case: "result"; result: CommandResult }
@@ -330,6 +464,13 @@ export interface ServerMsg {
     | { $case: "world"; world: WorldSnapshot }
     | { $case: "city"; city: CitySnapshot }
     | { $case: "admin"; admin: AdminSnapshot }
+    | //
+    /** Economy (S1.3) */
+    { $case: "caravan"; caravan: CaravanState }
+    | { $case: "ship"; ship: ShipState }
+    | { $case: "hub"; hub: HubState }
+    | { $case: "order"; order: OrderState }
+    | { $case: "market"; market: MarketSnapshot }
     | undefined;
 }
 
@@ -524,6 +665,24 @@ export const Command: MessageFns<Command> = {
       case "resolveCheckpoint":
         ResolveCheckpoint.encode(message.kind.resolveCheckpoint, writer.uint32(178).fork()).join();
         break;
+      case "createCaravan":
+        CreateCaravan.encode(message.kind.createCaravan, writer.uint32(322).fork()).join();
+        break;
+      case "createShip":
+        CreateShip.encode(message.kind.createShip, writer.uint32(330).fork()).join();
+        break;
+      case "placeOrder":
+        PlaceOrder.encode(message.kind.placeOrder, writer.uint32(338).fork()).join();
+        break;
+      case "cancelOrder":
+        CancelOrder.encode(message.kind.cancelOrder, writer.uint32(346).fork()).join();
+        break;
+      case "getMarket":
+        GetMarket.encode(message.kind.getMarket, writer.uint32(354).fork()).join();
+        break;
+      case "getHub":
+        GetHub.encode(message.kind.getHub, writer.uint32(362).fork()).join();
+        break;
     }
     return writer;
   },
@@ -648,6 +807,54 @@ export const Command: MessageFns<Command> = {
           };
           continue;
         }
+        case 40: {
+          if (tag !== 322) {
+            break;
+          }
+
+          message.kind = { $case: "createCaravan", createCaravan: CreateCaravan.decode(reader, reader.uint32()) };
+          continue;
+        }
+        case 41: {
+          if (tag !== 330) {
+            break;
+          }
+
+          message.kind = { $case: "createShip", createShip: CreateShip.decode(reader, reader.uint32()) };
+          continue;
+        }
+        case 42: {
+          if (tag !== 338) {
+            break;
+          }
+
+          message.kind = { $case: "placeOrder", placeOrder: PlaceOrder.decode(reader, reader.uint32()) };
+          continue;
+        }
+        case 43: {
+          if (tag !== 346) {
+            break;
+          }
+
+          message.kind = { $case: "cancelOrder", cancelOrder: CancelOrder.decode(reader, reader.uint32()) };
+          continue;
+        }
+        case 44: {
+          if (tag !== 354) {
+            break;
+          }
+
+          message.kind = { $case: "getMarket", getMarket: GetMarket.decode(reader, reader.uint32()) };
+          continue;
+        }
+        case 45: {
+          if (tag !== 362) {
+            break;
+          }
+
+          message.kind = { $case: "getHub", getHub: GetHub.decode(reader, reader.uint32()) };
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -748,6 +955,45 @@ export const Command: MessageFns<Command> = {
             $case: "resolveCheckpoint",
             resolveCheckpoint: ResolveCheckpoint.fromPartial(object.kind.resolveCheckpoint),
           };
+        }
+        break;
+      }
+      case "createCaravan": {
+        if (object.kind?.createCaravan !== undefined && object.kind?.createCaravan !== null) {
+          message.kind = {
+            $case: "createCaravan",
+            createCaravan: CreateCaravan.fromPartial(object.kind.createCaravan),
+          };
+        }
+        break;
+      }
+      case "createShip": {
+        if (object.kind?.createShip !== undefined && object.kind?.createShip !== null) {
+          message.kind = { $case: "createShip", createShip: CreateShip.fromPartial(object.kind.createShip) };
+        }
+        break;
+      }
+      case "placeOrder": {
+        if (object.kind?.placeOrder !== undefined && object.kind?.placeOrder !== null) {
+          message.kind = { $case: "placeOrder", placeOrder: PlaceOrder.fromPartial(object.kind.placeOrder) };
+        }
+        break;
+      }
+      case "cancelOrder": {
+        if (object.kind?.cancelOrder !== undefined && object.kind?.cancelOrder !== null) {
+          message.kind = { $case: "cancelOrder", cancelOrder: CancelOrder.fromPartial(object.kind.cancelOrder) };
+        }
+        break;
+      }
+      case "getMarket": {
+        if (object.kind?.getMarket !== undefined && object.kind?.getMarket !== null) {
+          message.kind = { $case: "getMarket", getMarket: GetMarket.fromPartial(object.kind.getMarket) };
+        }
+        break;
+      }
+      case "getHub": {
+        if (object.kind?.getHub !== undefined && object.kind?.getHub !== null) {
+          message.kind = { $case: "getHub", getHub: GetHub.fromPartial(object.kind.getHub) };
         }
         break;
       }
@@ -1371,6 +1617,582 @@ export const CancelConstruction: MessageFns<CancelConstruction> = {
     message.cityId = object.cityId ?? "";
     message.expectedRevision = object.expectedRevision ?? 0n;
     message.orderId = object.orderId ?? "";
+    return message;
+  },
+};
+
+function createBaseCreateCaravan(): CreateCaravan {
+  return { cityId: "", expectedRevision: 0n, hubId: "", cargo: {}, metal: 0n };
+}
+
+export const CreateCaravan: MessageFns<CreateCaravan> = {
+  encode(message: CreateCaravan, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.cityId !== "") {
+      writer.uint32(10).string(message.cityId);
+    }
+    if (message.expectedRevision !== 0n) {
+      if (BigInt.asUintN(64, message.expectedRevision) !== message.expectedRevision) {
+        throw new globalThis.Error("value provided for field message.expectedRevision of type uint64 too large");
+      }
+      writer.uint32(16).uint64(message.expectedRevision);
+    }
+    if (message.hubId !== "") {
+      writer.uint32(26).string(message.hubId);
+    }
+    Object.entries(message.cargo).forEach(([key, value]) => {
+      CreateCaravan_CargoEntry.encode({ key: key as any, value }, writer.uint32(34).fork()).join();
+    });
+    if (message.metal !== 0n) {
+      if (BigInt.asUintN(64, message.metal) !== message.metal) {
+        throw new globalThis.Error("value provided for field message.metal of type uint64 too large");
+      }
+      writer.uint32(40).uint64(message.metal);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CreateCaravan {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCreateCaravan();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.cityId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.expectedRevision = reader.uint64() as bigint;
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.hubId = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          const entry4 = CreateCaravan_CargoEntry.decode(reader, reader.uint32());
+          if (entry4.value !== undefined) {
+            message.cargo[entry4.key] = entry4.value;
+          }
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.metal = reader.uint64() as bigint;
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<CreateCaravan>, I>>(base?: I): CreateCaravan {
+    return CreateCaravan.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<CreateCaravan>, I>>(object: I): CreateCaravan {
+    const message = createBaseCreateCaravan();
+    message.cityId = object.cityId ?? "";
+    message.expectedRevision = object.expectedRevision ?? 0n;
+    message.hubId = object.hubId ?? "";
+    message.cargo = Object.entries(object.cargo ?? {}).reduce<{ [key: string]: number }>((acc, [key, value]) => {
+      if (value !== undefined) {
+        acc[key] = globalThis.Number(value);
+      }
+      return acc;
+    }, {});
+    message.metal = object.metal ?? 0n;
+    return message;
+  },
+};
+
+function createBaseCreateCaravan_CargoEntry(): CreateCaravan_CargoEntry {
+  return { key: "", value: 0 };
+}
+
+export const CreateCaravan_CargoEntry: MessageFns<CreateCaravan_CargoEntry> = {
+  encode(message: CreateCaravan_CargoEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.key !== "") {
+      writer.uint32(10).string(message.key);
+    }
+    if (message.value !== 0) {
+      writer.uint32(16).uint32(message.value);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CreateCaravan_CargoEntry {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCreateCaravan_CargoEntry();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.key = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.value = reader.uint32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<CreateCaravan_CargoEntry>, I>>(base?: I): CreateCaravan_CargoEntry {
+    return CreateCaravan_CargoEntry.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<CreateCaravan_CargoEntry>, I>>(object: I): CreateCaravan_CargoEntry {
+    const message = createBaseCreateCaravan_CargoEntry();
+    message.key = object.key ?? "";
+    message.value = object.value ?? 0;
+    return message;
+  },
+};
+
+function createBaseCreateShip(): CreateShip {
+  return { cityId: "", expectedRevision: 0n, hubId: "", cargo: {}, metal: 0n };
+}
+
+export const CreateShip: MessageFns<CreateShip> = {
+  encode(message: CreateShip, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.cityId !== "") {
+      writer.uint32(10).string(message.cityId);
+    }
+    if (message.expectedRevision !== 0n) {
+      if (BigInt.asUintN(64, message.expectedRevision) !== message.expectedRevision) {
+        throw new globalThis.Error("value provided for field message.expectedRevision of type uint64 too large");
+      }
+      writer.uint32(16).uint64(message.expectedRevision);
+    }
+    if (message.hubId !== "") {
+      writer.uint32(26).string(message.hubId);
+    }
+    Object.entries(message.cargo).forEach(([key, value]) => {
+      CreateShip_CargoEntry.encode({ key: key as any, value }, writer.uint32(34).fork()).join();
+    });
+    if (message.metal !== 0n) {
+      if (BigInt.asUintN(64, message.metal) !== message.metal) {
+        throw new globalThis.Error("value provided for field message.metal of type uint64 too large");
+      }
+      writer.uint32(40).uint64(message.metal);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CreateShip {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCreateShip();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.cityId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.expectedRevision = reader.uint64() as bigint;
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.hubId = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          const entry4 = CreateShip_CargoEntry.decode(reader, reader.uint32());
+          if (entry4.value !== undefined) {
+            message.cargo[entry4.key] = entry4.value;
+          }
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.metal = reader.uint64() as bigint;
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<CreateShip>, I>>(base?: I): CreateShip {
+    return CreateShip.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<CreateShip>, I>>(object: I): CreateShip {
+    const message = createBaseCreateShip();
+    message.cityId = object.cityId ?? "";
+    message.expectedRevision = object.expectedRevision ?? 0n;
+    message.hubId = object.hubId ?? "";
+    message.cargo = Object.entries(object.cargo ?? {}).reduce<{ [key: string]: number }>((acc, [key, value]) => {
+      if (value !== undefined) {
+        acc[key] = globalThis.Number(value);
+      }
+      return acc;
+    }, {});
+    message.metal = object.metal ?? 0n;
+    return message;
+  },
+};
+
+function createBaseCreateShip_CargoEntry(): CreateShip_CargoEntry {
+  return { key: "", value: 0 };
+}
+
+export const CreateShip_CargoEntry: MessageFns<CreateShip_CargoEntry> = {
+  encode(message: CreateShip_CargoEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.key !== "") {
+      writer.uint32(10).string(message.key);
+    }
+    if (message.value !== 0) {
+      writer.uint32(16).uint32(message.value);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CreateShip_CargoEntry {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCreateShip_CargoEntry();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.key = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.value = reader.uint32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<CreateShip_CargoEntry>, I>>(base?: I): CreateShip_CargoEntry {
+    return CreateShip_CargoEntry.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<CreateShip_CargoEntry>, I>>(object: I): CreateShip_CargoEntry {
+    const message = createBaseCreateShip_CargoEntry();
+    message.key = object.key ?? "";
+    message.value = object.value ?? 0;
+    return message;
+  },
+};
+
+function createBasePlaceOrder(): PlaceOrder {
+  return { hubId: "", commodity: "", side: 0, price: 0, quantity: 0 };
+}
+
+export const PlaceOrder: MessageFns<PlaceOrder> = {
+  encode(message: PlaceOrder, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.hubId !== "") {
+      writer.uint32(10).string(message.hubId);
+    }
+    if (message.commodity !== "") {
+      writer.uint32(18).string(message.commodity);
+    }
+    if (message.side !== 0) {
+      writer.uint32(24).int32(message.side);
+    }
+    if (message.price !== 0) {
+      writer.uint32(33).double(message.price);
+    }
+    if (message.quantity !== 0) {
+      writer.uint32(40).uint32(message.quantity);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): PlaceOrder {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBasePlaceOrder();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.hubId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.commodity = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.side = reader.int32();
+          continue;
+        }
+        case 4: {
+          if (tag !== 33) {
+            break;
+          }
+
+          message.price = reader.double();
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.quantity = reader.uint32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<PlaceOrder>, I>>(base?: I): PlaceOrder {
+    return PlaceOrder.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<PlaceOrder>, I>>(object: I): PlaceOrder {
+    const message = createBasePlaceOrder();
+    message.hubId = object.hubId ?? "";
+    message.commodity = object.commodity ?? "";
+    message.side = object.side ?? 0;
+    message.price = object.price ?? 0;
+    message.quantity = object.quantity ?? 0;
+    return message;
+  },
+};
+
+function createBaseCancelOrder(): CancelOrder {
+  return { orderId: "" };
+}
+
+export const CancelOrder: MessageFns<CancelOrder> = {
+  encode(message: CancelOrder, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.orderId !== "") {
+      writer.uint32(10).string(message.orderId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CancelOrder {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCancelOrder();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.orderId = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<CancelOrder>, I>>(base?: I): CancelOrder {
+    return CancelOrder.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<CancelOrder>, I>>(object: I): CancelOrder {
+    const message = createBaseCancelOrder();
+    message.orderId = object.orderId ?? "";
+    return message;
+  },
+};
+
+function createBaseGetMarket(): GetMarket {
+  return { hubId: "", commodity: "" };
+}
+
+export const GetMarket: MessageFns<GetMarket> = {
+  encode(message: GetMarket, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.hubId !== "") {
+      writer.uint32(10).string(message.hubId);
+    }
+    if (message.commodity !== "") {
+      writer.uint32(18).string(message.commodity);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetMarket {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetMarket();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.hubId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.commodity = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<GetMarket>, I>>(base?: I): GetMarket {
+    return GetMarket.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<GetMarket>, I>>(object: I): GetMarket {
+    const message = createBaseGetMarket();
+    message.hubId = object.hubId ?? "";
+    message.commodity = object.commodity ?? "";
+    return message;
+  },
+};
+
+function createBaseGetHub(): GetHub {
+  return { hubId: "" };
+}
+
+export const GetHub: MessageFns<GetHub> = {
+  encode(message: GetHub, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.hubId !== "") {
+      writer.uint32(10).string(message.hubId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetHub {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetHub();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.hubId = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<GetHub>, I>>(base?: I): GetHub {
+    return GetHub.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<GetHub>, I>>(object: I): GetHub {
+    const message = createBaseGetHub();
+    message.hubId = object.hubId ?? "";
     return message;
   },
 };
@@ -4175,6 +4997,960 @@ export const ResolveCheckpoint: MessageFns<ResolveCheckpoint> = {
   },
 };
 
+function createBaseCaravanState(): CaravanState {
+  return {
+    id: "",
+    kingdomId: "",
+    fromCity: "",
+    toHub: "",
+    journey: undefined,
+    cargo: {},
+    metal: 0n,
+    revision: 0n,
+    status: "",
+    dueAtMs: 0,
+  };
+}
+
+export const CaravanState: MessageFns<CaravanState> = {
+  encode(message: CaravanState, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== "") {
+      writer.uint32(10).string(message.id);
+    }
+    if (message.kingdomId !== "") {
+      writer.uint32(18).string(message.kingdomId);
+    }
+    if (message.fromCity !== "") {
+      writer.uint32(26).string(message.fromCity);
+    }
+    if (message.toHub !== "") {
+      writer.uint32(34).string(message.toHub);
+    }
+    if (message.journey !== undefined) {
+      MoveSegment.encode(message.journey, writer.uint32(42).fork()).join();
+    }
+    Object.entries(message.cargo).forEach(([key, value]) => {
+      CaravanState_CargoEntry.encode({ key: key as any, value }, writer.uint32(50).fork()).join();
+    });
+    if (message.metal !== 0n) {
+      if (BigInt.asUintN(64, message.metal) !== message.metal) {
+        throw new globalThis.Error("value provided for field message.metal of type uint64 too large");
+      }
+      writer.uint32(56).uint64(message.metal);
+    }
+    if (message.revision !== 0n) {
+      if (BigInt.asUintN(64, message.revision) !== message.revision) {
+        throw new globalThis.Error("value provided for field message.revision of type uint64 too large");
+      }
+      writer.uint32(64).uint64(message.revision);
+    }
+    if (message.status !== "") {
+      writer.uint32(74).string(message.status);
+    }
+    if (message.dueAtMs !== 0) {
+      writer.uint32(81).double(message.dueAtMs);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CaravanState {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCaravanState();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.id = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.kingdomId = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.fromCity = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.toHub = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.journey = MoveSegment.decode(reader, reader.uint32());
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          const entry6 = CaravanState_CargoEntry.decode(reader, reader.uint32());
+          if (entry6.value !== undefined) {
+            message.cargo[entry6.key] = entry6.value;
+          }
+          continue;
+        }
+        case 7: {
+          if (tag !== 56) {
+            break;
+          }
+
+          message.metal = reader.uint64() as bigint;
+          continue;
+        }
+        case 8: {
+          if (tag !== 64) {
+            break;
+          }
+
+          message.revision = reader.uint64() as bigint;
+          continue;
+        }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.status = reader.string();
+          continue;
+        }
+        case 10: {
+          if (tag !== 81) {
+            break;
+          }
+
+          message.dueAtMs = reader.double();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<CaravanState>, I>>(base?: I): CaravanState {
+    return CaravanState.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<CaravanState>, I>>(object: I): CaravanState {
+    const message = createBaseCaravanState();
+    message.id = object.id ?? "";
+    message.kingdomId = object.kingdomId ?? "";
+    message.fromCity = object.fromCity ?? "";
+    message.toHub = object.toHub ?? "";
+    message.journey = (object.journey !== undefined && object.journey !== null)
+      ? MoveSegment.fromPartial(object.journey)
+      : undefined;
+    message.cargo = Object.entries(object.cargo ?? {}).reduce<{ [key: string]: number }>((acc, [key, value]) => {
+      if (value !== undefined) {
+        acc[key] = globalThis.Number(value);
+      }
+      return acc;
+    }, {});
+    message.metal = object.metal ?? 0n;
+    message.revision = object.revision ?? 0n;
+    message.status = object.status ?? "";
+    message.dueAtMs = object.dueAtMs ?? 0;
+    return message;
+  },
+};
+
+function createBaseCaravanState_CargoEntry(): CaravanState_CargoEntry {
+  return { key: "", value: 0 };
+}
+
+export const CaravanState_CargoEntry: MessageFns<CaravanState_CargoEntry> = {
+  encode(message: CaravanState_CargoEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.key !== "") {
+      writer.uint32(10).string(message.key);
+    }
+    if (message.value !== 0) {
+      writer.uint32(16).uint32(message.value);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CaravanState_CargoEntry {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCaravanState_CargoEntry();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.key = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.value = reader.uint32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<CaravanState_CargoEntry>, I>>(base?: I): CaravanState_CargoEntry {
+    return CaravanState_CargoEntry.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<CaravanState_CargoEntry>, I>>(object: I): CaravanState_CargoEntry {
+    const message = createBaseCaravanState_CargoEntry();
+    message.key = object.key ?? "";
+    message.value = object.value ?? 0;
+    return message;
+  },
+};
+
+function createBaseShipState(): ShipState {
+  return {
+    id: "",
+    kingdomId: "",
+    fromCity: "",
+    toHub: "",
+    journey: undefined,
+    cargo: {},
+    metal: 0n,
+    revision: 0n,
+    status: "",
+    dueAtMs: 0,
+  };
+}
+
+export const ShipState: MessageFns<ShipState> = {
+  encode(message: ShipState, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== "") {
+      writer.uint32(10).string(message.id);
+    }
+    if (message.kingdomId !== "") {
+      writer.uint32(18).string(message.kingdomId);
+    }
+    if (message.fromCity !== "") {
+      writer.uint32(26).string(message.fromCity);
+    }
+    if (message.toHub !== "") {
+      writer.uint32(34).string(message.toHub);
+    }
+    if (message.journey !== undefined) {
+      MoveSegment.encode(message.journey, writer.uint32(42).fork()).join();
+    }
+    Object.entries(message.cargo).forEach(([key, value]) => {
+      ShipState_CargoEntry.encode({ key: key as any, value }, writer.uint32(50).fork()).join();
+    });
+    if (message.metal !== 0n) {
+      if (BigInt.asUintN(64, message.metal) !== message.metal) {
+        throw new globalThis.Error("value provided for field message.metal of type uint64 too large");
+      }
+      writer.uint32(56).uint64(message.metal);
+    }
+    if (message.revision !== 0n) {
+      if (BigInt.asUintN(64, message.revision) !== message.revision) {
+        throw new globalThis.Error("value provided for field message.revision of type uint64 too large");
+      }
+      writer.uint32(64).uint64(message.revision);
+    }
+    if (message.status !== "") {
+      writer.uint32(74).string(message.status);
+    }
+    if (message.dueAtMs !== 0) {
+      writer.uint32(81).double(message.dueAtMs);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ShipState {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseShipState();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.id = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.kingdomId = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.fromCity = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.toHub = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.journey = MoveSegment.decode(reader, reader.uint32());
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          const entry6 = ShipState_CargoEntry.decode(reader, reader.uint32());
+          if (entry6.value !== undefined) {
+            message.cargo[entry6.key] = entry6.value;
+          }
+          continue;
+        }
+        case 7: {
+          if (tag !== 56) {
+            break;
+          }
+
+          message.metal = reader.uint64() as bigint;
+          continue;
+        }
+        case 8: {
+          if (tag !== 64) {
+            break;
+          }
+
+          message.revision = reader.uint64() as bigint;
+          continue;
+        }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.status = reader.string();
+          continue;
+        }
+        case 10: {
+          if (tag !== 81) {
+            break;
+          }
+
+          message.dueAtMs = reader.double();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<ShipState>, I>>(base?: I): ShipState {
+    return ShipState.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ShipState>, I>>(object: I): ShipState {
+    const message = createBaseShipState();
+    message.id = object.id ?? "";
+    message.kingdomId = object.kingdomId ?? "";
+    message.fromCity = object.fromCity ?? "";
+    message.toHub = object.toHub ?? "";
+    message.journey = (object.journey !== undefined && object.journey !== null)
+      ? MoveSegment.fromPartial(object.journey)
+      : undefined;
+    message.cargo = Object.entries(object.cargo ?? {}).reduce<{ [key: string]: number }>((acc, [key, value]) => {
+      if (value !== undefined) {
+        acc[key] = globalThis.Number(value);
+      }
+      return acc;
+    }, {});
+    message.metal = object.metal ?? 0n;
+    message.revision = object.revision ?? 0n;
+    message.status = object.status ?? "";
+    message.dueAtMs = object.dueAtMs ?? 0;
+    return message;
+  },
+};
+
+function createBaseShipState_CargoEntry(): ShipState_CargoEntry {
+  return { key: "", value: 0 };
+}
+
+export const ShipState_CargoEntry: MessageFns<ShipState_CargoEntry> = {
+  encode(message: ShipState_CargoEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.key !== "") {
+      writer.uint32(10).string(message.key);
+    }
+    if (message.value !== 0) {
+      writer.uint32(16).uint32(message.value);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ShipState_CargoEntry {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseShipState_CargoEntry();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.key = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.value = reader.uint32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<ShipState_CargoEntry>, I>>(base?: I): ShipState_CargoEntry {
+    return ShipState_CargoEntry.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ShipState_CargoEntry>, I>>(object: I): ShipState_CargoEntry {
+    const message = createBaseShipState_CargoEntry();
+    message.key = object.key ?? "";
+    message.value = object.value ?? 0;
+    return message;
+  },
+};
+
+function createBaseHubState(): HubState {
+  return { id: "", name: "", pos: undefined, kingdomId: "", stock: {}, metal: 0n, fee: 0 };
+}
+
+export const HubState: MessageFns<HubState> = {
+  encode(message: HubState, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== "") {
+      writer.uint32(10).string(message.id);
+    }
+    if (message.name !== "") {
+      writer.uint32(18).string(message.name);
+    }
+    if (message.pos !== undefined) {
+      LatLon.encode(message.pos, writer.uint32(26).fork()).join();
+    }
+    if (message.kingdomId !== "") {
+      writer.uint32(34).string(message.kingdomId);
+    }
+    Object.entries(message.stock).forEach(([key, value]) => {
+      HubState_StockEntry.encode({ key: key as any, value }, writer.uint32(42).fork()).join();
+    });
+    if (message.metal !== 0n) {
+      if (BigInt.asUintN(64, message.metal) !== message.metal) {
+        throw new globalThis.Error("value provided for field message.metal of type uint64 too large");
+      }
+      writer.uint32(48).uint64(message.metal);
+    }
+    if (message.fee !== 0) {
+      writer.uint32(57).double(message.fee);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): HubState {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseHubState();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.id = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.name = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.pos = LatLon.decode(reader, reader.uint32());
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.kingdomId = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          const entry5 = HubState_StockEntry.decode(reader, reader.uint32());
+          if (entry5.value !== undefined) {
+            message.stock[entry5.key] = entry5.value;
+          }
+          continue;
+        }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.metal = reader.uint64() as bigint;
+          continue;
+        }
+        case 7: {
+          if (tag !== 57) {
+            break;
+          }
+
+          message.fee = reader.double();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<HubState>, I>>(base?: I): HubState {
+    return HubState.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<HubState>, I>>(object: I): HubState {
+    const message = createBaseHubState();
+    message.id = object.id ?? "";
+    message.name = object.name ?? "";
+    message.pos = (object.pos !== undefined && object.pos !== null) ? LatLon.fromPartial(object.pos) : undefined;
+    message.kingdomId = object.kingdomId ?? "";
+    message.stock = Object.entries(object.stock ?? {}).reduce<{ [key: string]: number }>((acc, [key, value]) => {
+      if (value !== undefined) {
+        acc[key] = globalThis.Number(value);
+      }
+      return acc;
+    }, {});
+    message.metal = object.metal ?? 0n;
+    message.fee = object.fee ?? 0;
+    return message;
+  },
+};
+
+function createBaseHubState_StockEntry(): HubState_StockEntry {
+  return { key: "", value: 0 };
+}
+
+export const HubState_StockEntry: MessageFns<HubState_StockEntry> = {
+  encode(message: HubState_StockEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.key !== "") {
+      writer.uint32(10).string(message.key);
+    }
+    if (message.value !== 0) {
+      writer.uint32(16).uint32(message.value);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): HubState_StockEntry {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseHubState_StockEntry();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.key = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.value = reader.uint32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<HubState_StockEntry>, I>>(base?: I): HubState_StockEntry {
+    return HubState_StockEntry.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<HubState_StockEntry>, I>>(object: I): HubState_StockEntry {
+    const message = createBaseHubState_StockEntry();
+    message.key = object.key ?? "";
+    message.value = object.value ?? 0;
+    return message;
+  },
+};
+
+function createBaseOrderState(): OrderState {
+  return {
+    id: "",
+    hubId: "",
+    kingdomId: "",
+    commodity: "",
+    side: 0,
+    price: 0,
+    quantity: 0,
+    filledQuantity: 0,
+    placedAtMs: 0n,
+    status: "",
+  };
+}
+
+export const OrderState: MessageFns<OrderState> = {
+  encode(message: OrderState, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== "") {
+      writer.uint32(10).string(message.id);
+    }
+    if (message.hubId !== "") {
+      writer.uint32(18).string(message.hubId);
+    }
+    if (message.kingdomId !== "") {
+      writer.uint32(26).string(message.kingdomId);
+    }
+    if (message.commodity !== "") {
+      writer.uint32(34).string(message.commodity);
+    }
+    if (message.side !== 0) {
+      writer.uint32(40).int32(message.side);
+    }
+    if (message.price !== 0) {
+      writer.uint32(49).double(message.price);
+    }
+    if (message.quantity !== 0) {
+      writer.uint32(56).uint32(message.quantity);
+    }
+    if (message.filledQuantity !== 0) {
+      writer.uint32(64).uint32(message.filledQuantity);
+    }
+    if (message.placedAtMs !== 0n) {
+      if (BigInt.asUintN(64, message.placedAtMs) !== message.placedAtMs) {
+        throw new globalThis.Error("value provided for field message.placedAtMs of type uint64 too large");
+      }
+      writer.uint32(72).uint64(message.placedAtMs);
+    }
+    if (message.status !== "") {
+      writer.uint32(82).string(message.status);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): OrderState {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseOrderState();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.id = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.hubId = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.kingdomId = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.commodity = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.side = reader.int32();
+          continue;
+        }
+        case 6: {
+          if (tag !== 49) {
+            break;
+          }
+
+          message.price = reader.double();
+          continue;
+        }
+        case 7: {
+          if (tag !== 56) {
+            break;
+          }
+
+          message.quantity = reader.uint32();
+          continue;
+        }
+        case 8: {
+          if (tag !== 64) {
+            break;
+          }
+
+          message.filledQuantity = reader.uint32();
+          continue;
+        }
+        case 9: {
+          if (tag !== 72) {
+            break;
+          }
+
+          message.placedAtMs = reader.uint64() as bigint;
+          continue;
+        }
+        case 10: {
+          if (tag !== 82) {
+            break;
+          }
+
+          message.status = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<OrderState>, I>>(base?: I): OrderState {
+    return OrderState.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<OrderState>, I>>(object: I): OrderState {
+    const message = createBaseOrderState();
+    message.id = object.id ?? "";
+    message.hubId = object.hubId ?? "";
+    message.kingdomId = object.kingdomId ?? "";
+    message.commodity = object.commodity ?? "";
+    message.side = object.side ?? 0;
+    message.price = object.price ?? 0;
+    message.quantity = object.quantity ?? 0;
+    message.filledQuantity = object.filledQuantity ?? 0;
+    message.placedAtMs = object.placedAtMs ?? 0n;
+    message.status = object.status ?? "";
+    return message;
+  },
+};
+
+function createBaseMarketSnapshot(): MarketSnapshot {
+  return { hubId: "", commodity: "", buyOrders: [], sellOrders: [], recentFills: [], localPrice: 0, observedAtMs: 0n };
+}
+
+export const MarketSnapshot: MessageFns<MarketSnapshot> = {
+  encode(message: MarketSnapshot, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.hubId !== "") {
+      writer.uint32(10).string(message.hubId);
+    }
+    if (message.commodity !== "") {
+      writer.uint32(18).string(message.commodity);
+    }
+    for (const v of message.buyOrders) {
+      OrderState.encode(v!, writer.uint32(26).fork()).join();
+    }
+    for (const v of message.sellOrders) {
+      OrderState.encode(v!, writer.uint32(34).fork()).join();
+    }
+    for (const v of message.recentFills) {
+      OrderState.encode(v!, writer.uint32(42).fork()).join();
+    }
+    if (message.localPrice !== 0) {
+      writer.uint32(49).double(message.localPrice);
+    }
+    if (message.observedAtMs !== 0n) {
+      if (BigInt.asUintN(64, message.observedAtMs) !== message.observedAtMs) {
+        throw new globalThis.Error("value provided for field message.observedAtMs of type uint64 too large");
+      }
+      writer.uint32(56).uint64(message.observedAtMs);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): MarketSnapshot {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMarketSnapshot();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.hubId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.commodity = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.buyOrders.push(OrderState.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.sellOrders.push(OrderState.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.recentFills.push(OrderState.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 6: {
+          if (tag !== 49) {
+            break;
+          }
+
+          message.localPrice = reader.double();
+          continue;
+        }
+        case 7: {
+          if (tag !== 56) {
+            break;
+          }
+
+          message.observedAtMs = reader.uint64() as bigint;
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<MarketSnapshot>, I>>(base?: I): MarketSnapshot {
+    return MarketSnapshot.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<MarketSnapshot>, I>>(object: I): MarketSnapshot {
+    const message = createBaseMarketSnapshot();
+    message.hubId = object.hubId ?? "";
+    message.commodity = object.commodity ?? "";
+    message.buyOrders = object.buyOrders?.map((e) => OrderState.fromPartial(e)) || [];
+    message.sellOrders = object.sellOrders?.map((e) => OrderState.fromPartial(e)) || [];
+    message.recentFills = object.recentFills?.map((e) => OrderState.fromPartial(e)) || [];
+    message.localPrice = object.localPrice ?? 0;
+    message.observedAtMs = object.observedAtMs ?? 0n;
+    return message;
+  },
+};
+
 function createBaseServerMsg(): ServerMsg {
   return { kind: undefined };
 }
@@ -4208,6 +5984,21 @@ export const ServerMsg: MessageFns<ServerMsg> = {
         break;
       case "admin":
         AdminSnapshot.encode(message.kind.admin, writer.uint32(98).fork()).join();
+        break;
+      case "caravan":
+        CaravanState.encode(message.kind.caravan, writer.uint32(106).fork()).join();
+        break;
+      case "ship":
+        ShipState.encode(message.kind.ship, writer.uint32(114).fork()).join();
+        break;
+      case "hub":
+        HubState.encode(message.kind.hub, writer.uint32(122).fork()).join();
+        break;
+      case "order":
+        OrderState.encode(message.kind.order, writer.uint32(130).fork()).join();
+        break;
+      case "market":
+        MarketSnapshot.encode(message.kind.market, writer.uint32(138).fork()).join();
         break;
     }
     return writer;
@@ -4292,6 +6083,46 @@ export const ServerMsg: MessageFns<ServerMsg> = {
           message.kind = { $case: "admin", admin: AdminSnapshot.decode(reader, reader.uint32()) };
           continue;
         }
+        case 13: {
+          if (tag !== 106) {
+            break;
+          }
+
+          message.kind = { $case: "caravan", caravan: CaravanState.decode(reader, reader.uint32()) };
+          continue;
+        }
+        case 14: {
+          if (tag !== 114) {
+            break;
+          }
+
+          message.kind = { $case: "ship", ship: ShipState.decode(reader, reader.uint32()) };
+          continue;
+        }
+        case 15: {
+          if (tag !== 122) {
+            break;
+          }
+
+          message.kind = { $case: "hub", hub: HubState.decode(reader, reader.uint32()) };
+          continue;
+        }
+        case 16: {
+          if (tag !== 130) {
+            break;
+          }
+
+          message.kind = { $case: "order", order: OrderState.decode(reader, reader.uint32()) };
+          continue;
+        }
+        case 17: {
+          if (tag !== 138) {
+            break;
+          }
+
+          message.kind = { $case: "market", market: MarketSnapshot.decode(reader, reader.uint32()) };
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -4358,6 +6189,36 @@ export const ServerMsg: MessageFns<ServerMsg> = {
       case "admin": {
         if (object.kind?.admin !== undefined && object.kind?.admin !== null) {
           message.kind = { $case: "admin", admin: AdminSnapshot.fromPartial(object.kind.admin) };
+        }
+        break;
+      }
+      case "caravan": {
+        if (object.kind?.caravan !== undefined && object.kind?.caravan !== null) {
+          message.kind = { $case: "caravan", caravan: CaravanState.fromPartial(object.kind.caravan) };
+        }
+        break;
+      }
+      case "ship": {
+        if (object.kind?.ship !== undefined && object.kind?.ship !== null) {
+          message.kind = { $case: "ship", ship: ShipState.fromPartial(object.kind.ship) };
+        }
+        break;
+      }
+      case "hub": {
+        if (object.kind?.hub !== undefined && object.kind?.hub !== null) {
+          message.kind = { $case: "hub", hub: HubState.fromPartial(object.kind.hub) };
+        }
+        break;
+      }
+      case "order": {
+        if (object.kind?.order !== undefined && object.kind?.order !== null) {
+          message.kind = { $case: "order", order: OrderState.fromPartial(object.kind.order) };
+        }
+        break;
+      }
+      case "market": {
+        if (object.kind?.market !== undefined && object.kind?.market !== null) {
+          message.kind = { $case: "market", market: MarketSnapshot.fromPartial(object.kind.market) };
         }
         break;
       }

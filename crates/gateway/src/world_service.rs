@@ -1,15 +1,20 @@
 use orbis_core::{
     city::{CityLayout, Construction, ConstructionId},
+    economy::{Hub, Stock},
     time::FixedClock,
-    world::{AccountId, Action, City, CityId, Position, Ruler},
+    world::{
+        AccountId, Action, CaravanId, City, CityId, HubId, KingdomId, Position, Ruler, ShipId,
+    },
 };
 use orbis_protocol::{
     command, server_msg, AdminEvent, AdminSnapshot, AdminSnapshotRequest,
     BuildingDefinition as WireBuildingDefinition, BuildingState, CityEventState, CityMetrics,
-    CitySnapshot, CityState, Command, CommandResult, ConstructionState, LatLon, MoveSegment,
-    PopulationState, RulerState, ServerMsg, TerritoryCell, WorldSnapshot,
+    CitySnapshot, CityState, Command, CommandResult, ConstructionState, HubState, LatLon,
+    MarketSnapshot, MoveSegment, OrderState, PopulationState, RulerState, ServerMsg, TerritoryCell,
+    WorldSnapshot,
 };
 use orbis_sim::city::{self, Catalog as CityCatalog};
+use orbis_sim::economy::{Balance as EconomyBalance, Catalog as EconomyCatalog, EconomyError};
 use orbis_sim::world::{self, Balance, GameError, Geography, TerritoryBalance, VillageOrder};
 use prost::Message;
 use sqlx::{types::Json, PgConnection, PgPool, QueryBuilder, Row};
@@ -32,6 +37,8 @@ pub enum ServiceError {
     Game(#[from] GameError),
     #[error(transparent)]
     City(#[from] city::CityError),
+    #[error("{0}")]
+    Economy(#[from] EconomyError),
     #[error(transparent)]
     Wire(#[from] prost::DecodeError),
     #[error(transparent)]
@@ -51,6 +58,8 @@ pub struct Context {
     pub territory: Arc<TerritoryBalance>,
     pub city_catalog: Arc<CityCatalog>,
     pub city_balance: Arc<city::Balance>,
+    pub economy_catalog: Arc<EconomyCatalog>,
+    pub economy_balance: Arc<EconomyBalance>,
 }
 impl Context {
     pub async fn connect() -> Result<Self, ServiceError> {
@@ -90,18 +99,62 @@ impl Context {
             city_balance.simulation.tick_ms = millis;
         }
         city_balance.validate()?;
+        let economy_catalog =
+            EconomyCatalog::parse(include_str!("../../../data/economy/commodities.toml"))?;
+        economy_catalog.validate()?;
+        let economy_balance: EconomyBalance =
+            toml::from_str(include_str!("../../../config/balance/economy.toml"))?;
+        economy_balance.validate()?;
         let geo = Geography::from_json(
             include_str!("../../../apps/client/src/assets/world-land-v1.json"),
             include_str!("../../../apps/client/src/assets/world-terrain-v1.json"),
         )?;
-        Ok(Self {
+        let context = Self {
             pool,
             geo: Arc::new(geo),
             balance: Arc::new(balance),
             territory: Arc::new(territory),
             city_catalog: Arc::new(city_catalog),
             city_balance: Arc::new(city_balance),
-        })
+            economy_catalog: Arc::new(economy_catalog),
+            economy_balance: Arc::new(economy_balance),
+        };
+        context.seed_hubs().await?;
+        Ok(context)
+    }
+    /// Creates the IA hubs once per world, deterministically from the seeded balance.
+    async fn seed_hubs(&self) -> Result<(), ServiceError> {
+        let mut tx = self.pool.begin().await?;
+        let existing: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM hubs")
+            .fetch_one(&mut *tx)
+            .await?;
+        if existing > 0 {
+            tx.commit().await?;
+            return Ok(());
+        }
+        for hub in orbis_sim::economy::seeded_hubs(
+            &self.geo,
+            self.economy_balance.hub_seed.seed,
+            &self.economy_balance,
+            &self.economy_catalog,
+        ) {
+            sqlx::query(
+                "INSERT INTO hubs(id,name,pos,h3_shard,kingdom_id,stock,metal,fee) \
+                 VALUES($1,$2,ST_SetSRID(ST_MakePoint($3,$4),4326)::geography,$5,NULL,$6,$7,$8)",
+            )
+            .bind(hub.id.0)
+            .bind(&hub.name)
+            .bind(hub.pos.lon)
+            .bind(hub.pos.lat)
+            .bind(world::shard(hub.pos) as i64)
+            .bind(Json(&hub.stock))
+            .bind(hub.metal as i64)
+            .bind(hub.fee)
+            .execute(&mut *tx)
+            .await?;
+        }
+        tx.commit().await?;
+        Ok(())
     }
     pub async fn actor_shard(&self, account: AccountId) -> Result<u64, ServiceError> {
         let shard:Option<i64>=sqlx::query_scalar("SELECT e.shard FROM entities e JOIN kingdoms k ON k.id=e.kingdom_id WHERE k.owner_account=$1 AND e.kind=0").bind(account.0).fetch_optional(&self.pool).await?;
@@ -199,6 +252,53 @@ impl Context {
                 .execute(&mut *tx)
                 .await?;
             }
+            tx.commit().await?;
+            return Ok(response);
+        }
+        if matches!(
+            command.kind,
+            Some(command::Kind::CreateCaravan(_))
+                | Some(command::Kind::CreateShip(_))
+                | Some(command::Kind::PlaceOrder(_))
+                | Some(command::Kind::CancelOrder(_))
+                | Some(command::Kind::GetMarket(_))
+                | Some(command::Kind::GetHub(_))
+        ) {
+            let response = match &command.kind {
+                Some(command::Kind::CreateCaravan(order)) => {
+                    self.economy_create_caravan(&mut tx, &ruler, order, &command.request_id, now_ms)
+                        .await?
+                }
+                Some(command::Kind::CreateShip(order)) => {
+                    self.economy_create_ship(&mut tx, &ruler, order, &command.request_id, now_ms)
+                        .await?
+                }
+                Some(command::Kind::PlaceOrder(order)) => {
+                    self.economy_place_order(&mut tx, &ruler, order, &command.request_id, now_ms)
+                        .await?
+                }
+                Some(command::Kind::CancelOrder(order)) => {
+                    self.economy_cancel_order(&mut tx, &ruler, order, &command.request_id, now_ms)
+                        .await?
+                }
+                Some(command::Kind::GetMarket(order)) => {
+                    self.economy_get_market(&mut tx, &ruler, order, &command.request_id, now_ms)
+                        .await?
+                }
+                Some(command::Kind::GetHub(order)) => {
+                    self.economy_get_hub(&mut tx, &ruler, order, &command.request_id, now_ms)
+                        .await?
+                }
+                _ => unreachable!("kind checked by matches! above"),
+            };
+            sqlx::query(
+                "INSERT INTO command_receipts(account_id,request_id,response) VALUES($1,$2,$3)",
+            )
+            .bind(account.0)
+            .bind(&command.request_id)
+            .bind(response.encode_to_vec())
+            .execute(&mut *tx)
+            .await?;
             tx.commit().await?;
             return Ok(response);
         }
@@ -495,12 +595,29 @@ impl Context {
             tx.commit().await?;
             return Ok(true);
         }
+        if matches!(
+            action.0,
+            Action::CompleteCaravan { .. } | Action::CompleteShip { .. }
+        ) {
+            // The arrival session logs its own event; the deferred event just completes.
+            self.process_economy_action(&mut tx, &action.0, now_ms)
+                .await?;
+            sqlx::query("UPDATE scheduled_events SET done_at=now() WHERE id=$1")
+                .bind(event_id)
+                .execute(&mut *tx)
+                .await?;
+            tx.commit().await?;
+            return Ok(true);
+        }
         if matches!(action.0, Action::CompleteVillage { .. }) {
             foundation_lock(&mut tx).await?;
         }
         let ruler_id = match action.0 {
             Action::Arrive { ruler, .. } | Action::CompleteVillage { ruler, .. } => ruler,
-            Action::CompleteConstruction { .. } | Action::CityTick { .. } => unreachable!(),
+            Action::CompleteConstruction { .. }
+            | Action::CityTick { .. }
+            | Action::CompleteCaravan { .. }
+            | Action::CompleteShip { .. } => unreachable!(),
         };
         let Json(ruler): Json<Ruler> =
             sqlx::query_scalar("SELECT state FROM entities WHERE id=$1 FOR UPDATE")
@@ -797,6 +914,7 @@ impl Context {
                 }
             }
             Action::Arrive { .. } | Action::CompleteVillage { .. } => unreachable!(),
+            Action::CompleteCaravan { .. } | Action::CompleteShip { .. } => unreachable!(),
         }
         Ok(())
     }
@@ -1115,5 +1233,689 @@ fn city_state(city: &City) -> CityState {
         active: city.active,
         ready_at_ms: city.ready_at_ms as f64,
         population: city.population,
+    }
+}
+
+// =========================================================================
+// Economy persistence helpers (S1.3)
+// =========================================================================
+
+/// Hub decoded from relational columns; `pos` is stored as geography.
+const HUB_COLUMNS: &str =
+    "id,name,kingdom_id,stock,metal,fee::float8 AS fee,ST_Y(pos::geometry) AS lat,ST_X(pos::geometry) AS lon";
+
+/// Book columns; `price` is stored as numeric.
+const ORDER_COLUMNS: &str =
+    "id,hub_id,kingdom_id,commodity,side,price::float8 AS price,quantity,filled_quantity,placed_at_ms,status";
+
+fn hub_from_row(row: sqlx::postgres::PgRow) -> Hub {
+    Hub {
+        id: orbis_core::economy::HubId(row.get::<Uuid, _>("id")),
+        name: row.get("name"),
+        pos: Position {
+            lat: row.get("lat"),
+            lon: row.get("lon"),
+        },
+        kingdom: row.get::<Option<Uuid>, _>("kingdom_id").map(KingdomId),
+        stock: row.get::<Json<Stock>, _>("stock").0,
+        metal: row.get::<i64, _>("metal").max(0) as u64,
+        fee: row.get("fee"),
+    }
+}
+
+fn order_from_row(row: sqlx::postgres::PgRow) -> OrderState {
+    OrderState {
+        id: row.get::<Uuid, _>("id").to_string(),
+        hub_id: row.get::<Uuid, _>("hub_id").to_string(),
+        kingdom_id: row.get::<Uuid, _>("kingdom_id").to_string(),
+        commodity: row.get("commodity"),
+        side: row.get::<i16, _>("side") as i32,
+        price: row.get("price"),
+        quantity: row.get::<i32, _>("quantity").max(0) as u32,
+        filled_quantity: row.get::<i32, _>("filled_quantity").max(0) as u32,
+        placed_at_ms: row.get::<i64, _>("placed_at_ms").max(0) as u64,
+        status: row.get("status"),
+    }
+}
+
+// =========================================================================
+// Economy command handlers (S1.3)
+// =========================================================================
+
+impl Context {
+    /// Loads one hub into the domain struct; `lock` is an empty phrase, `FOR SHARE` or `FOR UPDATE`.
+    async fn load_hub(
+        &self,
+        tx: &mut PgConnection,
+        hub: Uuid,
+        lock: &str,
+    ) -> Result<Option<Hub>, ServiceError> {
+        let sql = format!("SELECT {HUB_COLUMNS} FROM hubs WHERE id=$1 {lock}");
+        let row = sqlx::query(&sql).bind(hub).fetch_optional(tx).await?;
+        Ok(row.map(hub_from_row))
+    }
+
+    async fn economy_create_caravan(
+        &self,
+        tx: &mut PgConnection,
+        ruler: &Ruler,
+        order: &orbis_protocol::CreateCaravan,
+        request_id: &str,
+        now_ms: u64,
+    ) -> Result<ServerMsg, ServiceError> {
+        let city_id = Uuid::parse_str(&order.city_id)
+            .map_err(|_| ServiceError::BadInput("invalid_city_id"))?;
+        let hub_id =
+            Uuid::parse_str(&order.hub_id).map_err(|_| ServiceError::BadInput("invalid_hub_id"))?;
+        let caravan_id = CaravanId(Uuid::new_v4());
+
+        // Verify city belongs to ruler's kingdom
+        let city = load_city(tx, CityId(city_id), true)
+            .await?
+            .ok_or(ServiceError::BadInput("city_not_found"))?;
+        if city.kingdom != ruler.kingdom {
+            return Ok(result(request_id, false, "city_not_owned"));
+        }
+
+        // Verify hub exists
+        let Some(hub) = self.load_hub(tx, hub_id, "FOR SHARE").await? else {
+            return Ok(result(request_id, false, "hub_not_found"));
+        };
+
+        // Validate cargo weight against capacity
+        let cargo: Stock = cargo_map(&order.cargo);
+        let total_weight: f64 = cargo
+            .iter()
+            .filter_map(|(commodity, qty)| {
+                self.economy_catalog
+                    .find(commodity)
+                    .map(|def| def.weight_kg * *qty as f64)
+            })
+            .sum();
+        if total_weight > self.economy_balance.caravan.capacity_kg {
+            return Ok(result(request_id, false, "cargo_over_capacity"));
+        }
+
+        // Calculate journey
+        let clock = FixedClock(now_ms);
+        let cities = load_cities(tx).await?;
+        let plan = world::plan_caravan(
+            ruler,
+            world::CaravanOrder {
+                id: caravan_id,
+                from: CityId(city_id),
+                to: HubId(hub_id),
+                cargo: cargo.clone(),
+                metal: order.metal,
+            },
+            &cities,
+            &clock,
+            &self.geo,
+            &self.balance,
+        )?;
+        let (next, action, due) = plan;
+        let ruler = next;
+
+        // Persist caravan
+        sqlx::query(
+            "INSERT INTO caravans(id,kingdom_id,from_city,to_hub,journey,cargo,metal,revision,status) VALUES($1,$2,$3,$4,$5,$6,$7,1,'traveling')",
+        )
+        .bind(caravan_id.0)
+        .bind(ruler.kingdom.0)
+        .bind(city_id)
+        .bind(hub_id)
+        .bind(Json(serde_json::json!({
+            "from": {"lat": city.pos.lat, "lon": city.pos.lon},
+            "to": {"lat": hub.pos.lat, "lon": hub.pos.lon},
+            "start_ms": now_ms,
+            "due_ms": due,
+        })))
+        .bind(Json(&cargo))
+        .bind(order.metal as i64)
+        .execute(&mut *tx)
+        .await?;
+
+        // Schedule completion
+        save_ruler(tx, &ruler).await?;
+        let shard = world::shard(ruler.pos);
+        sqlx::query(
+            "INSERT INTO scheduled_events(id,shard,due_at,kind,payload,idempotency_key,worker_slot) VALUES($1,$2,to_timestamp($3),0,$4,$5,$6)",
+        )
+        .bind(Uuid::new_v4())
+        .bind(shard as i64)
+        .bind(due as f64 / 1000.0)
+        .bind(Json(&action))
+        .bind(format!("{}:{}", ruler.id.0, request_id))
+        .bind(world::worker(shard) as i16)
+        .execute(&mut *tx)
+        .await?;
+
+        Ok(result(request_id, true, ""))
+    }
+
+    async fn economy_create_ship(
+        &self,
+        tx: &mut PgConnection,
+        ruler: &Ruler,
+        order: &orbis_protocol::CreateShip,
+        request_id: &str,
+        now_ms: u64,
+    ) -> Result<ServerMsg, ServiceError> {
+        let city_id = Uuid::parse_str(&order.city_id)
+            .map_err(|_| ServiceError::BadInput("invalid_city_id"))?;
+        let hub_id =
+            Uuid::parse_str(&order.hub_id).map_err(|_| ServiceError::BadInput("invalid_hub_id"))?;
+        let ship_id = ShipId(Uuid::new_v4());
+
+        // Verify city belongs to ruler's kingdom
+        let city = load_city(tx, CityId(city_id), true)
+            .await?
+            .ok_or(ServiceError::BadInput("city_not_found"))?;
+        if city.kingdom != ruler.kingdom {
+            return Ok(result(request_id, false, "city_not_owned"));
+        }
+
+        // Verify hub exists
+        let Some(hub) = self.load_hub(tx, hub_id, "FOR SHARE").await? else {
+            return Ok(result(request_id, false, "hub_not_found"));
+        };
+
+        // Validate cargo weight against capacity
+        let cargo: Stock = cargo_map(&order.cargo);
+        let total_weight: f64 = cargo
+            .iter()
+            .filter_map(|(commodity, qty)| {
+                self.economy_catalog
+                    .find(commodity)
+                    .map(|def| def.weight_kg * *qty as f64)
+            })
+            .sum();
+        if total_weight > self.economy_balance.ship.capacity_kg {
+            return Ok(result(request_id, false, "cargo_over_capacity"));
+        }
+
+        // Calculate journey
+        let clock = FixedClock(now_ms);
+        let cities = load_cities(tx).await?;
+        let plan = world::plan_ship(
+            ruler,
+            world::ShipOrder {
+                id: ship_id,
+                from: CityId(city_id),
+                to: HubId(hub_id),
+                cargo: cargo.clone(),
+                metal: order.metal,
+            },
+            &cities,
+            &clock,
+            &self.geo,
+            &self.balance,
+        )?;
+        let (next, action, due) = plan;
+        let ruler = next;
+
+        // Persist ship
+        sqlx::query(
+            "INSERT INTO ships(id,kingdom_id,from_city,to_hub,journey,cargo,metal,revision,status) VALUES($1,$2,$3,$4,$5,$6,$7,1,'traveling')",
+        )
+        .bind(ship_id.0)
+        .bind(ruler.kingdom.0)
+        .bind(city_id)
+        .bind(hub_id)
+        .bind(Json(serde_json::json!({
+            "from": {"lat": city.pos.lat, "lon": city.pos.lon},
+            "to": {"lat": hub.pos.lat, "lon": hub.pos.lon},
+            "start_ms": now_ms,
+            "due_ms": due,
+        })))
+        .bind(Json(&cargo))
+        .bind(order.metal as i64)
+        .execute(&mut *tx)
+        .await?;
+
+        // Schedule completion
+        save_ruler(tx, &ruler).await?;
+        let shard = world::shard(ruler.pos);
+        sqlx::query(
+            "INSERT INTO scheduled_events(id,shard,due_at,kind,payload,idempotency_key,worker_slot) VALUES($1,$2,to_timestamp($3),0,$4,$5,$6)",
+        )
+        .bind(Uuid::new_v4())
+        .bind(shard as i64)
+        .bind(due as f64 / 1000.0)
+        .bind(Json(&action))
+        .bind(format!("{}:{}", ruler.id.0, request_id))
+        .bind(world::worker(shard) as i16)
+        .execute(&mut *tx)
+        .await?;
+
+        Ok(result(request_id, true, ""))
+    }
+
+    async fn economy_place_order(
+        &self,
+        tx: &mut PgConnection,
+        ruler: &Ruler,
+        order: &orbis_protocol::PlaceOrder,
+        request_id: &str,
+        now_ms: u64,
+    ) -> Result<ServerMsg, ServiceError> {
+        let hub_id =
+            Uuid::parse_str(&order.hub_id).map_err(|_| ServiceError::BadInput("invalid_hub_id"))?;
+        if !matches!(order.side, 0 | 1) {
+            return Ok(result(request_id, false, "invalid_side"));
+        }
+        if order.quantity == 0 || !order.price.is_finite() || order.price <= 0.0 {
+            return Ok(result(request_id, false, "invalid_order"));
+        }
+
+        // Verify hub and commodity exist. Resting orders record intent; the
+        // physical exchange happens through the caravan arrival session.
+        let hub_exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM hubs WHERE id=$1)")
+            .bind(hub_id)
+            .fetch_one(&mut *tx)
+            .await?;
+        if !hub_exists {
+            return Ok(result(request_id, false, "hub_not_found"));
+        }
+        if self.economy_catalog.find(&order.commodity).is_none() {
+            return Ok(result(request_id, false, "unknown_commodity"));
+        }
+
+        // Insert the resting order and return it.
+        let created = sqlx::query(&format!(
+            "INSERT INTO trade_orders(id,hub_id,kingdom_id,commodity,side,price,quantity,placed_at_ms) \
+             VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING {ORDER_COLUMNS}",
+        ))
+        .bind(Uuid::new_v4())
+        .bind(hub_id)
+        .bind(ruler.kingdom.0)
+        .bind(&order.commodity)
+        .bind(order.side as i16)
+        .bind(order.price)
+        .bind(order.quantity as i32)
+        .bind(now_ms as i64)
+        .fetch_one(&mut *tx)
+        .await?;
+        Ok(ServerMsg {
+            kind: Some(server_msg::Kind::Order(order_from_row(created))),
+        })
+    }
+
+    async fn economy_cancel_order(
+        &self,
+        tx: &mut PgConnection,
+        _ruler: &Ruler,
+        order: &orbis_protocol::CancelOrder,
+        request_id: &str,
+        now_ms: u64,
+    ) -> Result<ServerMsg, ServiceError> {
+        let order_id = Uuid::parse_str(&order.order_id)
+            .map_err(|_| ServiceError::BadInput("invalid_order_id"))?;
+        let canceled =
+            sqlx::query("UPDATE trade_orders SET status='canceled', canceled_at=to_timestamp($2) WHERE id=$1 AND status='open'")
+            .bind(order_id).bind(now_ms as f64 / 1000.0).execute(&mut *tx).await?.rows_affected();
+        if canceled == 0 {
+            return Ok(result(request_id, false, "order_not_open"));
+        }
+        Ok(result(request_id, true, ""))
+    }
+
+    async fn economy_get_market(
+        &self,
+        tx: &mut PgConnection,
+        _ruler: &Ruler,
+        order: &orbis_protocol::GetMarket,
+        request_id: &str,
+        now_ms: u64,
+    ) -> Result<ServerMsg, ServiceError> {
+        let hub_id =
+            Uuid::parse_str(&order.hub_id).map_err(|_| ServiceError::BadInput("invalid_hub_id"))?;
+        let Some(hub) = self.load_hub(tx, hub_id, "").await? else {
+            return Ok(result(request_id, false, "hub_not_found"));
+        };
+
+        // Get buy orders
+        let buy_rows = sqlx::query(&format!(
+            "SELECT {ORDER_COLUMNS} FROM trade_orders WHERE hub_id=$1 AND commodity=$2 AND side=0 AND status='open' ORDER BY price DESC, placed_at_ms",
+        ))
+        .bind(hub_id)
+        .bind(&order.commodity)
+        .fetch_all(&mut *tx)
+        .await?;
+        let buy_orders: Vec<OrderState> = buy_rows.into_iter().map(order_from_row).collect();
+
+        // Get sell orders
+        let sell_rows = sqlx::query(&format!(
+            "SELECT {ORDER_COLUMNS} FROM trade_orders WHERE hub_id=$1 AND commodity=$2 AND side=1 AND status='open' ORDER BY price ASC, placed_at_ms",
+        ))
+        .bind(hub_id)
+        .bind(&order.commodity)
+        .fetch_all(&mut *tx)
+        .await?;
+        let sell_orders: Vec<OrderState> = sell_rows.into_iter().map(order_from_row).collect();
+
+        // Get recent fills (last 20)
+        let fill_rows = sqlx::query(&format!(
+            "SELECT {ORDER_COLUMNS} FROM trade_orders WHERE hub_id=$1 AND commodity=$2 AND status='filled' ORDER BY placed_at_ms DESC LIMIT 20",
+        ))
+        .bind(hub_id)
+        .bind(&order.commodity)
+        .fetch_all(&mut *tx)
+        .await?;
+        let recent_fills: Vec<OrderState> = fill_rows.into_iter().map(order_from_row).collect();
+
+        // Calculate local price
+        let commodity_def = self.economy_catalog.find(&order.commodity);
+        let local_price = if let Some(def) = commodity_def {
+            let stock = hub.stock.get(&order.commodity).copied().unwrap_or(0);
+            orbis_sim::economy::local_price(
+                def.base_price,
+                stock,
+                def.demand_base,
+                self.economy_balance.price.elasticity,
+                self.economy_balance.price.min_multiplier,
+                self.economy_balance.price.max_multiplier,
+            )
+        } else {
+            0.0
+        };
+
+        let market = MarketSnapshot {
+            hub_id: order.hub_id.clone(),
+            commodity: order.commodity.clone(),
+            buy_orders,
+            sell_orders,
+            recent_fills,
+            local_price,
+            observed_at_ms: now_ms,
+        };
+
+        Ok(ServerMsg {
+            kind: Some(server_msg::Kind::Market(market)),
+        })
+    }
+
+    async fn economy_get_hub(
+        &self,
+        tx: &mut PgConnection,
+        _ruler: &Ruler,
+        order: &orbis_protocol::GetHub,
+        request_id: &str,
+        _now_ms: u64,
+    ) -> Result<ServerMsg, ServiceError> {
+        let hub_id =
+            Uuid::parse_str(&order.hub_id).map_err(|_| ServiceError::BadInput("invalid_hub_id"))?;
+
+        let Some(hub) = self.load_hub(tx, hub_id, "").await? else {
+            return Ok(result(request_id, false, "hub_not_found"));
+        };
+
+        let hub_state = HubState {
+            id: hub.id.0.to_string(),
+            name: hub.name,
+            pos: Some(LatLon {
+                lat: hub.pos.lat,
+                lon: hub.pos.lon,
+            }),
+            kingdom_id: hub.kingdom.map(|k| k.0.to_string()).unwrap_or_default(),
+            stock: hub.stock.into_iter().collect(),
+            metal: hub.metal,
+            fee: hub.fee,
+        };
+
+        Ok(ServerMsg {
+            kind: Some(server_msg::Kind::Hub(hub_state)),
+        })
+    }
+}
+
+// =========================================================================
+// Economy event processing
+// =========================================================================
+
+fn cargo_map(cargo: &std::collections::HashMap<String, u32>) -> Stock {
+    cargo
+        .iter()
+        .map(|(commodity, qty)| (commodity.clone(), *qty))
+        .collect()
+}
+
+impl Context {
+    async fn process_economy_action(
+        &self,
+        tx: &mut PgConnection,
+        action: &Action,
+        now_ms: u64,
+    ) -> Result<(), ServiceError> {
+        match action {
+            Action::CompleteCaravan { caravan } => {
+                self.process_caravan_arrival(tx, *caravan, now_ms).await?;
+            }
+            Action::CompleteShip { ship } => {
+                self.process_ship_arrival(tx, *ship, now_ms).await?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    /// Trade session at a hub: sells the traveller's cargo commodity by
+    /// commodity at the local price, charging the hub fee. Hub metal is finite,
+    /// so an empty hub simply buys nothing. Commodity order follows the
+    /// deterministic map iteration.
+    async fn sell_cargo_to_hub(
+        &self,
+        tx: &mut PgConnection,
+        hub: &mut Hub,
+        cargo: &mut Stock,
+        metal: &mut u64,
+        now_ms: u64,
+    ) -> Result<Stock, ServiceError> {
+        let mut sold: Stock = Stock::new();
+        for (commodity, quantity) in cargo.clone() {
+            if quantity == 0 {
+                continue;
+            }
+            let Some(def) = self.economy_catalog.find(&commodity) else {
+                continue;
+            };
+            let stock = hub.stock.get(&commodity).copied().unwrap_or(0);
+            let price = orbis_sim::economy::local_price(
+                def.base_price,
+                stock,
+                def.demand_base,
+                self.economy_balance.price.elasticity,
+                self.economy_balance.price.min_multiplier,
+                self.economy_balance.price.max_multiplier,
+            );
+            let traded = orbis_sim::economy::apply_trade(
+                orbis_sim::economy::Party {
+                    stock: &mut hub.stock,
+                    metal: &mut hub.metal,
+                },
+                orbis_sim::economy::Party {
+                    stock: cargo,
+                    metal,
+                },
+                &commodity,
+                orbis_core::economy::Side::Sell,
+                quantity,
+                price,
+                hub.fee,
+            )
+            .is_ok();
+            if !traded {
+                continue;
+            }
+            sold.insert(commodity.clone(), quantity);
+            sqlx::query(
+                "INSERT INTO price_observations(id,hub_id,commodity,price,observed_at_ms,source) VALUES($1,$2,$3,$4,$5,$6)",
+            )
+            .bind(Uuid::new_v4())
+            .bind(hub.id.0)
+            .bind(&commodity)
+            .bind(price)
+            .bind(now_ms as i64)
+            .bind("caravan")
+            .execute(&mut *tx)
+            .await?;
+        }
+        Ok(sold)
+    }
+
+    async fn process_caravan_arrival(
+        &self,
+        tx: &mut PgConnection,
+        caravan_id: CaravanId,
+        now_ms: u64,
+    ) -> Result<(), ServiceError> {
+        // Load caravan
+        let caravan_row = sqlx::query(
+            "SELECT id,kingdom_id,from_city,to_hub,cargo,metal,status FROM caravans WHERE id=$1 FOR UPDATE",
+        )
+        .bind(caravan_id.0)
+        .fetch_optional(&mut *tx)
+        .await?;
+        let Some(row) = caravan_row else {
+            return Ok(());
+        };
+        if row.get::<String, _>("status") != "traveling" {
+            return Ok(());
+        }
+
+        let kingdom_id: Uuid = row.get("kingdom_id");
+        let from_city_id: Uuid = row.get("from_city");
+        let to_hub_id: Uuid = row.get("to_hub");
+        let cargo: Json<Stock> = row.get("cargo");
+        let metal: i64 = row.get("metal");
+
+        let Some(mut hub) = self.load_hub(&mut *tx, to_hub_id, "FOR UPDATE").await? else {
+            return Ok(());
+        };
+
+        // Trade session: sell the carried cargo at local prices.
+        let mut travelling: Stock = cargo.0;
+        let mut caravan_metal = metal.max(0) as u64;
+        let sold = self
+            .sell_cargo_to_hub(
+                &mut *tx,
+                &mut hub,
+                &mut travelling,
+                &mut caravan_metal,
+                now_ms,
+            )
+            .await?;
+
+        // Persist hub and caravan outcome
+        sqlx::query("UPDATE hubs SET stock=$1,metal=$2 WHERE id=$3")
+            .bind(Json(&hub.stock))
+            .bind(hub.metal as i64)
+            .bind(to_hub_id)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query(
+            "UPDATE caravans SET status='at_hub',cargo=$2,metal=$3,revision=revision+1 WHERE id=$1",
+        )
+        .bind(caravan_id.0)
+        .bind(Json(&travelling))
+        .bind(caravan_metal as i64)
+        .execute(&mut *tx)
+        .await?;
+
+        // Log event
+        sqlx::query(
+            "INSERT INTO event_log(shard,kind,payload,account_id,kingdom_id,city_id) VALUES($1,2,$2,$3,$4,$5)",
+        )
+        .bind(world::shard(hub.pos) as i64)
+        .bind(Json(serde_json::json!({
+            "type": "caravan_arrived",
+            "caravan_id": caravan_id.0,
+            "hub_id": to_hub_id,
+            "sold": sold,
+            "cargo": travelling,
+            "metal": caravan_metal,
+        })))
+        .bind(Option::<Uuid>::None)
+        .bind(kingdom_id)
+        .bind(from_city_id)
+        .execute(&mut *tx)
+        .await?;
+
+        Ok(())
+    }
+
+    async fn process_ship_arrival(
+        &self,
+        tx: &mut PgConnection,
+        ship_id: ShipId,
+        now_ms: u64,
+    ) -> Result<(), ServiceError> {
+        // Load ship
+        let ship_row = sqlx::query(
+            "SELECT id,kingdom_id,from_city,to_hub,cargo,metal,status FROM ships WHERE id=$1 FOR UPDATE",
+        )
+        .bind(ship_id.0)
+        .fetch_optional(&mut *tx)
+        .await?;
+        let Some(row) = ship_row else {
+            return Ok(());
+        };
+        if row.get::<String, _>("status") != "traveling" {
+            return Ok(());
+        }
+
+        let kingdom_id: Uuid = row.get("kingdom_id");
+        let from_city_id: Uuid = row.get("from_city");
+        let to_hub_id: Uuid = row.get("to_hub");
+        let cargo: Json<Stock> = row.get("cargo");
+        let metal: i64 = row.get("metal");
+
+        let Some(mut hub) = self.load_hub(&mut *tx, to_hub_id, "FOR UPDATE").await? else {
+            return Ok(());
+        };
+
+        // Trade session: sell the carried cargo at local prices.
+        let mut travelling: Stock = cargo.0;
+        let mut ship_metal = metal.max(0) as u64;
+        let sold = self
+            .sell_cargo_to_hub(&mut *tx, &mut hub, &mut travelling, &mut ship_metal, now_ms)
+            .await?;
+
+        // Persist hub and ship outcome
+        sqlx::query("UPDATE hubs SET stock=$1,metal=$2 WHERE id=$3")
+            .bind(Json(&hub.stock))
+            .bind(hub.metal as i64)
+            .bind(to_hub_id)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query(
+            "UPDATE ships SET status='at_hub',cargo=$2,metal=$3,revision=revision+1 WHERE id=$1",
+        )
+        .bind(ship_id.0)
+        .bind(Json(&travelling))
+        .bind(ship_metal as i64)
+        .execute(&mut *tx)
+        .await?;
+
+        // Log event
+        sqlx::query(
+            "INSERT INTO event_log(shard,kind,payload,account_id,kingdom_id,city_id) VALUES($1,2,$2,$3,$4,$5)",
+        )
+        .bind(world::shard(hub.pos) as i64)
+        .bind(Json(serde_json::json!({
+            "type": "ship_arrived",
+            "ship_id": ship_id.0,
+            "hub_id": to_hub_id,
+            "sold": sold,
+            "cargo": travelling,
+            "metal": ship_metal,
+        })))
+        .bind(Option::<Uuid>::None)
+        .bind(kingdom_id)
+        .bind(from_city_id)
+        .execute(&mut *tx)
+        .await?;
+
+        Ok(())
     }
 }

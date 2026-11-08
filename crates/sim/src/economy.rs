@@ -68,6 +68,7 @@ pub struct Balance {
     pub hub: HubBalance,
     pub money: MoneyBalance,
     pub hub_seed: HubSeedBalance,
+    pub target: TargetBalance,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq)]
@@ -97,9 +98,16 @@ pub struct MoneyBalance {
 
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct HubSeedBalance {
+    pub seed: u64,
     pub count: usize,
     pub step_deg: f64,
     pub min_separation_m: f64,
+    pub liquidity_units: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+pub struct TargetBalance {
+    pub max_monthly_inflation: f64,
 }
 
 impl Balance {
@@ -127,7 +135,10 @@ impl Balance {
             || !self.hub.default_fee.is_finite()
             || !(0.0..=1.0).contains(&self.hub.default_fee)
             || self.hub_seed.count == 0
+            || self.hub_seed.liquidity_units == 0
             || !self.hub_seed.step_deg.is_finite()
+            || !self.target.max_monthly_inflation.is_finite()
+            || self.target.max_monthly_inflation <= 0.0
             || self.hub_seed.step_deg <= 0.0
             || !self.hub_seed.min_separation_m.is_finite()
             || self.hub_seed.min_separation_m <= 0.0
@@ -344,6 +355,30 @@ fn mix(mut value: u64) -> u64 {
     value ^ (value >> 31)
 }
 
+/// Builds one IA hub with initial liquidity from the catalog and balance.
+pub fn build_hub(
+    position: Position,
+    index: usize,
+    seed: u64,
+    balance: &Balance,
+    catalog: &Catalog,
+) -> Hub {
+    let raw = (mix(seed) ^ index as u64) as u128;
+    Hub {
+        id: orbis_core::economy::HubId(uuid::Uuid::from_u128(raw)),
+        name: format!("Entreposto {}", index + 1),
+        pos: position,
+        kingdom: None,
+        stock: catalog
+            .commodity
+            .iter()
+            .map(|commodity| (commodity.id.clone(), balance.hub_seed.liquidity_units))
+            .collect(),
+        metal: balance.money.initial_hub_metal,
+        fee: balance.hub.default_fee,
+    }
+}
+
 /// Builds seeded IA hubs with initial liquidity from the catalog and balance.
 pub fn seeded_hubs(geo: &Geography, seed: u64, balance: &Balance, catalog: &Catalog) -> Vec<Hub> {
     seed_hubs(
@@ -355,21 +390,7 @@ pub fn seeded_hubs(geo: &Geography, seed: u64, balance: &Balance, catalog: &Cata
     )
     .into_iter()
     .enumerate()
-    .map(|(index, position)| {
-        let raw = (mix(seed) ^ index as u64) as u128;
-        Hub {
-            id: orbis_core::economy::HubId(uuid::Uuid::from_u128(raw)),
-            name: format!("Entreposto {}", index + 1),
-            pos: position,
-            kingdom: None,
-            stock: catalog
-                .commodity
-                .iter()
-                .map(|commodity| (commodity.id.clone(), 1000_u32))
-                .collect(),
-            metal: balance.money.initial_hub_metal,
-        }
-    })
+    .map(|(index, position)| build_hub(position, index, seed, balance, catalog))
     .collect()
 }
 
@@ -586,5 +607,130 @@ mod tests {
         assert!(hubs
             .iter()
             .all(|hub| hub.metal == balance().money.initial_hub_metal));
+    }
+
+    /// Acceptance property (S1.3): bots trading through the seeded hubs for
+    /// seven simulated days conserve the barter metal and keep prices bounded,
+    /// with no inflation beyond the monthly target at the stable checkpoints.
+    #[test]
+    fn bots_trade_without_inflation_for_seven_days() {
+        let catalog = catalog();
+        let balance = balance();
+        let hub_count = balance.hub_seed.count;
+
+        // Equivalent land sites far apart; pick_hubs chooses deterministically.
+        let candidates: Vec<Position> = (0..8)
+            .map(|index| position(0.0, index as f64 * 45.0 - 180.0))
+            .collect();
+        let positions = pick_hubs(
+            &candidates,
+            balance.hub_seed.seed,
+            hub_count,
+            balance.hub_seed.min_separation_m,
+        );
+        assert_eq!(positions.len(), hub_count);
+        let mut hubs: Vec<Hub> = positions
+            .into_iter()
+            .enumerate()
+            .map(|(index, pos)| build_hub(pos, index, balance.hub_seed.seed, &balance, &catalog))
+            .collect();
+
+        // One bot trader per hub with a city-scale wallet of barter metal.
+        let wallets: u64 = balance.money.initial_hub_metal / 4;
+        let mut traders: Vec<(Stock, u64)> =
+            (0..hub_count).map(|_| (Stock::new(), wallets)).collect();
+
+        let initial_stock =
+            balance.hub_seed.liquidity_units * catalog.commodity.len() as u32 * hub_count as u32;
+        let initial_metal: u64 =
+            hubs.iter().map(|hub| hub.metal).sum::<u64>() + wallets * hub_count as u64;
+        let lot = balance.hub_seed.liquidity_units / 4;
+        let grain = catalog.find("grain").expect("grain");
+        let price_now = |stock: u32| {
+            local_price(
+                grain.base_price,
+                stock,
+                grain.demand_base,
+                balance.price.elasticity,
+                balance.price.min_multiplier,
+                balance.price.max_multiplier,
+            )
+        };
+        let initial_price = price_now(balance.hub_seed.liquidity_units);
+
+        for day in 0..7 {
+            for index in 0..hub_count {
+                let commodity = catalog.commodity[(day + index) % catalog.commodity.len()]
+                    .id
+                    .clone();
+                let hub = &mut hubs[index];
+                let (trader_cargo, trader_metal) = &mut traders[index];
+
+                // Morning leg: the bot buys one lot from the hub at its quote.
+                let price = price_now(hub.stock.get(&commodity).copied().unwrap_or(0));
+                apply_trade(
+                    Party {
+                        stock: &mut hub.stock,
+                        metal: &mut hub.metal,
+                    },
+                    Party {
+                        stock: trader_cargo,
+                        metal: trader_metal,
+                    },
+                    &commodity,
+                    Side::Buy,
+                    lot,
+                    price,
+                    hub.fee,
+                )
+                .expect("bot buy");
+                // Evening leg: the bot sells the same lot back to the hub.
+                let price = price_now(hub.stock.get(&commodity).copied().unwrap_or(0));
+                apply_trade(
+                    Party {
+                        stock: &mut hub.stock,
+                        metal: &mut hub.metal,
+                    },
+                    Party {
+                        stock: trader_cargo,
+                        metal: trader_metal,
+                    },
+                    &commodity,
+                    Side::Sell,
+                    lot,
+                    price,
+                    hub.fee,
+                )
+                .expect("bot sell");
+
+                let stock = hub.stock.get(&commodity).copied().unwrap_or(0);
+                assert_eq!(stock, balance.hub_seed.liquidity_units);
+                let price = price_now(hub.stock.get("grain").copied().unwrap_or(0));
+                assert!(price >= grain.base_price * balance.price.min_multiplier);
+                assert!(price <= grain.base_price * balance.price.max_multiplier);
+            }
+            assert_eq!(
+                hubs.iter()
+                    .map(|hub| hub.stock.values().sum::<u32>())
+                    .sum::<u32>(),
+                initial_stock
+            );
+        }
+
+        // Barter metal circulates but is never created nor destroyed.
+        let final_metal: u64 = hubs.iter().map(|hub| hub.metal).sum::<u64>()
+            + traders.iter().map(|(_, metal)| *metal).sum::<u64>();
+        assert_eq!(final_metal, initial_metal);
+
+        // At the stable checkpoint the price matches the starting quote.
+        let final_price = price_now(hubs[0].stock.get("grain").copied().unwrap_or(0));
+        assert!(
+            final_price <= initial_price * (1.0 + balance.target.max_monthly_inflation),
+            "price drifted upward by more than the monthly target"
+        );
+        assert!(
+            final_price >= initial_price * (1.0 - balance.target.max_monthly_inflation),
+            "price drifted downward by more than the monthly target"
+        );
     }
 }

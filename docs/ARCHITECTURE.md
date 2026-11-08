@@ -53,6 +53,8 @@ Cliente Unity desktop (cliente web mantido como referência durante a migração
 
 ## 5b. Globo 3D, cidade física e visibilidade administrativa
 
+Na fatia Unity atual, `WorldCartography` retém marcadores por cidade e contornos externos por dono; `GeographicOverlay` agrupa hidrografia por setor/LOD. `CityWorldRenderer` retém instâncias e textura de superfície enquanto as camadas não mudam. `CityInteractionController` compartilha `CityFrame` com a renderização e separa prévia/clique da câmera. O cliente nunca materializa conclusões antes de snapshots confirmados. Recibos e gerações de conexão impedem respostas antigas de liberar mutações; após incerteza, uma leitura posterior é obrigatória.
+
 **Direção S1.2c atualizada:** Unity nativo em Windows/macOS assume a renderização e HUD após paridade. O gateway, protobuf e autoridade Rust permanecem. A câmera mantém FOV e orientação ao refinar tiles; não muda de modo de visão no zoom. Pacotes de terreno separados do executável usam GLO-90 e LC100 2019, com hashes e resolução efetiva no manifesto. Os parágrafos Three.js abaixo documentam o cliente web de referência até a migração terminar.
 
 - Um único canvas Three.js desenha esfera, patches regionais e cidade; React/HTML é exclusivamente HUD acima dele. Não há canvas Pixi transparente nem renderização 2D do mundo.

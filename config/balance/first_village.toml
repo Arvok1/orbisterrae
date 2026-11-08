@@ -14,6 +14,18 @@ water_distance_m = 30000.0
 founding_reach_m = 1500.0
 initial_population = 24
 
+# Transportes compartilham os números de config/balance/economy.toml;
+# um teste do sim exige que os dois arquivos permaneçam iguais.
+[caravan]
+capacity_kg = 2000.0
+speed_mps = 2.5
+minimum_trip_ms = 1500
+
+[ship]
+capacity_kg = 20000.0
+speed_mps = 5.0
+minimum_trip_ms = 1500
+
 [spawn]
 lat = 48.8566
 lon = 2.3522

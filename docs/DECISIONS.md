@@ -35,6 +35,18 @@
 
 ## Em aberto
 
+### S1.2c: cartografia e kit urbano Unity (2026-11-07)
+
+As texturas existentes são Web Mercator; o globo e os patches compartilham a mesma transformação de longitude/latitude, incluindo o antimeridiano. Biomas, relevo e símbolos decorativos são compostos pelo shader próprio; hidrografia/costas usam geometria agrupada por setor e nível de detalhe. Lagos são triangulados e rios são recortados contra suas máscaras. Símbolos não representam recursos ou colisão de simulação.
+
+Newtonsoft.Json 3.2.2 já estava resolvido transitivamente pela Unity. A referência agora é explícita para ler os arrays geográficos existentes sem inventar um segundo parser JSON nem mudar o contrato protobuf. Não há aquisição de novas fontes geográficas.
+
+O kit urbano é geometria original reprodutível, com quatro materiais compartilhados, quinze papéis visuais, três variantes e três LODs. Prefabs são recursos editáveis; o runtime agrupa instâncias por setor/malha/material e retém identidades entre snapshots. A grade e os footprints vêm do servidor. As coordenadas de renderização, picking e prévia compartilham `CityFrame`; validação local é apenas apresentação.
+
+Recibos de comandos correlacionam geração de conexão, sequência, request ID, cidade e revisão. Uma mutação urbana por cidade é permitida; resultado incerto bloqueia nova edição até inspeção posterior, sem replay automático. Textos ficam em tabela PT-BR/en própria do cliente; o tempo monotônico local serve somente às contagens regressivas visuais.
+
+Validação de backend usa checkout sem economia local, banco de teste e NATS/portas exclusivos. O replay visual de snapshots é opt-in de desenvolvimento e não abre uma sessão autenticada; a prancha dos quinze papéis é identificada como fixture artística sintética. O pacote Copernicus definitivo e o cutover não fazem parte desta fatia.
+
 ### S1.2c: migração nativa e pacote geográfico leve
 
 O cliente principal passa a ser Unity 6 nativo em Windows/macOS; o cliente web continua como referência até paridade. A troca facilita ferramentas 3D, mas o globo, streaming geográfico e câmera contínua são implementações próprias. Os serviços Rust e `orbis.v1` mantêm autoridade e contrato. Dados visuais usam Copernicus GLO-90 e LC100 2019, sem transferir propriedades de terreno ao cliente. A meta de 40 GB é uma hipótese de produto a validar por lote piloto, não um tamanho já medido.

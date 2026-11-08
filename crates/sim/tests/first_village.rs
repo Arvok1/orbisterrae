@@ -163,3 +163,23 @@ fn h3_incremental_ownership_matches_full_and_has_one_owner_per_cell() {
     reversed.reverse();
     assert_eq!(world::territory(&reversed, &territory, &geo, None), full);
 }
+
+#[derive(serde::Deserialize)]
+struct Transports {
+    caravan: Option<orbis_sim::economy::TransportBalance>,
+    ship: Option<orbis_sim::economy::TransportBalance>,
+}
+
+#[test]
+fn shared_transport_values_match_economy_toml() {
+    // `first_village.toml` duplicate os números de transporte da `economy.toml`
+    // para que `sim::world::Balance` também os exija; um teste garante que os
+    // dois arquivos permanecem idênticos.
+    let prototype: Transports =
+        toml::from_str(include_str!("../../../config/balance/first_village.toml")).unwrap();
+    let economy: Transports =
+        toml::from_str(include_str!("../../../config/balance/economy.toml")).unwrap();
+    assert!(prototype.caravan.is_some() && prototype.ship.is_some());
+    assert_eq!(prototype.caravan, economy.caravan);
+    assert_eq!(prototype.ship, economy.ship);
+}

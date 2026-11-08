@@ -20,19 +20,22 @@ namespace Orbis.World
             public string Signature;
         }
         readonly Dictionary<string, CityVisual> cities = new();
-        readonly MaterialPropertyBlock properties = new();
+        MaterialPropertyBlock properties;
         GameStore store;
         GlobeRenderer globe;
         Camera worldCamera;
         Material material;
         Material borderMaterial;
         object source;
-        int terrainRevision = -1;
+        int level = -1;
+        int sampleLod;
+        bool dirty = true;
         public int CityVisualCount => cities.Count;
 
         public void Initialize(GameStore gameStore, GlobeRenderer terrain)
         {
             store = gameStore;
+            properties=new MaterialPropertyBlock();
             globe = terrain;
             worldCamera = Camera.main;
             material = new Material(Resources.Load<Material>("Orbis/WorldRelief")) { enableInstancing = true };
@@ -60,10 +63,12 @@ namespace Orbis.World
             if (store == null || worldCamera == null) return;
             var state = store.State;
             object next = state.Session?.IsAdmin == true ? state.Admin : state.World;
-            if (!ReferenceEquals(source, next) || terrainRevision != globe.TerrainRevision)
+            if (!ReferenceEquals(source, next)) dirty = true;
+            var nextLevel = state.AltitudeMeters > 2000000 ? 2 : state.AltitudeMeters > 100000 ? 1 : 0;
+            if (nextLevel != level) { level = nextLevel; sampleLod = SampleLod(level); dirty = true; }
+            if (dirty)
             {
-                source = next;
-                terrainRevision = globe.TerrainRevision;
+                dirty = false;
                 IEnumerable<CityState> cityStates = state.Session?.IsAdmin == true ? state.Admin?.Cities : state.World?.Cities;
                 IEnumerable<TerritoryCell> cells = state.Session?.IsAdmin == true ? state.Admin?.Territory : state.World?.Territory;
                 Sync(cityStates ?? Array.Empty<CityState>(), cells ?? Array.Empty<TerritoryCell>());
@@ -110,7 +115,7 @@ namespace Orbis.World
                 visual.Marker.transform.position = Position(city.Pos, 35);
                 visual.Marker.transform.rotation = Quaternion.FromToRotation(Vector3.up, visual.Marker.transform.position.normalized);
                 var group = edges.TryGetValue(city.Id, out var segments) ? segments : new List<(LatLon From, LatLon To)>();
-                var signature = terrainRevision + ":" + string.Join(";", group.Select(edge => GeoPresentation.VertexKey(edge.From) + "/" + GeoPresentation.VertexKey(edge.To)));
+                var signature = string.Join(";", group.Select(edge => GeoPresentation.VertexKey(edge.From) + "/" + GeoPresentation.VertexKey(edge.To)));
                 if (signature == visual.Signature) continue;
                 visual.Signature = signature;
                 if (visual.Boundary != null) Destroy(visual.Boundary);
@@ -136,10 +141,13 @@ namespace Orbis.World
             }
         }
 
+        /// <summary>Relief LOD sampled for each zoom level: fine close up, coarse from orbit.</summary>
+        static int SampleLod(int level) => level switch { 0 => 4, 1 => 2, _ => 0 };
+
         Vector3 Position(LatLon position, float lift)
         {
             var coordinate = new GeoCoordinate(position.Lat, position.Lon);
-            return GeoMath.SurfaceNormal(coordinate) * (float)((GeoMath.EarthRadiusMeters + globe.SampleHeightMeters(coordinate) + lift) / GeoMath.MetersPerUnityUnit);
+            return GeoMath.SurfaceNormal(coordinate) * (float)((GeoMath.EarthRadiusMeters + globe.SampleHeightMeters(coordinate, sampleLod) + lift) / GeoMath.MetersPerUnityUnit);
         }
         void OnDestroy()
         {

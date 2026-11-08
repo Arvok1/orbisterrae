@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using Orbis.Core;
@@ -117,6 +118,45 @@ namespace Orbis.World
             if (currentTile == null) return 0f;
             var selected = CubeSphereProjection.TileFor(GeoMath.SurfaceNormal(coordinate), currentTile.Key.Lod, out var uv);
             return selected.Equals(currentTile.Key) ? Mathf.Max(0f, currentTile.Sample(uv.x, uv.y)) * TerrainExaggeration : 0f;
+        }
+
+        readonly Dictionary<WorldTileKey, WorldHeightTile> tileCache = new();
+        readonly Queue<WorldTileKey> tileOrder = new();
+
+        /// <summary>Relief sampled from the streamed package at a fixed LOD, without shifting the live patch.</summary>
+        public float SampleHeightMeters(GeoCoordinate coordinate, int lod)
+        {
+            if (package == null) return 0f;
+            var effective = Math.Clamp(lod, 0, package.Manifest.max_lod);
+            var key = CubeSphereProjection.TileFor(GeoMath.SurfaceNormal(coordinate), effective, out var uv);
+            if (!TryReadTile(key, out var tile)) return 0f;
+            return Mathf.Max(0f, tile.Sample(uv.x, uv.y)) * TerrainExaggeration;
+        }
+
+        public bool TryReadTile(WorldTileKey key, out WorldHeightTile tile)
+        {
+            if (package == null) { tile = null; return false; }
+            if (tileCache.TryGetValue(key, out tile)) return true;
+            try
+            {
+                tile = package.ReadTile(key);
+            }
+            catch (Exception exception)
+            {
+                tile = null;
+                return false;
+            }
+            if (!tileCache.ContainsKey(key))
+            {
+                while (tileCache.Count >= 512)
+                {
+                    var oldest = tileOrder.Dequeue();
+                    if (tileCache.TryGetValue(oldest, out var stale)) tileCache.Remove(stale.Key);
+                }
+                tileOrder.Enqueue(key);
+            }
+            tileCache[key] = tile;
+            return true;
         }
 
         public void SetVisualStyle(MapVisualStyle style)

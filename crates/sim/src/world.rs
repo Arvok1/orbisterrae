@@ -2,7 +2,7 @@
 use h3o::{CellIndex, LatLng, Resolution};
 use orbis_core::{
     time::Clock,
-    world::{Action, City, CityId, Journey, Position, Ruler},
+    world::{Action, CaravanId, City, CityId, HubId, Journey, Position, Ruler, ShipId},
 };
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
@@ -15,6 +15,8 @@ pub struct GameError(pub &'static str);
 pub struct Balance {
     pub ruler: RulerBalance,
     pub village: VillageBalance,
+    pub caravan: TransportBalance,
+    pub ship: TransportBalance,
     pub spawn: Position,
 }
 #[derive(Deserialize)]
@@ -34,6 +36,12 @@ pub struct VillageBalance {
     pub founding_reach_m: f64,
     pub initial_population: u32,
 }
+#[derive(Deserialize)]
+pub struct TransportBalance {
+    pub capacity_kg: f64,
+    pub speed_mps: f64,
+    pub minimum_trip_ms: u64,
+}
 impl Balance {
     pub fn validate(&self) -> Result<(), GameError> {
         if [
@@ -43,12 +51,20 @@ impl Balance {
             self.village.minimum_distance_m,
             self.village.water_distance_m,
             self.village.founding_reach_m,
+            self.caravan.capacity_kg,
+            self.caravan.speed_mps,
+            self.caravan.minimum_trip_ms as f64,
+            self.ship.capacity_kg,
+            self.ship.speed_mps,
+            self.ship.minimum_trip_ms as f64,
         ]
         .iter()
         .any(|v| !v.is_finite() || *v <= 0.0)
             || !self.spawn.valid()
             || self.village.construction_ms == 0
             || self.ruler.minimum_trip_ms == 0
+            || self.caravan.minimum_trip_ms == 0
+            || self.ship.minimum_trip_ms == 0
         {
             return Err(GameError("invalid_balance"));
         }
@@ -306,6 +322,69 @@ pub fn plan_village(
         },
     ))
 }
+pub struct CaravanOrder {
+    pub id: CaravanId,
+    pub from: CityId,
+    pub to: HubId,
+    pub cargo: std::collections::BTreeMap<String, u32>,
+    pub metal: u64,
+}
+pub fn plan_caravan(
+    ruler: &Ruler,
+    order: CaravanOrder,
+    cities: &[City],
+    clock: &impl Clock,
+    _geo: &Geography,
+    balance: &Balance,
+) -> Result<(Ruler, Action, u64), GameError> {
+    idle(ruler)?;
+    let Some(from_city) = cities.iter().find(|c| c.id == order.from && c.active) else {
+        return Err(GameError("city_not_found"));
+    };
+    // For MVP, we assume the hub exists and is reachable
+    // Full pathfinding with land/sea routing comes in later passes
+    let distance = from_city.pos.distance_m(ruler.pos); // placeholder: ruler at city
+    let now = clock.now_ms();
+    let due = now.saturating_add(
+        ((distance / balance.caravan.speed_mps * 1000.0).ceil() as u64)
+            .max(balance.caravan.minimum_trip_ms),
+    );
+    let mut next = ruler.clone();
+    next.revision += 1;
+    let action = Action::CompleteCaravan { caravan: order.id };
+    Ok((next, action, due))
+}
+pub struct ShipOrder {
+    pub id: ShipId,
+    pub from: CityId,
+    pub to: HubId,
+    pub cargo: std::collections::BTreeMap<String, u32>,
+    pub metal: u64,
+}
+pub fn plan_ship(
+    ruler: &Ruler,
+    order: ShipOrder,
+    cities: &[City],
+    clock: &impl Clock,
+    _geo: &Geography,
+    balance: &Balance,
+) -> Result<(Ruler, Action, u64), GameError> {
+    idle(ruler)?;
+    let Some(from_city) = cities.iter().find(|c| c.id == order.from && c.active) else {
+        return Err(GameError("city_not_found"));
+    };
+    // For MVP, we assume the hub exists and is reachable by sea
+    let distance = from_city.pos.distance_m(ruler.pos); // placeholder
+    let now = clock.now_ms();
+    let due = now.saturating_add(
+        ((distance / balance.ship.speed_mps * 1000.0).ceil() as u64)
+            .max(balance.ship.minimum_trip_ms),
+    );
+    let mut next = ruler.clone();
+    next.revision += 1;
+    let action = Action::CompleteShip { ship: order.id };
+    Ok((next, action, due))
+}
 pub fn complete(
     ruler: &Ruler,
     city: Option<&City>,
@@ -339,6 +418,8 @@ pub fn complete(
                 next.revision += 1;
             }
         }
+        // Economy actions are handled by the gateway (they don't mutate Ruler/City directly)
+        Action::CompleteCaravan { .. } | Action::CompleteShip { .. } => {}
         _ => {}
     }
     (next, town)
