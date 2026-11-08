@@ -62,12 +62,13 @@ namespace Orbis.World
             // O fade do mosaico é aplicado via MaterialPropertyBlock; a malha base do globo nasce em _Fade = 1.
             material.SetFloat(Fade, 1f);
 
-            var packageRoot = ResolvePackageRoot(config.TerrainPackageRoot);
+            var (packageRoot, packageFallbacks) = PackageRoots.Select(
+                config.TerrainPackageRoot, Path.Combine(Application.streamingAssetsPath, "world-v2"));
             if (!string.IsNullOrEmpty(packageRoot))
             {
                 try
                 {
-                    package = new WorldPackage(packageRoot);
+                    package = new WorldPackage(packageRoot, packageFallbacks);
                     PackageStatus = $"orbis-world-v2 LOD {package.Manifest.max_lod}";
                     globalTexture = LoadTexture(package.ResolveVisual(package.Manifest.visual?.relief));
                     biomeTexture = LoadTexture(package.ResolveVisual(package.Manifest.visual?.biomes));
@@ -280,13 +281,6 @@ namespace Orbis.World
             if (altitudeMeters >= 2_000_000) return 0;
             var lod = 1 + (int)Math.Floor(Math.Log(2_000_000 / Math.Max(20, altitudeMeters), 4));
             return Math.Clamp(lod, 0, maximumLod);
-        }
-
-        static string ResolvePackageRoot(string configured)
-        {
-            if (!string.IsNullOrWhiteSpace(configured) && File.Exists(Path.Combine(configured, "manifest.json"))) return configured;
-            var streaming = Path.Combine(Application.streamingAssetsPath, "world-v2");
-            return File.Exists(Path.Combine(streaming, "manifest.json")) ? streaming : string.Empty;
         }
 
         static Texture2D LoadTexture(string path)

@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.IO;
 using NUnit.Framework;
 using Orbis.World;
 using UnityEngine;
@@ -69,6 +71,43 @@ namespace Orbis.Tests.EditMode
                 result.Add(string.Join("|", CubeSphereProjection.MosaicRing(center).ConvertAll(key => key.ToString())));
             }
             return result;
+        }
+
+        [Test]
+        public void PackageRootsFavoursLocalCacheAndStreamsFromEmbeddedFallback()
+        {
+            var cache = CreateTempRoot();
+            var embedded = CreateTempRoot();
+            try
+            {
+                var (primary, fallbacks) = PackageRoots.Select(cache, embedded);
+                Assert.That(primary, Is.EqualTo(cache));
+                Assert.That(string.Join("|", fallbacks), Is.EqualTo(embedded));
+
+                (primary, fallbacks) = PackageRoots.Select(string.Empty, embedded);
+                Assert.That(primary, Is.EqualTo(embedded));
+                Assert.That(string.Join("|", fallbacks), Is.EqualTo(""));
+
+                (primary, fallbacks) = PackageRoots.Select(cache, cache);
+                Assert.That(fallbacks, Is.Empty, "identical roots must not be repeated as fallback");
+
+                (primary, fallbacks) = PackageRoots.Select(cache, null);
+                Assert.That(primary, Is.EqualTo(cache));
+                Assert.That(fallbacks, Is.Empty);
+            }
+            finally
+            {
+                Directory.Delete(cache, true);
+                Directory.Delete(embedded, true);
+            }
+        }
+
+        static string CreateTempRoot()
+        {
+            var root = Path.Combine(Path.GetTempPath(), "orbis-package-roots-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(root);
+            File.WriteAllText(Path.Combine(root, "manifest.json"), "{}");
+            return root;
         }
     }
 }

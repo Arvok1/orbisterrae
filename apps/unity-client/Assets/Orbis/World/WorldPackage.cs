@@ -109,11 +109,17 @@ namespace Orbis.World
         static readonly byte[] Magic = { (byte)'O', (byte)'R', (byte)'B', (byte)'W', (byte)'2', 0, 0, 0 };
         readonly Dictionary<(int Face, int Lod), WorldShardDescriptor> shards = new();
         readonly HashSet<string> verified = new(StringComparer.OrdinalIgnoreCase);
+        readonly List<string> fallbackRoots = new();
 
         public string Root { get; }
         public WorldPackageManifest Manifest { get; }
 
-        public WorldPackage(string root)
+        public WorldPackage(string root) : this(root, null) { }
+
+        /// <summary>Opens the manifest in <paramref name="root"/>; shards and visuals missing on disk
+        /// are resolved from <paramref name="fallbackRoots"/> (e.g. the embedded StreamingAssets pack)
+        /// so a partial local cache can stream the remainder without duplicating bytes.</summary>
+        public WorldPackage(string root, IEnumerable<string> fallbackRoots)
         {
             Root = Path.GetFullPath(root ?? throw new ArgumentNullException(nameof(root)));
             var manifestPath = Path.Combine(Root, "manifest.json");
@@ -131,6 +137,9 @@ namespace Orbis.World
                     throw new InvalidDataException("World package contains an invalid shard key.");
                 shards.Add((descriptor.face, descriptor.lod), descriptor);
             }
+            foreach (var fallback in fallbackRoots ?? Array.Empty<string>())
+                if (!string.IsNullOrWhiteSpace(fallback))
+                    this.fallbackRoots.Add(Path.GetFullPath(fallback));
         }
 
         public string ResolveVisual(WorldFileDescriptor descriptor)
@@ -139,31 +148,42 @@ namespace Orbis.World
             return VerifyFile(descriptor.path, descriptor.bytes, descriptor.sha256);
         }
 
-        public string ResolveContained(string relative)
-        {
-            var path = Path.GetFullPath(Path.Combine(Root, relative));
-            if (!path.StartsWith(Root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-                + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidDataException("package_path_escape");
-            return path;
-        }
-
         string VerifyFile(string relative, long bytes, string hash)
         {
-            var path = ResolveContained(relative);
+            var candidate = CandidatePath(Root, relative);
+            if (!File.Exists(candidate))
+            {
+                foreach (var fallbackRoot in fallbackRoots)
+                {
+                    var fallbackCandidate = CandidatePath(fallbackRoot, relative);
+                    if (!File.Exists(fallbackCandidate)) continue;
+                    candidate = fallbackCandidate;
+                    break;
+                }
+            }
             lock (verified)
             {
-                if (verified.Contains(path)) return path;
-                if (bytes < 0 || bytes > MaximumPackageBytes || new FileInfo(path).Length != bytes)
+                if (verified.Contains(candidate)) return candidate;
+                if (bytes < 0 || bytes > MaximumPackageBytes || new FileInfo(candidate).Length != bytes)
                     throw new InvalidDataException("package_size_mismatch");
-                using var stream = File.OpenRead(path);
+                using var stream = File.OpenRead(candidate);
                 using var algorithm = SHA256.Create();
                 var actual = BitConverter.ToString(algorithm.ComputeHash(stream)).Replace("-", "");
                 if (!string.Equals(actual, hash, StringComparison.OrdinalIgnoreCase))
                     throw new InvalidDataException("package_hash_mismatch");
-                verified.Add(path);
-                return path;
+                verified.Add(candidate);
+                return candidate;
             }
+        }
+
+        static string CandidatePath(string root, string relative)
+        {
+            var fullRoot = Path.GetFullPath(root);
+            var path = Path.GetFullPath(Path.Combine(fullRoot, relative));
+            if (!path.StartsWith(fullRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("package_path_escape");
+            return path;
         }
 
         public WorldHeightTile ReadTile(WorldTileKey key)
@@ -226,6 +246,29 @@ namespace Orbis.World
             for (var index = 0; index < left.Length; index++) if (left[index] != right[index]) return false;
             return true;
         }
+    }
+
+    public static class PackageRoots
+    {
+        /// <summary>O cache local vence quando contém um manifesto; o pacote embutido (StreamingAssets)
+        /// vira raiz de fallback para shards ausentes no cache. Sem manifesto em nenhum dos dois, ''
+        /// significa globo sem pacote (visualizações caem na montagem de emergência).</summary>
+        public static (string Primary, List<string> Fallbacks) Select(string configuredCache, string embedded)
+        {
+            var fallbacks = new List<string>();
+            if (HasManifest(configuredCache))
+            {
+                if (HasManifest(embedded) && !SameRoot(configuredCache, embedded)) fallbacks.Add(embedded);
+                return (configuredCache, fallbacks);
+            }
+            if (HasManifest(embedded)) return (embedded, fallbacks);
+            return (string.Empty, fallbacks);
+        }
+
+        static bool SameRoot(string left, string right) => string.Equals(
+            Path.GetFullPath(left), Path.GetFullPath(right), StringComparison.OrdinalIgnoreCase);
+
+        static bool HasManifest(string root) => !string.IsNullOrWhiteSpace(root) && File.Exists(Path.Combine(root, "manifest.json"));
     }
 
     public static class CubeSphereProjection
