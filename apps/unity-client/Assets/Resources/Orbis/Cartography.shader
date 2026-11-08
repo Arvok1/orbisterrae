@@ -6,6 +6,7 @@ Shader "Orbis/Cartography"
         _BiomeMap("Biomes", 2D) = "black" {}
         _BaseColor("Tint", Color) = (1,1,1,1)
         _Manuscript("Manuscript", Float) = 0
+        _Fade("Fade", Float) = 1
     }
     SubShader
     {
@@ -21,6 +22,7 @@ Shader "Orbis/Cartography"
             CBUFFER_START(UnityPerMaterial)
                 float4 _BaseColor;
                 float _Manuscript;
+                float _Fade;
             CBUFFER_END
             struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; float2 uv : TEXCOORD0; };
             struct Varyings { float4 positionCS : SV_POSITION; float2 uv : TEXCOORD0; float3 normalWS : TEXCOORD1; };
@@ -45,7 +47,10 @@ Shader "Orbis/Cartography"
                 terrain *= 1 - tree*.12*step(biome.r*1.05,biome.g);
                 half3 ink = dot(terrain, half3(.3,.59,.11)) * half3(.72,.59,.37) * hatch;
                 terrain = lerp(terrain * half3(.72,.77,.64), ink, _Manuscript);
-                return half4(lerp(half3(.043,.059,.071), terrain * shade, land) * _BaseColor.rgb, 1);
+                half3 inkSea = half3(.043,.059,.071);
+                half3 surface = lerp(inkSea, terrain * shade, land);
+                // Patches do mosaico nascem na tinta do mar e revelam o relevo conforme o carregamento (_Fade 0..1).
+                return half4(lerp(inkSea, surface, _Fade) * _BaseColor.rgb, 1);
             }
             ENDHLSL
         }

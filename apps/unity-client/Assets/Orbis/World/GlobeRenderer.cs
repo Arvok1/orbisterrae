@@ -11,20 +11,34 @@ namespace Orbis.World
     public sealed class GlobeRenderer : MonoBehaviour
     {
         const float TerrainExaggeration = 1.45f;
+        const float PatchFadeSeconds = 0.4f;
+        const float PatchUnloadSpeed = 2f;
+        const int ConcurrentTileLoads = 2;
+        const int SampleCacheLimit = 512;
         static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
         static readonly int BaseMap = Shader.PropertyToID("_BaseMap");
+        static readonly int Fade = Shader.PropertyToID("_Fade");
+
+        sealed class ReliefPatch
+        {
+            public WorldTileKey Key;
+            public GameObject Object;
+            public Mesh Mesh;
+            public float Fade;
+            public bool Retiring;
+            public MaterialPropertyBlock Properties;
+        }
 
         Material material;
         Mesh globeMesh;
-        Mesh patchMesh;
-        GameObject patchObject;
         Texture2D globalTexture;
         Texture2D biomeTexture;
         WorldPackage package;
-        WorldHeightTile currentTile;
-        WorldTileKey requestedKey;
-        Task<WorldHeightTile> tileLoad;
-        bool hasRequestedKey;
+        readonly Dictionary<WorldTileKey, ReliefPatch> patches = new();
+        readonly Dictionary<WorldTileKey, Task<WorldHeightTile>> tileLoads = new();
+        readonly Dictionary<WorldTileKey, WorldHeightTile> tileCache = new();
+        readonly Queue<WorldTileKey> tileOrder = new();
+        int viewLod = -1;
         float retryAfter;
         public int TerrainRevision { get; private set; }
         public string HydrographyPath { get; private set; }
@@ -45,6 +59,8 @@ namespace Orbis.World
             ((SphereCollider)SurfaceCollider).radius = (float)GeoMath.EarthRadiusUnity;
             material = CreateMaterial("Orbis Globe Runtime");
             meshRenderer.sharedMaterial = material;
+            // O fade do mosaico é aplicado via MaterialPropertyBlock; a malha base do globo nasce em _Fade = 1.
+            material.SetFloat(Fade, 1f);
 
             var packageRoot = ResolvePackageRoot(config.TerrainPackageRoot);
             if (!string.IsNullOrEmpty(packageRoot))
@@ -86,42 +102,127 @@ namespace Orbis.World
         public void SetView(GeoCoordinate focus, double altitudeMeters)
         {
             if (package == null) return;
-            var desiredLod = DesiredLod(altitudeMeters, package.Manifest.max_lod);
+            var lod = DesiredLod(altitudeMeters, package.Manifest.max_lod);
             var normal = GeoMath.SurfaceNormal(focus);
-            var key = CubeSphereProjection.TileFor(normal, desiredLod, out _);
-            if ((!hasRequestedKey || !requestedKey.Equals(key)) && tileLoad == null && Time.unscaledTime >= retryAfter)
+            var center = CubeSphereProjection.TileFor(normal, lod, out _);
+            var ring = CubeSphereProjection.MosaicRing(center);
+            if (lod != viewLod)
             {
-                requestedKey = key;
-                hasRequestedKey = true;
-                tileLoad = Task.Run(() => package.ReadTile(key));
+                viewLod = lod;
+                foreach (var pair in patches) pair.Value.Retiring = true;
             }
-            if (tileLoad == null || !tileLoad.IsCompleted) return;
-            if (tileLoad.IsFaulted)
+            RetireOutsideRing(ring);
+            ScheduleTiles(ring);
+            PumpCompletedTiles(center, ring);
+            TickPatches();
+        }
+
+        void RetireOutsideRing(List<WorldTileKey> ring)
+        {
+            foreach (var pair in patches)
             {
-                Debug.LogWarning($"Falha ao carregar tile {requestedKey}: {tileLoad.Exception?.GetBaseException().Message}");
-                tileLoad = null;
-                hasRequestedKey = false;
-                retryAfter = Time.unscaledTime + 2;
+                if (!pair.Value.Retiring && !ring.Contains(pair.Key)) pair.Value.Retiring = true;
+            }
+        }
+
+        void ScheduleTiles(List<WorldTileKey> ring)
+        {
+            if (Time.unscaledTime < retryAfter) return;
+            foreach (var key in ring)
+            {
+                if (patches.ContainsKey(key) || tileLoads.ContainsKey(key)) continue;
+                if (tileLoads.Count >= ConcurrentTileLoads) return;
+                try { tileLoads.Add(key, Task.Run(() => package.ReadTile(key))); }
+                catch (Exception exception)
+                {
+                    Debug.LogWarning($"Falha ao agendar tile {key}: {exception.Message}");
+                    return;
+                }
+            }
+        }
+
+        void PumpCompletedTiles(WorldTileKey center, List<WorldTileKey> ring)
+        {
+            if (tileLoads.Count == 0) return;
+            List<WorldTileKey> completed = null;
+            foreach (var pair in tileLoads)
+            {
+                if (!pair.Value.IsCompleted) continue;
+                (completed ??= new List<WorldTileKey>()).Add(pair.Key);
+            }
+            if (completed == null) return;
+            foreach (var key in completed)
+            {
+                var load = tileLoads[key];
+                tileLoads.Remove(key);
+                if (!ring.Contains(key)) continue;
+                WorldHeightTile tile;
+                try { tile = load.Result; }
+                catch (Exception exception)
+                {
+                    retryAfter = Time.unscaledTime + 2f;
+                    Debug.LogWarning($"Falha ao carregar tile {key}: {exception.Message}");
+                    continue;
+                }
+                StoreTile(tile);
+                if (key.Equals(center)) TerrainRevision++;
+                AttachPatch(tile);
+            }
+        }
+
+        void AttachPatch(WorldHeightTile tile)
+        {
+            if (patches.TryGetValue(tile.Key, out var existing))
+            {
+                if (existing.Mesh != null) Destroy(existing.Mesh);
+                existing.Mesh = CreatePatchMesh(tile);
+                existing.Object.GetComponent<MeshFilter>().sharedMesh = existing.Mesh;
+                existing.Retiring = false;
                 return;
             }
-            var loaded = tileLoad.Result;
-            tileLoad = null;
-            if (!loaded.Key.Equals(key)) { hasRequestedKey = false; return; }
-            if (currentTile != null && currentTile.Key.Equals(loaded.Key)) return;
-            currentTile = loaded;
-            TerrainRevision++;
-            ApplyPatch(loaded);
+            var patch = new ReliefPatch { Key = tile.Key, Fade = 0f, Properties = new MaterialPropertyBlock() };
+            patch.Object = new GameObject($"Terrain {tile.Key}");
+            patch.Object.transform.SetParent(transform, false);
+            patch.Mesh = CreatePatchMesh(tile);
+            patch.Object.AddComponent<MeshFilter>().sharedMesh = patch.Mesh;
+            patch.Object.AddComponent<MeshRenderer>().sharedMaterial = material;
+            patches.Add(tile.Key, patch);
+        }
+
+        void TickPatches()
+        {
+            if (patches.Count == 0) return;
+            List<WorldTileKey> finished = null;
+            foreach (var pair in patches)
+            {
+                var patch = pair.Value;
+                var step = Time.unscaledDeltaTime / PatchFadeSeconds * (patch.Retiring ? PatchUnloadSpeed : 1f);
+                patch.Fade = Mathf.Clamp01(patch.Fade + step);
+                if (patch.Object == null) continue;
+                patch.Properties.SetFloat(Fade, patch.Fade);
+                patch.Object.GetComponent<MeshRenderer>().SetPropertyBlock(patch.Properties);
+                if (!patch.Retiring || patch.Fade > 0f) continue;
+                (finished ??= new List<WorldTileKey>()).Add(pair.Key);
+            }
+            if (finished == null) return;
+            foreach (var key in finished) ReleasePatch(key);
+        }
+
+        void ReleasePatch(WorldTileKey key)
+        {
+            if (!patches.TryGetValue(key, out var patch)) return;
+            patches.Remove(key);
+            if (patch.Object != null) Destroy(patch.Object);
+            if (patch.Mesh != null) Destroy(patch.Mesh);
         }
 
         public float SampleHeightMeters(GeoCoordinate coordinate)
         {
-            if (currentTile == null) return 0f;
-            var selected = CubeSphereProjection.TileFor(GeoMath.SurfaceNormal(coordinate), currentTile.Key.Lod, out var uv);
-            return selected.Equals(currentTile.Key) ? Mathf.Max(0f, currentTile.Sample(uv.x, uv.y)) * TerrainExaggeration : 0f;
+            if (package == null || viewLod < 0) return 0f;
+            var key = CubeSphereProjection.TileFor(GeoMath.SurfaceNormal(coordinate), viewLod, out var uv);
+            if (!TryReadTile(key, out var tile)) return 0f;
+            return Mathf.Max(0f, tile.Sample(uv.x, uv.y)) * TerrainExaggeration;
         }
-
-        readonly Dictionary<WorldTileKey, WorldHeightTile> tileCache = new();
-        readonly Queue<WorldTileKey> tileOrder = new();
 
         /// <summary>Relief sampled from the streamed package at a fixed LOD, without shifting the live patch.</summary>
         public float SampleHeightMeters(GeoCoordinate coordinate, int lod)
@@ -146,17 +247,21 @@ namespace Orbis.World
                 tile = null;
                 return false;
             }
-            if (!tileCache.ContainsKey(key))
-            {
-                while (tileCache.Count >= 512)
-                {
-                    var oldest = tileOrder.Dequeue();
-                    if (tileCache.TryGetValue(oldest, out var stale)) tileCache.Remove(stale.Key);
-                }
-                tileOrder.Enqueue(key);
-            }
-            tileCache[key] = tile;
+            StoreTile(tile);
             return true;
+        }
+
+        /// <summary>Caches a tile for synchronous relief sampling, evicting the oldest samples FIFO.</summary>
+        void StoreTile(WorldHeightTile tile)
+        {
+            if (tileCache.ContainsKey(tile.Key)) return;
+            while (tileCache.Count >= SampleCacheLimit)
+            {
+                var oldest = tileOrder.Dequeue();
+                if (tileCache.TryGetValue(oldest, out var stale)) tileCache.Remove(stale.Key);
+            }
+            tileOrder.Enqueue(tile.Key);
+            tileCache[tile.Key] = tile;
         }
 
         public void SetVisualStyle(MapVisualStyle style)
@@ -168,22 +273,6 @@ namespace Orbis.World
                 : new Color(0.78f, 0.86f, 0.72f);
             material.SetColor(BaseColor, color);
             material.SetFloat("_Manuscript", style == MapVisualStyle.Manuscript ? 1 : 0);
-        }
-
-        void ApplyPatch(WorldHeightTile tile)
-        {
-            var nextMesh = CreatePatchMesh(tile);
-            if (patchObject == null)
-            {
-                patchObject = new GameObject("Active terrain patch");
-                patchObject.transform.SetParent(transform, false);
-                patchObject.AddComponent<MeshFilter>();
-                var renderer = patchObject.AddComponent<MeshRenderer>();
-                renderer.sharedMaterial = material;
-            }
-            patchObject.GetComponent<MeshFilter>().sharedMesh = nextMesh;
-            if (patchMesh != null) Destroy(patchMesh);
-            patchMesh = nextMesh;
         }
 
         static int DesiredLod(double altitudeMeters, int maximumLod)
@@ -370,7 +459,16 @@ namespace Orbis.World
             if (globalTexture != null && globalTexture != Texture2D.grayTexture) Destroy(globalTexture);
             if (biomeTexture != null) Destroy(biomeTexture);
             if (globeMesh != null) Destroy(globeMesh);
-            if (patchMesh != null) Destroy(patchMesh);
+            List<WorldTileKey> stale = null;
+            foreach (var pair in patches) (stale ??= new List<WorldTileKey>()).Add(pair.Key);
+            if (stale != null)
+                foreach (var key in stale)
+                {
+                    patches.TryGetValue(key, out var patch);
+                    if (patch.Object != null) Destroy(patch.Object);
+                    if (patch.Mesh != null) Destroy(patch.Mesh);
+                    patches.Remove(key);
+                }
         }
     }
 }

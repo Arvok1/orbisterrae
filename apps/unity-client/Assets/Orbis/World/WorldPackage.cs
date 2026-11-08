@@ -230,6 +230,25 @@ namespace Orbis.World
 
     public static class CubeSphereProjection
     {
+        /// <summary>
+        /// Tiles that must surround the centre tile so a relief mosaic has no gaps:
+        /// the centre of each of the 3x3 tile-uv positions (centre plus the 8 neighbours),
+        /// mapped through the projection so looked-up tiles that cross a cube-face seam resolve
+        /// to their real (other-face) tile. At most 9 keys, de-duplicated in scan order.
+        /// </summary>
+        public static List<WorldTileKey> MosaicRing(WorldTileKey center)
+        {
+            var keys = new List<WorldTileKey>(9);
+            for (var offsetV = -1; offsetV <= 1; offsetV++)
+            for (var offsetU = -1; offsetU <= 1; offsetU++)
+            {
+                var direction = Direction(center, 0.5f + offsetU, 0.5f + offsetV);
+                var key = TileFor(direction, center.Lod, out _);
+                if (!keys.Contains(key)) keys.Add(key);
+            }
+            return keys;
+        }
+
         public static WorldTileKey TileFor(Vector3 normal, int lod, out Vector2 tileUv)
         {
             normal.Normalize();
