@@ -17,7 +17,7 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|_| "postgres://orbis:orbis@127.0.0.1:5432/orbis?sslmode=disable".into());
     let options = PgConnectOptions::from_str(&url)?;
     let database = match args[1].as_str() {
-        "verify" | "verify-city" => name,
+        "verify" | "verify-city" | "verify-trade" => name,
         _ => "postgres",
     };
     let pool = sqlx::postgres::PgPoolOptions::new()
@@ -93,6 +93,25 @@ async fn main() -> anyhow::Result<()> {
                         .copied()
                         .is_some_and(|defense| defense >= 10.0),
                 "S1.2 persisted city invariant failed"
+            );
+        }
+        "verify-trade" => {
+            let row = sqlx::query(
+                "SELECT (SELECT count(*) FROM caravans WHERE status='at_hub') AS arrived,
+                        (SELECT count(*) FROM hubs) AS hubs,
+                        (SELECT count(*) FROM scheduled_events WHERE done_at IS NULL) AS pending_events,
+                        (SELECT count(*) FROM price_observations) AS observations",
+            )
+            .fetch_one(&pool)
+            .await?;
+            let arrived: i64 = row.get("arrived");
+            let hubs: i64 = row.get("hubs");
+            let pending_events: i64 = row.get("pending_events");
+            let observations: i64 = row.get("observations");
+            println!("caravans_at_hub={arrived} hubs={hubs} pending_events={pending_events} price_observations={observations}");
+            anyhow::ensure!(
+                arrived >= 1 && hubs == 3 && pending_events == 0 && observations >= 1,
+                "S1.3b persisted trade invariant failed"
             );
         }
         _ => anyhow::bail!("expected create, verify or drop"),

@@ -21,6 +21,7 @@ namespace Orbis.Network
         const int MaximumFrameBytes = 8 * 1024 * 1024;
         const float AdminPollSeconds = 1f;
         const float CityPollSeconds = 0.5f;
+        const float HubPollSeconds = 5f;
 
         enum RequestKind
         {
@@ -29,6 +30,7 @@ namespace Orbis.Network
             City,
             World,
             Mutation,
+            Hub,
         }
 
         enum SocketSignal
@@ -62,6 +64,9 @@ namespace Orbis.Network
         readonly Dictionary<string,ulong> refreshAfter = new();
         readonly SemaphoreSlim sendGate = new(1, 1);
 
+        /// <summary>Economy read model (S1.3b) fed by hub/market/caravan server messages.</summary>
+        public EconomyStore Economy { get; } = new EconomyStore();
+
         ClientRuntimeConfig config;
         GameStore store;
         ClientWebSocket socket;
@@ -73,6 +78,7 @@ namespace Orbis.Network
         float nextAdminPoll;
         float nextCityPoll;
         float nextWorldPoll;
+        float nextHubPoll;
         string sessionPath;
         int socketGeneration;
 
@@ -106,6 +112,7 @@ namespace Orbis.Network
             operations.Clear(); refreshAfter.Clear();
             if (File.Exists(sessionPath)) File.Delete(sessionPath);
             adminCursor = 0;
+            Economy.Clear();
             store.Update(store.State.With(
                 status: "logged_out",
                 connection: ConnectionState.Offline,
@@ -159,6 +166,42 @@ namespace Orbis.Network
                 ExpectedRevision = store.State.City.Revision, OrderId = orderId } });
         }
 
+        /// <summary>Opens (or closes with an empty id) a trading post and asks for its fresh detail.</summary>
+        public void SelectHub(string hubId)
+        {
+            var value = hubId ?? string.Empty;
+            if (value == Economy.SelectedHubId) return;
+            Economy.SelectHub(value);
+            if (value.Length == 0) return;
+            SubmitRead(new Command { GetHub = new GetHub { HubId = value } });
+        }
+
+        /// <summary>Reads the order book and local price for a commodity at a hub.</summary>
+        public void RequestMarket(string hubId, string commodity)
+        {
+            if (string.IsNullOrEmpty(hubId) || string.IsNullOrEmpty(commodity)) return;
+            SubmitRead(new Command { GetMarket = new GetMarket { HubId = hubId, Commodity = commodity } });
+        }
+
+        /// <summary>Dispatches a caravan from the ruler's own city; the server owns the outcome.</summary>
+        public void DispatchCaravan(string cityId, string hubId, string commodity, uint quantity, ulong metal)
+        {
+            var ruler = store.State.World?.Ruler;
+            if (string.IsNullOrEmpty(cityId) || string.IsNullOrEmpty(hubId) || string.IsNullOrEmpty(commodity)
+                || ruler?.CityId != cityId) return;
+            var caravan = new CreateCaravan { CityId = cityId, HubId = hubId, ExpectedRevision = ruler.Revision, Metal = metal };
+            caravan.Cargo.Add(commodity, quantity);
+            Submit(new Command { CreateCaravan = caravan });
+        }
+
+        /// <summary>Read-only economy request: never enters the mutation lane or flips the pending HUD.</summary>
+        void SubmitRead(Command command)
+        {
+            if (!authenticated || socket?.State != WebSocketState.Open) return;
+            command.RequestId = Guid.NewGuid().ToString("N");
+            Send(command, RequestKind.Hub);
+        }
+
         void Submit(Command command)
         {
             var cityId = CommandCity(command);
@@ -170,7 +213,7 @@ namespace Orbis.Network
         }
 
         static string CommandCity(Command command) => command.QueueBuilding?.CityId ?? command.ApplyCityEdits?.CityId
-            ?? command.CancelConstruction?.CityId ?? command.InspectCity?.CityId ?? "";
+            ?? command.CancelConstruction?.CityId ?? command.InspectCity?.CityId ?? command.CreateCaravan?.CityId ?? "";
 
         void PublishPending()
         {
@@ -224,6 +267,7 @@ namespace Orbis.Network
             };
             File.WriteAllText(sessionPath, JsonUtility.ToJson(session));
             StopSocket(); operations.Clear(); refreshAfter.Clear();
+            Economy.Clear();
             store.Update(store.State.With(session: session, status: "connecting", connection: ConnectionState.Connecting,
                 clearWorld: true, clearCity: true, clearAdmin: true, clearSelection: true, clearPreview: true,
                 selectedCityId: "", tool: new CityTool()));
@@ -281,6 +325,12 @@ namespace Orbis.Network
                     Center = new LatLon { Lat = store.State.Focus.LatitudeDegrees, Lon = store.State.Focus.LongitudeDegrees },
                     Zoom = 4, WidthPx = Screen.width, HeightPx = Screen.height,
                 } }, RequestKind.World);
+            }
+
+            if (Time.unscaledTime >= nextHubPoll && !pending.ContainsValue(RequestKind.Hub))
+            {
+                nextHubPoll = Time.unscaledTime + HubPollSeconds;
+                Send(new Command { RequestId = Guid.NewGuid().ToString("N"), ListHubs = new ListHubs() }, RequestKind.Hub);
             }
 
             if (store.State.Session.IsAdmin && Time.unscaledTime >= nextAdminPoll && !pending.ContainsValue(RequestKind.Admin))
@@ -359,6 +409,7 @@ namespace Orbis.Network
                 {
                     StopSocket();operations.Clear();refreshAfter.Clear();
                     if(File.Exists(sessionPath))File.Delete(sessionPath);
+                    Economy.Clear();
                     store.Update(store.State.With(clearSession:true,clearCity:true,clearWorld:true,clearAdmin:true,selectedCityId:"",clearPreview:true,
                         connection:ConnectionState.Offline,status:"authentication_required",tool:new CityTool()));
                     return;
@@ -368,6 +419,8 @@ namespace Orbis.Network
                     authenticated = true;
                     nextWorldPoll = 0;
                     nextCityPoll = 0;
+                    nextHubPoll = 0;
+                    Economy.Clear();
                     SetStatus(store.State.Session.IsAdmin ? "admin_live" : "online", ConnectionState.Online);
                 }
                 else if (!server.Result.Ok && server.Result.Error == "admin_required")
@@ -391,6 +444,10 @@ namespace Orbis.Network
                 store.Update(store.State.With(admin: merged, status: "admin_live", connection: ConnectionState.Online));
             }
 
+            if (server.Hubs != null) Economy.ApplyHubs(server.Hubs);
+            if (server.Hub != null) Economy.ApplyHub(server.Hub);
+            if (server.Market != null) Economy.ApplyMarket(server.Market);
+            if (server.Caravan != null) Economy.ApplyCaravan(server.Caravan);
             if (server.City != null && server.City.CityId == store.State.SelectedCityId
                 && (store.State.City == null || server.City.Revision >= store.State.City.Revision))
             {
@@ -408,7 +465,7 @@ namespace Orbis.Network
             var sequence = nextSequence++;
             pending[sequence] = kind;
             var revision = command.QueueBuilding?.ExpectedRevision ?? command.ApplyCityEdits?.ExpectedRevision
-                ?? command.CancelConstruction?.ExpectedRevision ?? 0;
+                ?? command.CancelConstruction?.ExpectedRevision ?? command.CreateCaravan?.ExpectedRevision ?? 0;
             receipts[sequence] = new CommandReceipt(sequence, socketGeneration, command.RequestId, CommandCity(command), revision, Time.unscaledTime);
             var bytes = new Envelope { Seq = sequence, Command = command }.ToByteArray();
             _ = SendBytesAsync(socket, bytes, lifetime.Token);

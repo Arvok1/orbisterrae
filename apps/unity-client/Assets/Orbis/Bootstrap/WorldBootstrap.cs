@@ -71,7 +71,9 @@ namespace Orbis.Bootstrap
             var cartography=gameObject.AddComponent<WorldCartography>();
             cartography.Initialize(store, globe);
             gameObject.AddComponent<GeographicOverlay>().Initialize(store, globe);
-            gameObject.AddComponent<CityInteractionController>().Initialize(store,globe,cartography,networkClient.EditCell,networkClient.SelectCity);
+            var hubMarkers=gameObject.AddComponent<HubMarkerController>();
+            hubMarkers.Initialize(store, networkClient.Economy, globe);
+            gameObject.AddComponent<CityInteractionController>().Initialize(store,globe,cartography,networkClient.EditCell,networkClient.SelectCity,hubMarkers.Pick,networkClient.SelectHub);
             CreateHud(store, globe, networkClient);
             if (!VisualAcceptanceRunner.Requested) StageAutomaticLogin(networkClient);
             if(VisualAcceptanceRunner.Requested)gameObject.AddComponent<VisualAcceptanceRunner>().Initialize(store,globe);

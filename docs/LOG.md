@@ -1,5 +1,14 @@
 # Diário de bordo
 
+## 2026-11-08 — S1.3b: comércio jogável v0 no protocolo real (web + Unity)
+
+- **Roster e detalhe de entrepostos no servidor:** `ListHubs` (tag 46) → `HubsState` (tag 18) carrega hubs ativos ordenados por nome com estoque, metal e tarifa; `GetHub` e `GetMarket` viram leituras autoritativas do banco, idempotentes, sem book matching (P2). Seed dos hubs ganhou `ON CONFLICT (id) DO NOTHING` para re-execuções.
+- **Web:** painel de comércio `TradePanel` (roster → hub → mercadoria → despacho), pin dourado de hub no globo, i18n pt/en; leituras fora da fila de mutações.
+- **Unity:** `EconomyStore` (read model observável com guarda de resposta atrasada e upsert de caravana por revisão), `RequestKind.Hub` fora da mutation lane, `HubMarkerController` com pinos dourados no globo (relevo amostrado, culling de horizonte, picking 24 px, prioridade sobre o pick de cidade), painel de comércio em `CityGameplayController` (UI Toolkit, gate para jogador com cidade própria), strings pt/en. O C# do proto foi regenerado com `protoc` 36.2 (compatível com o runtime vendido `Google.Protobuf` 3.36.2).
+- **Testes:** `scenarios/s1_3.toml` verde pelo protocolo real (`tools/test-trade.ps1`): 5 grão despachados → hub stock+5 e metal conserva com tarifa (+1); sobrecarga (3000) rejeitada em `cargo_over_capacity`; `verify-trade` confere caravans_at_hub e price_observations. Novos EditMode de economia (9) provados fora do editor via `.local/cs-check` (protobuf round-trip incluído); EditMode completo segue bloqueado pela licença Unity (S1.2c aguardando ativação). `test-city.ps1` re-confirmou S1.2 (troca do poll `/ready` para `curl.exe` — o proxy local respondia 503 ao `Invoke-WebRequest`).
+- Gates: `cargo fmt`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`, `pnpm -r lint` e `pnpm -r test` passaram.
+- Próximo: S1.4 (IA utility simples).
+
 ## 2026-11-07 — S1.3 completa + correções visuais do globo Unity
 
 - **S1.3 fechada no escopo do MVP:** catálogo das 8 mercadorias, preço local por oferta/demanda com teto, escambo-metal, caravanas e navios por comandos autoritativos (`CreateCaravan`/`CreateShip` → validação → evento agendado idempotente → sessão de comércio na chegada), 3 hubs IA semeados determinísticamente (seed 42, liquidez inicial 1000/metal 50000), order book v0 persistido (`trade_orders`: ordens de repouso validadas; o câmbio físico acontece na chegada do transportador), tarifa do dono 2% e observações de preço (`price_observations`) a cada venda.

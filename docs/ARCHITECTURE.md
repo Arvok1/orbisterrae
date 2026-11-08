@@ -86,6 +86,7 @@ Na fatia Unity atual, `WorldCartography` retém marcadores por cidade e contorno
 - Mercadoria só se move por **Caravana** ou **Navio** (entidades com carga, risco e custo de manutenção). Interceptação = encontro de entidades hostis no mesmo trecho de rota.
 - **Hubs** têm order book por mercadoria (matching price-time). Hubs IA existem desde o início do mundo.
 - Moeda: escambo → metal → cunhagem → crédito (por era/tecnologia). Sinks: manutenção, perdas em viagem, impostos, consumo religioso.
+- **S1.3b (cutover MVP):** o comércio jogável v0 usa apenas read models de consulta (`ListHubs`/`GetHub`/`GetMarket` servidos do banco autoritativo, ordenados por nome) e o comando `CreateCaravan`; o book matching fica para P2. Nos clientes, `TradePanel` (web) e `EconomyStore` + painel de comércio (Unity) são render-only: exibem o roster com pin dourado no globo, estoque/tarifa/metal, preço local por mercadoria e as últimas caravanas; despacho só via comando, com a validação server-side.
 
 ## 8b. Itens únicos (resumo; detalhes em `docs/CRAFTING.md`)
 

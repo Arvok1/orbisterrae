@@ -40,7 +40,7 @@ export class Atlas {
     canvas.addEventListener('keydown',event=>this.handleKey(event),options);
     this.unsubscribe=useAtlas.subscribe((state,before)=>{
       if(state.action!==before.action&&state.action)this.applyAction(state.action.kind);
-      if(state.selected!==before.selected||state.action!==before.action||state.world!==before.world||state.city!==before.city||state.adminSnapshot!==before.adminSnapshot||state.cityRotation!==before.cityRotation||state.renderStyle!==before.renderStyle)this.draw();
+      if(state.selected!==before.selected||state.action!==before.action||state.world!==before.world||state.city!==before.city||state.adminSnapshot!==before.adminSnapshot||state.cityRotation!==before.cityRotation||state.renderStyle!==before.renderStyle||state.hubs!==before.hubs)this.draw();
     });
     this.observer=new ResizeObserver(()=>{this.renderer?.resize(this.host.clientWidth,this.host.clientHeight);this.draw();});this.observer.observe(this.host);
     this.draw();if(new URLSearchParams(location.search).has('soak'))this.startSoak();
@@ -58,6 +58,9 @@ export class Atlas {
     const rect=this.renderer.canvas.getBoundingClientRect(),screen={x:event.clientX-rect.left,y:event.clientY-rect.top},cities=state.adminSnapshot?.cities??state.world?.cities??[];
     const nearest=cities.map(city=>{const point=city.pos?this.renderer?.screenPosition(city.pos):null;return {city,distance:point?Math.hypot(point.x-screen.x,point.y-screen.y):Infinity};}).sort((a,b)=>a.distance-b.distance)[0];
     if(nearest&&nearest.distance<32){state.selectCity(nearest.city.id);sendGame({$case:'inspectCity',inspectCity:{cityId:nearest.city.id}});return;}
+    // Hubs open the trade panel instead of the city inspector (S1.3b).
+    const nearestHub=state.hubs.filter(hub=>hub.pos).map(hub=>{const point=this.renderer?.screenPosition(hub.pos!);return {hub,distance:point?Math.hypot(point.x-screen.x,point.y-screen.y):Infinity};}).sort((a,b)=>a.distance-b.distance)[0];
+    if(nearestHub&&nearestHub.distance<32){state.selectHub(nearestHub.hub.id);return;}
     const selected=this.renderer.coordinateAt(event.clientX,event.clientY);if(selected)state.select(selected);
   }
 
@@ -82,7 +85,7 @@ export class Atlas {
   private worldAt(point:Point){return {x:this.center.x+(point.x-this.host.clientWidth/2)/this.size,y:this.center.y+(point.y-this.host.clientHeight/2)/this.size};}
   private zoom(factor:number,point={x:this.host.clientWidth/2,y:this.host.clientHeight/2}){const before=this.worldAt(point);this.size=Math.max(600,Math.min(137_438_953_472,this.size*factor));const after=this.worldAt(point);this.center.x+=before.x-after.x;this.center.y+=before.y-after.y;this.draw();}
   private draw(){if(this.disposed||!this.renderer)return;this.center.x=Math.max(0,Math.min(1,this.center.x));this.center.y=Math.max(0,Math.min(1,this.center.y));const state=useAtlas.getState(),now=Date.now()+state.serverOffsetMs;if(this.following&&state.world?.ruler)this.center=project(rulerPosition(state.world.ruler,now));const cityPosition=state.city?state.world?.cities.find(city=>city.id===state.city?.cityId)?.pos??null:null,zoom=Math.log2(this.size/256);
-    this.renderer.update({center:unproject(this.center),zoom,world:state.world,admin:state.adminSnapshot,city:state.city,cityPosition,cityRotation:state.cityRotation,style:state.renderStyle,rulerPosition:state.world?.ruler?rulerPosition(state.world.ruler,now):null});
+    this.renderer.update({center:unproject(this.center),zoom,world:state.world,admin:state.adminSnapshot,city:state.city,cityPosition,cityRotation:state.cityRotation,style:state.renderStyle,rulerPosition:state.world?.ruler?rulerPosition(state.world.ruler,now):null,hubs:state.hubs});
     useAtlas.setState({zoom,loaded:this.renderer.canvas.dataset.ready==='true'?1:0,viewport:{center:unproject(this.center),zoom,widthPx:this.host.clientWidth,heightPx:this.host.clientHeight}});
   }
   private startSoak(){const started=performance.now(),stops=[{lat:14,lon:8},{lat:46,lon:8},{lat:28,lon:84},{lat:-3,lon:-60}],report=document.createElement('output');report.className='soak-report';this.host.append(report);let step=0;this.soakTimer=setInterval(()=>{const seconds=Math.floor((performance.now()-started)/1000);this.center=project(stops[step%stops.length]);this.size=[1200,16384,1_048_576,16_777_216][step%4];step++;this.draw();report.textContent=JSON.stringify({seconds,lod:this.renderer?.canvas.dataset.lod,fps:this.renderer?.canvas.dataset.fps,dpr:this.renderer?.canvas.width&&this.host.clientWidth?this.renderer.canvas.width/this.host.clientWidth:1});if(seconds>=300&&this.soakTimer){clearInterval(this.soakTimer);this.soakTimer=null;report.dataset.result='completed';}},1000);}

@@ -112,7 +112,24 @@ O aceite dos 7 dias simulados sem hiperinflação roda como teste determinístic
 bots compram e vendem lotes nos hubs semeados (seed da `economy.toml`) por 7 dias
 simulados, com metal conservado, estoque por mercadoria invariante e grão dentro
 de ±`max_monthly_inflation`. Pelo mesmo caminho, os testes de gateway cobrem
-invariantes de persistência. O cenário completo do harness pelo protocolo real
-(`scenarios/s1_3.toml`) segue o padrão de S1.2 e fica para o soak de S1.10;
-enquanto isso, a governança de economia vive nível sim (mesmas funções puras
-que o gateway usa por comandos autoritativos).
+invariantes de persistência. A governança de economia vive nível sim (mesmas
+funções puras que o gateway usa por comandos autoritativos).
+
+### S1.3b — comércio jogável v0 (cenário real no protocolo)
+
+O passe S1.3b acendeu o cenário completo pelo protocolo real, antes prometido
+para o soak de S1.10: `powershell tools/test-trade.ps1` roda
+`scenarios/s1_3.toml` (worker0/worker1/gateway isos, banco `orbis_test_*`,
+prune de contêineres) e o bot `tools/bot/src/tradeScenario.ts` autentica,
+lê o roster (`ListHubs`), seleciona um hub (`GetHub`), despacha caravana de
+grão pelo comando `CreateCaravan`, espera `at_hub` e rejeita despacho acima
+da capacidade. O invariante persistido é conferido por
+`test_database verify-trade` (caravans chegaram, estoque do hub e metal
+conservado com tarifa, observação de preço registrada). O aceite simulado de
+7 dias continua como filete de segurança em `crates/sim/src/economy.rs`.
+
+Unity: os testes EditMode (`Assets/Tests/EditMode/EconomyTests.cs`) cobrem o
+read model `EconomyStore` (roster, hub selecionado com guarda de resposta
+atrasada, upsert de caravana por revisão) e o round-trip protobuf de
+`CreateCaravan`/`ListHubs`/`HubsState`/`CaravanState`/`MarketSnapshot`
+(9 testes, validados também fora do editor via `.local/cs-check`).

@@ -1,0 +1,13 @@
+# Cenario do passe S1.3b (docs/TESTING.md): economia jogavel v0 pelo protocolo real.
+# Boats roda listHubs/getMarket/createCaravan por conta autenticada e espera a
+# cheve conservacao do metal do entreposto e do estoque na chegada da caravana.
+[run]
+seed = 42
+concurrency = 1
+timeout_ms = 60000
+
+[assertions]
+minimum_hubs = 3
+initial_hub_metal = 50000
+commodity = "grain"
+quantity = 5

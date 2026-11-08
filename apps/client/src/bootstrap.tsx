@@ -7,6 +7,7 @@ import { connectWorld } from './network.js';
 import { PlayPanel } from './PlayPanel.js';
 import { gameMessages } from './game-i18n.js';
 import { CityPanel } from './CityPanel.js';
+import { TradePanel } from './TradePanel.js';
 import { AdminPanel } from './AdminPanel.js';
 import './brutal.css';
 
@@ -64,6 +65,7 @@ function App() {
     {!state.session&&<div className="layer-control"><button aria-pressed={state.showDiagnostics} onClick={state.toggleDiagnostics}>{t.testLayer}{state.showDiagnostics ? ' ✓' : ''}</button></div>}
     {state.session&&<button className="follow-button" onClick={()=>state.command('follow')} aria-label={g.follow}>◆</button>}
     <CityPanel />
+    <TradePanel />
     <AdminPanel />
     <footer><span><a href="https://ecoregions.appspot.com/" target="_blank" rel="noreferrer">{t.source}</a></span><span aria-live="polite">{state.error ? t.error : state.session?g.keyboard:state.loaded ? t.ready : t.loading}</span></footer>
     <span id="keyboard-help" className="sr-only">{state.session?g.keyboard:t.keyboard}</span>

@@ -42,6 +42,9 @@ export interface Command {
     | { $case: "cancelOrder"; cancelOrder: CancelOrder }
     | { $case: "getMarket"; getMarket: GetMarket }
     | { $case: "getHub"; getHub: GetHub }
+    | //
+    /** Economy (S1.3b) */
+    { $case: "listHubs"; listHubs: ListHubs }
     | undefined;
 }
 
@@ -144,6 +147,9 @@ export interface GetMarket {
 
 export interface GetHub {
   hubId: string;
+}
+
+export interface ListHubs {
 }
 
 export interface AdminSnapshotRequest {
@@ -471,7 +477,14 @@ export interface ServerMsg {
     | { $case: "hub"; hub: HubState }
     | { $case: "order"; order: OrderState }
     | { $case: "market"; market: MarketSnapshot }
+    | //
+    /** Economy (S1.3b) */
+    { $case: "hubs"; hubs: HubsState }
     | undefined;
+}
+
+export interface HubsState {
+  hubs: HubState[];
 }
 
 function createBaseLatLon(): LatLon {
@@ -683,6 +696,9 @@ export const Command: MessageFns<Command> = {
       case "getHub":
         GetHub.encode(message.kind.getHub, writer.uint32(362).fork()).join();
         break;
+      case "listHubs":
+        ListHubs.encode(message.kind.listHubs, writer.uint32(370).fork()).join();
+        break;
     }
     return writer;
   },
@@ -855,6 +871,14 @@ export const Command: MessageFns<Command> = {
           message.kind = { $case: "getHub", getHub: GetHub.decode(reader, reader.uint32()) };
           continue;
         }
+        case 46: {
+          if (tag !== 370) {
+            break;
+          }
+
+          message.kind = { $case: "listHubs", listHubs: ListHubs.decode(reader, reader.uint32()) };
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -994,6 +1018,12 @@ export const Command: MessageFns<Command> = {
       case "getHub": {
         if (object.kind?.getHub !== undefined && object.kind?.getHub !== null) {
           message.kind = { $case: "getHub", getHub: GetHub.fromPartial(object.kind.getHub) };
+        }
+        break;
+      }
+      case "listHubs": {
+        if (object.kind?.listHubs !== undefined && object.kind?.listHubs !== null) {
+          message.kind = { $case: "listHubs", listHubs: ListHubs.fromPartial(object.kind.listHubs) };
         }
         break;
       }
@@ -2193,6 +2223,40 @@ export const GetHub: MessageFns<GetHub> = {
   fromPartial<I extends Exact<DeepPartial<GetHub>, I>>(object: I): GetHub {
     const message = createBaseGetHub();
     message.hubId = object.hubId ?? "";
+    return message;
+  },
+};
+
+function createBaseListHubs(): ListHubs {
+  return {};
+}
+
+export const ListHubs: MessageFns<ListHubs> = {
+  encode(_: ListHubs, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListHubs {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListHubs();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<ListHubs>, I>>(base?: I): ListHubs {
+    return ListHubs.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ListHubs>, I>>(_: I): ListHubs {
+    const message = createBaseListHubs();
     return message;
   },
 };
@@ -6000,6 +6064,9 @@ export const ServerMsg: MessageFns<ServerMsg> = {
       case "market":
         MarketSnapshot.encode(message.kind.market, writer.uint32(138).fork()).join();
         break;
+      case "hubs":
+        HubsState.encode(message.kind.hubs, writer.uint32(146).fork()).join();
+        break;
     }
     return writer;
   },
@@ -6123,6 +6190,14 @@ export const ServerMsg: MessageFns<ServerMsg> = {
           message.kind = { $case: "market", market: MarketSnapshot.decode(reader, reader.uint32()) };
           continue;
         }
+        case 18: {
+          if (tag !== 146) {
+            break;
+          }
+
+          message.kind = { $case: "hubs", hubs: HubsState.decode(reader, reader.uint32()) };
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -6222,7 +6297,59 @@ export const ServerMsg: MessageFns<ServerMsg> = {
         }
         break;
       }
+      case "hubs": {
+        if (object.kind?.hubs !== undefined && object.kind?.hubs !== null) {
+          message.kind = { $case: "hubs", hubs: HubsState.fromPartial(object.kind.hubs) };
+        }
+        break;
+      }
     }
+    return message;
+  },
+};
+
+function createBaseHubsState(): HubsState {
+  return { hubs: [] };
+}
+
+export const HubsState: MessageFns<HubsState> = {
+  encode(message: HubsState, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.hubs) {
+      HubState.encode(v!, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): HubsState {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseHubsState();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.hubs.push(HubState.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<HubsState>, I>>(base?: I): HubsState {
+    return HubsState.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<HubsState>, I>>(object: I): HubsState {
+    const message = createBaseHubsState();
+    message.hubs = object.hubs?.map((e) => HubState.fromPartial(e)) || [];
     return message;
   },
 };

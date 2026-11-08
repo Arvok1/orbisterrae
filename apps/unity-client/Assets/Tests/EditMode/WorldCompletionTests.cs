@@ -58,6 +58,27 @@ namespace Orbis.Tests.EditMode
                 }
         }
         [Test]
+        public void CityStatCardsExposePopulationMetricsAndEvents()
+        {
+            var city=new CitySnapshot { Name="Paris",Revision=3,Editable=true,
+                Metrics=new CityMetrics{Water=.836,Density=.421,Defense=7.25},
+                Population=new PopulationState{Farmers=10,Artisans=4,Soldiers=2,Priests=1} };
+            city.Events.Add(new CityEventState { Kind="famine" });
+            city.Events.Add(new CityEventState { Kind="fire" });
+            Assert.That(CityPresentation.Population(city),Is.EqualTo(17));
+            var metrics=CityPresentation.MetricsText(city,"en");
+            Assert.That(metrics,Does.Contain("84%"));Assert.That(metrics,Does.Contain("42%"));
+            Assert.That(metrics,Does.Contain("7.3"));Assert.That(metrics,Does.Contain("population: 17"));
+            var classes=CityPresentation.ClassesText(city,"en");
+            Assert.That(classes,Does.Contain("Farmers: 10"));Assert.That(classes,Does.Contain("Priests: 1"));
+            Assert.That(CityPresentation.EventsText(city,"en"),Is.EqualTo("⚡ famine · 🔥 fire"));
+            Assert.That(CityPresentation.EventsText(city,"pt"),Is.EqualTo("⚡ fome · 🔥 incêndio"));
+            var empty=new CitySnapshot();
+            Assert.That(CityPresentation.MetricsText(empty,"en"),Is.Empty);
+            Assert.That(CityPresentation.ClassesText(empty,"en"),Is.Empty);
+            Assert.That(CityPresentation.EventsText(empty,"en"),Is.Empty);
+        }
+        [Test]
         public void PreviewRejectsOccupiedBoundsAndReadOnlyWithoutChangingSnapshot()
         {
             var city=new CitySnapshot { CityId="city",Width=256,Height=256,Editable=true };

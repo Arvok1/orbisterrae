@@ -59,7 +59,9 @@ try {
     }
     $orbisReady = $false
     for ($orbisAttempt = 0; $orbisAttempt -lt 40; $orbisAttempt++) {
-        try { if ((Invoke-WebRequest "$env:ORBIS_HTTP_URL/ready" -TimeoutSec 2).StatusCode -eq 200) { $orbisReady = $true; break } } catch {}
+        # curl em vez de Invoke-WebRequest: um proxy local pode responder 503 para loops localhost.
+        $orbisStatus = & curl.exe -s -o NUL -w "%{http_code}" -m 8 "$env:ORBIS_HTTP_URL/ready"
+        if ($orbisStatus -eq "200") { $orbisReady = $true; break }
         Start-Sleep -Milliseconds 250
     }
     if (-not $orbisReady) { throw "Serviços de teste indisponíveis; consulte .local/s1-2-*.err.log." }

@@ -14,6 +14,8 @@ namespace Orbis.World
         OrbisInputActions input;
         Action<uint,uint> edit;
         Action<string> selectCity;
+        Func<string> pickHub;
+        Action<string> selectHub;
         GameObject preview;
         Renderer previewRenderer;
         Material previewMaterial;
@@ -26,9 +28,9 @@ namespace Orbis.World
         bool wasPressed;
         bool blocked;
         bool dragged;
-        public void Initialize(GameStore state,GlobeRenderer terrain,WorldCartography map,Action<uint,uint> editCell,Action<string> select)
+        public void Initialize(GameStore state,GlobeRenderer terrain,WorldCartography map,Action<uint,uint> editCell,Action<string> select,Func<string> hubPick=null,Action<string> hubSelect=null)
         {
-            store=state;globe=terrain;cartography=map;edit=editCell;selectCity=select;worldCamera=Camera.main;
+            store=state;globe=terrain;cartography=map;edit=editCell;selectCity=select;pickHub=hubPick;selectHub=hubSelect;worldCamera=Camera.main;
             properties=new MaterialPropertyBlock();
             input=new OrbisInputActions();input.Enable();
             preview=GameObject.CreatePrimitive(PrimitiveType.Cube);preview.name="Placement preview";
@@ -48,6 +50,7 @@ namespace Orbis.World
         {
             if(store==null||worldCamera==null) return;
             if(!HudInputGate.IsKeyboardBlocked&&input.Cancel.WasPressedThisFrame()) store.Update(store.State.With(tool:new CityTool(),clearPreview:true));
+            RotateWithKeyboard();
             var point=input.Point.ReadValue<Vector2>();
             var pressed=input.PrimaryDrag.IsPressed();
             if(!pressed&&!wasPressed)dragged=false;
@@ -81,20 +84,43 @@ namespace Orbis.World
                 if(candidate!=null&&candidate.Valid) edit((uint)candidate.X,(uint)candidate.Y);
                 else if(state.Tool.Kind=="select")
                 {
-                    var selected=cartography.Pick(point);
-                    if(selected!=null)
+                    // Trading hubs win when their marker is under the pointer (S1.3b).
+                    var hub=pickHub?.Invoke(point);
+                    if(!string.IsNullOrEmpty(hub)) selectHub?.Invoke(hub);
+                    else
                     {
-                        selectCity(selected);
-                        var selectedState=CityPresentation.FindCity(store.State,selected);
-                        if(selectedState?.Pos!=null) store.Focus(new GeoCoordinate(selectedState.Pos.Lat,selectedState.Pos.Lon),8000);
+                        var selected=cartography.Pick(point);
+                        if(selected!=null)
+                        {
+                            selectCity(selected);
+                            var selectedState=CityPresentation.FindCity(store.State,selected);
+                            if(selectedState?.Pos!=null) store.Focus(new GeoCoordinate(selectedState.Pos.Lat,selectedState.Pos.Lon),8000);
+                        }
+                        else if(globe.SurfaceCollider.Raycast(worldCamera.ScreenPointToRay(point),out var hit,120000))
+                            store.Update(store.State.With(selection:GeoPresentation.FromNormal(hit.point.normalized)));
                     }
-                    else if(globe.SurfaceCollider.Raycast(worldCamera.ScreenPointToRay(point),out var hit,120000))
-                        store.Update(store.State.With(selection:GeoPresentation.FromNormal(hit.point.normalized)));
                 }
             }
             wasPressed=pressed;
             RefreshSelectionMarker();
         }
+        /// <summary>The globe selection deserves a pin so admins see what a click picked.</summary>
+        /// <summary>Q/E rotate the active city tool, matching the web rotate shortcuts.</summary>
+        void RotateWithKeyboard()
+        {
+            if(HudInputGate.IsKeyboardBlocked) return;
+            var keyboard=Keyboard.current;
+            if(keyboard==null) return;
+            var stepped=0;
+            if(keyboard.qKey.wasPressedThisFrame) stepped=-1;
+            else if(keyboard.eKey.wasPressedThisFrame) stepped=1;
+            if(stepped==0) return;
+            var state=store.State;
+            if(!CityPresentation.CanEdit(state)) return;
+            var orientation=stepped>0?state.Tool.Orientation+1u:state.Tool.Orientation+3u;
+            store.Update(state.With(tool:new CityTool(state.Tool.Kind,state.Tool.Value,orientation)));
+        }
+
         /// <summary>The globe selection deserves a pin so admins see what a click picked.</summary>
         void RefreshSelectionMarker()
         {

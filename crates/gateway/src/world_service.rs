@@ -9,9 +9,9 @@ use orbis_core::{
 use orbis_protocol::{
     command, server_msg, AdminEvent, AdminSnapshot, AdminSnapshotRequest,
     BuildingDefinition as WireBuildingDefinition, BuildingState, CityEventState, CityMetrics,
-    CitySnapshot, CityState, Command, CommandResult, ConstructionState, HubState, LatLon,
-    MarketSnapshot, MoveSegment, OrderState, PopulationState, RulerState, ServerMsg, TerritoryCell,
-    WorldSnapshot,
+    CitySnapshot, CityState, Command, CommandResult, ConstructionState, HubState, HubsState,
+    LatLon, MarketSnapshot, MoveSegment, OrderState, PopulationState, RulerState, ServerMsg,
+    TerritoryCell, WorldSnapshot,
 };
 use orbis_sim::city::{self, Catalog as CityCatalog};
 use orbis_sim::economy::{Balance as EconomyBalance, Catalog as EconomyCatalog, EconomyError};
@@ -140,7 +140,8 @@ impl Context {
         ) {
             sqlx::query(
                 "INSERT INTO hubs(id,name,pos,h3_shard,kingdom_id,stock,metal,fee) \
-                 VALUES($1,$2,ST_SetSRID(ST_MakePoint($3,$4),4326)::geography,$5,NULL,$6,$7,$8)",
+                 VALUES($1,$2,ST_SetSRID(ST_MakePoint($3,$4),4326)::geography,$5,NULL,$6,$7,$8) \
+                 ON CONFLICT (id) DO NOTHING",
             )
             .bind(hub.id.0)
             .bind(&hub.name)
@@ -263,6 +264,7 @@ impl Context {
                 | Some(command::Kind::CancelOrder(_))
                 | Some(command::Kind::GetMarket(_))
                 | Some(command::Kind::GetHub(_))
+                | Some(command::Kind::ListHubs(_))
         ) {
             let response = match &command.kind {
                 Some(command::Kind::CreateCaravan(order)) => {
@@ -287,6 +289,10 @@ impl Context {
                 }
                 Some(command::Kind::GetHub(order)) => {
                     self.economy_get_hub(&mut tx, &ruler, order, &command.request_id, now_ms)
+                        .await?
+                }
+                Some(command::Kind::ListHubs(order)) => {
+                    self.economy_list_hubs(&mut tx, &ruler, order, &command.request_id, now_ms)
                         .await?
                 }
                 _ => unreachable!("kind checked by matches! above"),
@@ -1650,22 +1656,45 @@ impl Context {
             return Ok(result(request_id, false, "hub_not_found"));
         };
 
-        let hub_state = HubState {
-            id: hub.id.0.to_string(),
-            name: hub.name,
-            pos: Some(LatLon {
-                lat: hub.pos.lat,
-                lon: hub.pos.lon,
-            }),
-            kingdom_id: hub.kingdom.map(|k| k.0.to_string()).unwrap_or_default(),
-            stock: hub.stock.into_iter().collect(),
-            metal: hub.metal,
-            fee: hub.fee,
-        };
-
         Ok(ServerMsg {
-            kind: Some(server_msg::Kind::Hub(hub_state)),
+            kind: Some(server_msg::Kind::Hub(hub_state(hub))),
         })
+    }
+
+    /// Full hub roster for the trade HUD (S1.3b); deterministic by name.
+    async fn economy_list_hubs(
+        &self,
+        tx: &mut PgConnection,
+        _ruler: &Ruler,
+        _order: &orbis_protocol::ListHubs,
+        _request_id: &str,
+        _now_ms: u64,
+    ) -> Result<ServerMsg, ServiceError> {
+        let sql = format!("SELECT {HUB_COLUMNS} FROM hubs ORDER BY name");
+        let rows = sqlx::query(&sql).fetch_all(tx).await?;
+        let hubs: Vec<HubState> = rows
+            .into_iter()
+            .map(|row| hub_state(hub_from_row(row)))
+            .collect();
+        Ok(ServerMsg {
+            kind: Some(server_msg::Kind::Hubs(HubsState { hubs })),
+        })
+    }
+}
+
+/// Domain `Hub` mapped into the protocol struct (shared by GetHub and ListHubs).
+fn hub_state(hub: Hub) -> HubState {
+    HubState {
+        id: hub.id.0.to_string(),
+        name: hub.name,
+        pos: Some(LatLon {
+            lat: hub.pos.lat,
+            lon: hub.pos.lon,
+        }),
+        kingdom_id: hub.kingdom.map(|k| k.0.to_string()).unwrap_or_default(),
+        stock: hub.stock.into_iter().collect(),
+        metal: hub.metal,
+        fee: hub.fee,
     }
 }
 

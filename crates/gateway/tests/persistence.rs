@@ -6,7 +6,7 @@ use orbis_gateway::{
 };
 use orbis_protocol::{
     command, server_msg, AdminSnapshotRequest, ApplyCityEdits, CancelConstruction, CityCellEdit,
-    Command, FoundCity, InspectCity, LatLon, MoveRuler, QueueBuilding, SetViewport,
+    Command, FoundCity, InspectCity, LatLon, ListHubs, MoveRuler, QueueBuilding, SetViewport,
 };
 use orbis_sim::world;
 use sqlx::{postgres::PgConnectOptions, types::Json, ConnectOptions, Row};
@@ -93,6 +93,32 @@ async fn exercise(context: &mut Context) -> Result<(), Box<dyn std::error::Error
         )
         .await?;
     assert_eq!(login.account_id, session.account_id);
+    // S1.3b: the hub roster is listed deterministically for any authenticated account.
+    let roster = context
+        .command(
+            account,
+            &Command {
+                request_id: "list-hubs".into(),
+                kind: Some(command::Kind::ListHubs(ListHubs {})),
+            },
+            1000,
+        )
+        .await?;
+    let Some(server_msg::Kind::Hubs(roster)) = roster.kind else {
+        panic!("no hub roster")
+    };
+    assert!(!roster.hubs.is_empty());
+    let names: Vec<String> = roster.hubs.iter().map(|hub| hub.name.clone()).collect();
+    let mut sorted = names.clone();
+    sorted.sort();
+    assert_eq!(names, sorted, "hubs are listed in name order");
+    assert!(
+        roster
+            .hubs
+            .iter()
+            .all(|hub| hub.fee > 0.0 && hub.pos.is_some()),
+        "every hub carries a fee and a map position"
+    );
     assert!(auth
         .authenticate(
             context,

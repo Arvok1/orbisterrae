@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Orbis.V1;
 using UnityEngine;
 
@@ -69,6 +70,44 @@ namespace Orbis.Core
             if (state.Session?.IsAdmin == true && state.Admin != null)
                 foreach (var city in state.Admin.Cities) if (city.Id == cityId) return city;
             return null;
+        }
+
+        /// <summary>Total population across the four classes; zero when the city is empty.</summary>
+        public static int Population(CitySnapshot city)
+        {
+            var population = city.Population;
+            return population == null ? 0
+                : (int)(population.Farmers + population.Artisans + population.Soldiers + population.Priests);
+        }
+
+        /// <summary>Metrics card text (water/density/defense parity with the web CityPanel).</summary>
+        public static string MetricsText(CitySnapshot city, string locale)
+        {
+            var metrics = city.Metrics;
+            if (metrics == null) return string.Empty;
+            return $"{ClientText.Get(locale, "water")}: {ClientText.Percent(metrics.Water)} · "
+                + $"{ClientText.Get(locale, "density")}: {ClientText.Percent(metrics.Density)} · "
+                + $"{ClientText.Get(locale, "defense")}: {metrics.Defense.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)} · "
+                + $"{ClientText.Get(locale, "population")}: {Population(city)}";
+        }
+
+        /// <summary>Population classes card text.</summary>
+        public static string ClassesText(CitySnapshot city, string locale)
+        {
+            var population = city.Population;
+            if (population == null) return string.Empty;
+            return $"{ClientText.Get(locale, "farmers")}: {population.Farmers} · "
+                + $"{ClientText.Get(locale, "artisans")}: {population.Artisans} · "
+                + $"{ClientText.Get(locale, "soldiers")}: {population.Soldiers} · "
+                + $"{ClientText.Get(locale, "priests")}: {population.Priests}";
+        }
+
+        /// <summary>Active city events (famine/fire), translated and joined.</summary>
+        public static string EventsText(CitySnapshot city, string locale)
+        {
+            var parts = new List<string>();
+            foreach (var cityEvent in city.Events) parts.Add(ClientText.Get(locale, cityEvent.Kind));
+            return string.Join(" · ", parts);
         }
     }
 }

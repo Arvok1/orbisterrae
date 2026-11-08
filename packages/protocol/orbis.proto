@@ -31,6 +31,8 @@ message Command {
     CancelOrder cancel_order = 43;
     GetMarket get_market = 44;
     GetHub get_hub = 45;
+    // Economy (S1.3b)
+    ListHubs list_hubs = 46;
   }
 }
 
@@ -76,6 +78,7 @@ message GetMarket {
 message GetHub {
   string hub_id = 1;
 }
+message ListHubs {}
 
 message AdminSnapshotRequest {
   uint64 after_event_seq = 1; string account_id = 2; string kingdom_id = 3;
@@ -220,5 +223,9 @@ message ServerMsg {
     HubState hub = 15;
     OrderState order = 16;
     MarketSnapshot market = 17;
+    // Economy (S1.3b)
+    HubsState hubs = 18;
   }
 }
+
+message HubsState { repeated HubState hubs = 1; }

@@ -4,7 +4,7 @@ import {
   PlaneGeometry, Raycaster, Scene, ShaderMaterial, SphereGeometry, SRGBColorSpace, Texture,
   TextureLoader, Vector2, Vector3, WebGLRenderer, type Material,
 } from 'three';
-import type { AdminSnapshot, BuildingDefinition, CitySnapshot, WorldSnapshot } from '@orbis/protocol';
+import type { AdminSnapshot, BuildingDefinition, CitySnapshot, HubState, WorldSnapshot } from '@orbis/protocol';
 import biomeUrl from '../assets/world-biomes-v1.png?url';
 import reliefUrl from '../assets/world-relief-v2.png?url';
 import terrainUrl from '../assets/world-terrain-v1.json?url';
@@ -15,8 +15,8 @@ import { lodForZoom, type Lod } from './lod.js';
 import { inLake, mercatorSample, regionalSpan } from './regionData.js';
 
 export type RenderStyle='relief'|'manuscript';
-type Pin={id:string;kind:'city'|'ruler'|'unit';pos:Coordinate};
-type Input={center:Coordinate;zoom:number;world:WorldSnapshot|null;admin:AdminSnapshot|null;city:CitySnapshot|null;cityPosition:Coordinate|null;cityRotation:number;style:RenderStyle;rulerPosition:Coordinate|null};
+type Pin={id:string;kind:'city'|'ruler'|'unit'|'hub';pos:Coordinate};
+type Input={center:Coordinate;zoom:number;world:WorldSnapshot|null;admin:AdminSnapshot|null;city:CitySnapshot|null;cityPosition:Coordinate|null;cityRotation:number;style:RenderStyle;rulerPosition:Coordinate|null;hubs:HubState[]};
 type River={rank:number;width:number;lines:[number,number][][]};
 type Lake={polygons:[number,number][][]};
 type TerrainData={rivers:River[];lakes:Lake[]};
@@ -114,7 +114,7 @@ export class WorldRenderer {
     this.mode=requestedLod==='city'&&input.city&&nearCity?'city':requestedLod==='city'?'regional':requestedLod;this.style=input.style;
     this.updateGlobeCamera(input.center,input.zoom);
     this.syncRegion(input.center,input.zoom);
-    this.syncPins(input.world,input.admin,input.rulerPosition);
+    this.syncPins(input.world,input.admin,input.rulerPosition,input.hubs);
     this.syncCity(input.city,input.cityPosition,input.cityRotation);
     this.world.visible=this.mode==='global';this.region.visible=this.mode==='regional'&&Boolean(this.regionGround);this.cityGroup.visible=this.mode==='city'&&Boolean(this.cityGround);
     if(this.earth)this.earth.material.uniforms.style.value=this.style==='manuscript'?1:0;
@@ -186,11 +186,12 @@ export class WorldRenderer {
   private biomeAt(position:Coordinate) {if(!this.biomePixels)return null;const {u,v}=mercatorSample(position),{data,width,height}=this.biomePixels,index=(Math.min(height-1,Math.floor(v*height))*width+Math.min(width-1,Math.floor(u*width)))*4;return {r:data[index]??0,g:data[index+1]??0,b:data[index+2]??0,a:data[index+3]??0};}
   private heightAt(position:Coordinate) {if(!this.reliefPixels)return 0;const {u,v}=mercatorSample(position),{data,width,height}=this.reliefPixels,index=(Math.min(height-1,Math.floor(v*height))*width+Math.min(width-1,Math.floor(u*width)))*4;return Math.max(0,(data[index]??0)/255-.36)*2600;}
 
-  private syncPins(world:WorldSnapshot|null,admin:AdminSnapshot|null,rulerPosition:Coordinate|null) {
+  private syncPins(world:WorldSnapshot|null,admin:AdminSnapshot|null,rulerPosition:Coordinate|null,hubs:HubState[]) {
     const pins:Pin[]=[];
     for(const city of admin?.cities??world?.cities??[])if(city.pos)pins.push({id:`city:${city.id}`,kind:'city',pos:city.pos});
     if(world?.ruler?.pos)pins.push({id:`ruler:${world.ruler.id}`,kind:'ruler',pos:rulerPosition??world.ruler.pos});
     for(const entity of admin?.entities??[])if(entity.pos)pins.push({id:`unit:${entity.id}`,kind:entity.kind===0?'ruler':'unit',pos:entity.pos});
+    for(const hub of hubs)if(hub.pos)pins.push({id:`hub:${hub.id}`,kind:'hub',pos:hub.pos});
     const nextKey=pins.map(pin=>`${pin.id}:${pin.kind}:${pin.pos.lat.toFixed(4)}:${pin.pos.lon.toFixed(4)}`).join('|');
     if(nextKey===this.pinKey)return;this.pinKey=nextKey;
     const wanted=new Set(pins.map(pin=>pin.id));
@@ -203,8 +204,9 @@ export class WorldRenderer {
 
   private makePin(kind:Pin['kind']) {
     const node=new Group();
-    const stone=new MeshStandardMaterial({color:kind==='city'?'#b49b73':kind==='ruler'?'#d9bd78':'#6f4b3e',roughness:.85});
+    const stone=new MeshStandardMaterial({color:kind==='city'?'#b49b73':kind==='ruler'?'#d9bd78':kind==='hub'?'#c9a227':'#6f4b3e',roughness:.85});
     if(kind==='city') {const base=new Mesh(new BoxGeometry(.025,.018,.025),stone);base.position.y=.012;node.add(base);const roof=new Mesh(new ConeGeometry(.021,.025,4),new MeshStandardMaterial({color:'#38271f',roughness:1}));roof.position.y=.033;node.add(roof);}
+    else if(kind==='hub') {const base=new Mesh(new BoxGeometry(.03,.014,.03),stone);base.position.y=.009;node.add(base);const obelisk=new Mesh(new ConeGeometry(.016,.05,4),stone);obelisk.position.y=.041;node.add(obelisk);const cap=new Mesh(new BoxGeometry(.004,.026,.004),new MeshStandardMaterial({color:'#6f4b3e',roughness:1}));cap.position.set(.012,.04,0);node.add(cap);}
     else {const body=new Mesh(new BoxGeometry(.012,.028,.012),stone);body.position.y=.022;node.add(body);const flag=new Mesh(new BoxGeometry(.002,.035,.002),new MeshStandardMaterial({color:'#a84b36'}));flag.position.set(.011,.035,0);node.add(flag);}
     return node;
   }

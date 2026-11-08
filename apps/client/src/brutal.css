@@ -102,6 +102,13 @@ h2 { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 24px; line-he
 .construction-list li { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--iron); padding: 4px; }
 .construction-list button { min-height: 28px; padding: 2px 6px; font-size: 9px; box-shadow: none; }
 .city-events { margin: 6px 0 0; color: var(--blood); font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
+.trade-panel { left: calc(50% + 200px); bottom: 56px; transform: none; width: min(340px, calc(100% - 380px)); }
+.trade-form { display: flex; gap: 6px; align-items: end; margin-top: 8px; flex-wrap: wrap; }
+.trade-form label { display: flex; flex-direction: column; gap: 3px; font-size: 9px; color: var(--ash); text-transform: uppercase; letter-spacing: 1px; }
+.trade-form select, .trade-form input { min-height: 34px; padding: 4px 6px; font-size: 11px; }
+.trade-form button { min-height: 34px; padding: 4px 10px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; background: var(--blood); border-color: #5e2015; color: #f4e8d8; box-shadow: 2px 2px 0 var(--shadow); }
+.trade-form small { align-self: end; color: var(--brass); }
+.trade-caravans { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; color: var(--ash); font-size: 10px; }
 .empty, .location { border-top: 1px solid var(--iron); padding: 16px 0; margin-top: 16px; }
 .empty > span { font-size: 24px; color: var(--blood); }
 .empty h3 { font-size: 12px; margin: 8px 0; }
@@ -152,6 +159,7 @@ footer a { color: inherit; }
   .layer-control { right: 8px; bottom: 64px; max-width: 72px; }
   .follow-button { right: 8px; bottom: 64px; }
   .city-panel { left: 8px; right: 72px; bottom: 56px; transform: none; width: auto; padding: 8px; }
+  .trade-panel { left: 8px; right: 72px; bottom: 132px; width: auto; padding: 8px; }
   .city-panel dl { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
   .city-panel dl div { min-width: 0; }
   .city-tools { grid-template-columns: 64px 1fr; }

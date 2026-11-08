@@ -27,5 +27,12 @@ namespace Orbis.Core
             var seconds=Math.Max(0,Math.Ceiling((dueAt-now)/1000));
             return $"{(int)seconds/60:00}:{(int)seconds%60:00}";
         }
+        /// <summary>Formats a 0..1 ratio as a rounded percentage, e.g. 0.836 → 84%.</summary>
+        public static string Percent(double ratio)
+        {
+            if (ratio < 0) ratio = 0;
+            if (ratio > 1) ratio = 1;
+            return $"{Math.Round(ratio*100)}%";
+        }
     }
 }
