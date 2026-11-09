@@ -78,6 +78,7 @@ namespace Orbis.World
                 dirty |= Sync(city);
             }
             UpdateGround(city, origin);
+            UpdateRulerBanner(city, origin);
             if (dirty || currentLod != lod) { currentLod = lod; BuildBatches(); lastFrame = default; }
             if (lastFrame != frame.LocalToWorld)
             {
@@ -218,6 +219,79 @@ namespace Orbis.World
                 (float)(origin.LongitudeDegrees + offsetMetersX / (MetersPerLatitudeDegree * longitudeScale)));
             return globe.SampleHeightMeters(corner) - baseElevationMeters;
         }
+        GameObject rulerBanner;
+        Material rulerMaterial;
+
+        /// <summary>Governante como malha (T1.12): banner estável na borda norte do prato,
+        /// visível quando o governante do mundo é o dono desta cidade.</summary>
+        void UpdateRulerBanner(CitySnapshot city, GeoCoordinate origin)
+        {
+            if (rulerBanner == null)
+            {
+                rulerBanner = new GameObject("Ruler banner");
+                rulerBanner.transform.SetParent(transform, false);
+                rulerBanner.AddComponent<MeshFilter>().sharedMesh = CreateRulerBannerMesh();
+                rulerMaterial = new Material(Resources.Load<Material>("Orbis/WorldRelief"));
+                rulerBanner.AddComponent<MeshRenderer>().sharedMaterial = rulerMaterial;
+            }
+            var ruler = store.State.World?.Ruler;
+            var rulerOwnsCity = ruler?.CityId == city.CityId;
+            if (!rulerOwnsCity)
+            {
+                rulerBanner.SetActive(false);
+                return;
+            }
+            rulerBanner.SetActive(true);
+            const double MetersPerLatitudeDegree = 111_320;
+            var halfSizeMeters = Math.Max(city.Width, city.Height) * 5.0 + 12.0;
+            var bannerCoordinate = new GeoCoordinate(
+                Mathf.Clamp((float)(origin.LatitudeDegrees + halfSizeMeters / MetersPerLatitudeDegree), -89.5f, 89.5f),
+                origin.LongitudeDegrees);
+            var up = GeoMath.SurfaceNormal(bannerCoordinate);
+            var elevation = globe.SampleHeightMeters(bannerCoordinate);
+            rulerBanner.transform.SetPositionAndRotation(
+                up * (float)((GeoMath.EarthRadiusMeters + elevation + .8) / GeoMath.MetersPerUnityUnit),
+                Quaternion.FromToRotation(Vector3.up, up));
+            rulerBanner.transform.localScale = Vector3.one * (float)(1 / GeoMath.MetersPerUnityUnit);
+            var kingdom = ruler.KingdomId;
+            rulerMaterial.SetColor("_BaseColor", UrbanKit.Palette[StableHash(kingdom) % UrbanKit.Palette.Length]);
+        }
+
+        static Mesh CreateRulerBannerMesh()
+        {
+            // Malha em metros: pole de 20 m e bandeira no alto, vista por dos dois lados.
+            var vertices = new List<Vector3>(16);
+            var triangles = new List<int>(24);
+            void AddQuad(Vector3 corner, Vector3 right, Vector3 up)
+            {
+                var baseIndex = vertices.Count;
+                vertices.Add(corner); vertices.Add(corner + right); vertices.Add(corner + right + up); vertices.Add(corner + up);
+                triangles.AddRange(new[] { baseIndex, baseIndex + 1, baseIndex + 2, baseIndex, baseIndex + 2, baseIndex + 3 });
+            }
+            var poleWidth = new Vector3(1.1f, 0, 0);
+            var poleHeight = new Vector3(0, 20f, 0);
+            AddQuad(new Vector3(-.55f, 0, .25f), poleWidth, poleHeight);
+            AddQuad(new Vector3(-.55f, 0, -.25f), poleWidth, poleHeight); // segunda face do pole
+            var flagRight = new Vector3(5.6f, 0, 0);
+            var flagHeight = new Vector3(0, 3.6f, 0);
+            AddQuad(new Vector3(.55f, 15.4f, 0), flagRight, flagHeight);
+            var corners = vertices.ToArray();
+            var mesh = new Mesh { name = "Ruler banner", vertices = corners, triangles = triangles.ToArray() };
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        static int StableHash(string value)
+        {
+            unchecked
+            {
+                var hash = 2166136261;
+                foreach (var character in value ?? string.Empty) hash = (hash ^ character) * 16777619;
+                return (int)(hash & 0x7FFFFFFF);
+            }
+        }
+
         void OnDestroy()
         {
             foreach (var mesh in ownedMeshes) Destroy(mesh);
@@ -225,6 +299,8 @@ namespace Orbis.World
             if (groundMesh != null) Destroy(groundMesh);
             if (surface != null) Destroy(surface);
             if (groundMaterial != null) Destroy(groundMaterial);
+            if (rulerBanner != null) Destroy(rulerBanner);
+            if (rulerMaterial != null) Destroy(rulerMaterial);
         }
     }
 }
