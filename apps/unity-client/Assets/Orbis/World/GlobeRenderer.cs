@@ -43,6 +43,10 @@ namespace Orbis.World
         bool settling;
         float settleBy;
         float retryAfter;
+        readonly Dictionary<WorldTileKey, float> loadBackoff = new();
+        /// <summary>Backoff per failing tile key, so a shard that cannot be read never starves
+        /// the two concurrent load slots in a retry storm.</summary>
+        const float LoadBackoffSeconds = 5f;
         public int TerrainRevision { get; private set; }
         public string HydrographyPath { get; private set; }
         public string CoastlinePath { get; private set; }
@@ -148,6 +152,7 @@ namespace Orbis.World
             foreach (var key in ring)
             {
                 if (patches.ContainsKey(key) || tileLoads.ContainsKey(key)) continue;
+                if (loadBackoff.TryGetValue(key, out var until) && Time.unscaledTime < until) continue;
                 if (tileLoads.Count >= ConcurrentTileLoads) return;
                 try { tileLoads.Add(key, Task.Run(() => package.ReadTile(key))); }
                 catch (Exception exception)
@@ -178,9 +183,11 @@ namespace Orbis.World
                 catch (Exception exception)
                 {
                     retryAfter = Time.unscaledTime + 2f;
+                    loadBackoff[key] = Time.unscaledTime + LoadBackoffSeconds;
                     Debug.LogWarning($"Falha ao carregar tile {key}: {exception.Message}");
                     continue;
                 }
+                loadBackoff.Remove(key);
                 StoreTile(tile);
                 if (key.Equals(center)) TerrainRevision++;
                 AttachPatch(tile);

@@ -74,6 +74,38 @@ namespace Orbis.Tests.EditMode
         }
 
         [Test]
+        public void MosaicRingKeysStayInsideTheirShardsEverywhereOnTheGlobe()
+        {
+            // Varredura por bordas de face: cada anel só pode conter chaves cujos
+            // índices existam no shard correspondente (ReadTile falha em fail-closed).
+            for (var lod = 0; lod <= 5; lod++)
+                for (var il = 0; il <= 18; il++)
+                    for (var ic = 0; ic <= 36; ic++)
+                        AssertRingIsLoadable(-84 + il * 168 / 18.0, -180 + ic * 360 / 36.0, lod);
+            AssertRingIsLoadable(39.1780, 139.0237, 3);
+            AssertRingIsLoadable(39.0990, 138.8033, 0);
+        }
+
+        static void AssertRingIsLoadable(double latitude, double longitude, int lod)
+        {
+            var latitudeRadians = latitude * Math.PI / 180.0;
+            var longitudeRadians = longitude * Math.PI / 180.0;
+            var normal = new Vector3(
+                (float)(Math.Cos(latitudeRadians) * Math.Sin(longitudeRadians)),
+                (float)Math.Sin(latitudeRadians),
+                (float)(Math.Cos(latitudeRadians) * Math.Cos(longitudeRadians)));
+            var center = CubeSphereProjection.TileFor(normal, lod, out _);
+            var axis = 1 << lod;
+            foreach (var key in CubeSphereProjection.MosaicRing(center))
+            {
+                Assert.That(key.Face, Is.InRange(0, 5), key.ToString());
+                Assert.That(key.Lod, Is.EqualTo(lod), key.ToString());
+                Assert.That(key.X, Is.InRange(0, axis - 1), key.ToString());
+                Assert.That(key.Y, Is.InRange(0, axis - 1), key.ToString());
+            }
+        }
+
+        [Test]
         public void PackageRootsFavoursLocalCacheAndStreamsFromEmbeddedFallback()
         {
             var cache = CreateTempRoot();

@@ -325,11 +325,12 @@ namespace Orbis.World
             var axis = 1 << lod;
             var faceU = Mathf.Clamp01((u + 1f) * 0.5f);
             var faceV = Mathf.Clamp01((v + 1f) * 0.5f);
-            var scaledX = Mathf.Min(faceU * axis, axis - Mathf.Epsilon);
-            var scaledY = Mathf.Min(faceV * axis, axis - Mathf.Epsilon);
-            var x = Mathf.FloorToInt(scaledX);
-            var y = Mathf.FloorToInt(scaledY);
-            tileUv = new Vector2(scaledX - x, scaledY - y);
+            // O piso vai em clamp, não em subtração de epsilon: axis - Mathf.Epsilon arredonda
+            // de volta para axis (ULP de 8f é ~9.5e-7 > Epsilon), e uma direção exatamente no
+            // eixo do cubo (faceU == 1.0f) então virava uma chave x == axis fora do shard.
+            var x = Mathf.Clamp(Mathf.FloorToInt(faceU * axis), 0, axis - 1);
+            var y = Mathf.Clamp(Mathf.FloorToInt(faceV * axis), 0, axis - 1);
+            tileUv = new Vector2(faceU * axis - x, faceV * axis - y);
             return new WorldTileKey(face, lod, x, y);
         }
 
