@@ -117,8 +117,9 @@ namespace Orbis.World
             foreach (var chunk in current.Chunks) chunk.SetActive(true);
         }
 
-        /// <summary>Relief LOD sampled for each zoom level: fine close up, coarse from orbit.</summary>
-        static int SampleLod(int level) => level switch { 0 => 4, 1 => 2, _ => 0 };
+        /// <summary>Relief LOD sampled for each zoom level, aligned with GlobeRenderer.DesiredLod
+        /// for the altitudes each level covers, so rivers cannot drift off the rendered patches.</summary>
+        static int SampleLod(int level) => level switch { 0 => 5, 1 => 3, _ => 0 };
 
         void ExtendLevel(LevelState target)
         {
@@ -225,7 +226,7 @@ namespace Orbis.World
         }
 
         Vector3 Position(GeoCoordinate point, int lod) => GeoMath.SurfaceNormal(point)
-            * (float)((GeoMath.EarthRadiusMeters + globe.SampleHeightMeters(point, lod) + 12) / GeoMath.MetersPerUnityUnit);
+            * (float)((GeoMath.EarthRadiusMeters + globe.SampleHeightMeters(point, lod) + 2) / GeoMath.MetersPerUnityUnit);
 
         public static Mesh LineMesh(List<Vector3> vertices, string label)
         {

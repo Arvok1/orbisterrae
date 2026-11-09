@@ -39,17 +39,22 @@ Shader "Orbis/Cartography"
                 half4 relief = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, input.uv);
                 half4 biome = SAMPLE_TEXTURE2D(_BiomeMap, sampler_BiomeMap, input.uv);
                 half land = relief.a;
-                half3 terrain = lerp(biome.rgb, relief.rgb, .44);
+                // O raster de relevo já traz hillshade embutido: pesa mais que as classes planas
+                // para que cordilheiras e planaltos sejam legíveis mesmo de órbita.
+                half3 terrain = lerp(biome.rgb, relief.rgb, .55);
                 // Biomas diferenciados: verdes (floresta) escurecem em manchas procedurais;
                 // áridos ganham matiz quente; tundra fria e clara via azul do mapa de biomas.
                 half forest = saturate((biome.g - biome.r) * 2.0);
                 half arid = saturate((biome.r - biome.g) * 2.0);
                 float2 dappleGrid = floor(input.uv * 2400.0);
                 half dapple = frac(sin(dot(dappleGrid, float2(12.9898, 78.233))) * 43758.5453);
-                terrain *= 1.0 - dapple * .10 * forest;
-                terrain *= lerp(half3(1.0, 1.0, 1.0), half3(1.05, .99, .88), arid * .6);
-                terrain *= lerp(half3(1.0, 1.0, 1.0), half3(.98, 1.02, 1.08), saturate(biome.b) * .35);
-                half shade = .8 + .2 * saturate(dot(normalize(input.normalWS), normalize(float3(-.4,.7,.5))));
+                terrain *= 1.0 - dapple * .14 * forest;
+                terrain *= lerp(half3(1.0, 1.0, 1.0), half3(1.07, .98, .84), arid * .85);
+                terrain *= lerp(half3(1.0, 1.0, 1.0), half3(.97, 1.03, 1.09), saturate(biome.b) * .35);
+                // Sombramento: normais dos patches (relevo 3D) + contraste extra das cordilheiras do raster.
+                half reliefLuma = dot(relief.rgb, half3(.299, .587, .114));
+                half shade = .68 + .32 * saturate(dot(normalize(input.normalWS), normalize(float3(-.4,.7,.5))));
+                shade = saturate(shade * lerp(1, reliefLuma * 1.35, land));
                 half hatch = .96 + .04 * step(.45, frac((input.uv.x + input.uv.y) * 1600));
                 float2 glyph = frac(input.uv * float2(160,100)) - .5;
                 half tree = step(abs(glyph.x),(.3-glyph.y)*.5)*step(-.2,glyph.y)*step(glyph.y,.3);
