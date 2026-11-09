@@ -15,6 +15,7 @@ namespace Orbis.World
         const float PatchUnloadSpeed = 2f;
         const int ConcurrentTileLoads = 2;
         const int SampleCacheLimit = 512;
+        const float SettlementSeconds = 6f;
         static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
         static readonly int BaseMap = Shader.PropertyToID("_BaseMap");
         static readonly int Fade = Shader.PropertyToID("_Fade");
@@ -39,6 +40,8 @@ namespace Orbis.World
         readonly Dictionary<WorldTileKey, WorldHeightTile> tileCache = new();
         readonly Queue<WorldTileKey> tileOrder = new();
         int viewLod = -1;
+        bool settling;
+        float settleBy;
         float retryAfter;
         public int TerrainRevision { get; private set; }
         public string HydrographyPath { get; private set; }
@@ -110,12 +113,25 @@ namespace Orbis.World
             if (lod != viewLod)
             {
                 viewLod = lod;
-                foreach (var pair in patches) pair.Value.Retiring = true;
+                // Cruza de LOD: o anel antigo permanece no ar até o anel novo estar preso
+                // (ou expira em 6 s) — sem vão em que o jogador só vê a esfera lisa.
+                settling = true;
+                settleBy = Time.unscaledTime + SettlementSeconds;
             }
-            RetireOutsideRing(ring);
+            UpdateSettling(ring);
+            if (!settling) RetireOutsideRing(ring);
             ScheduleTiles(ring);
             PumpCompletedTiles(center, ring);
             TickPatches();
+        }
+
+        void UpdateSettling(List<WorldTileKey> ring)
+        {
+            if (!settling) return;
+            var complete = true;
+            foreach (var key in ring)
+                if (!patches.TryGetValue(key, out var patch) || patch.Retiring) { complete = false; break; }
+            if (complete || Time.unscaledTime >= settleBy) settling = false;
         }
 
         void RetireOutsideRing(List<WorldTileKey> ring)
