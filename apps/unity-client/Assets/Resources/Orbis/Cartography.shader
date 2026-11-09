@@ -39,7 +39,16 @@ Shader "Orbis/Cartography"
                 half4 relief = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, input.uv);
                 half4 biome = SAMPLE_TEXTURE2D(_BiomeMap, sampler_BiomeMap, input.uv);
                 half land = relief.a;
-                half3 terrain = lerp(biome.rgb, relief.rgb, .48);
+                half3 terrain = lerp(biome.rgb, relief.rgb, .44);
+                // Biomas diferenciados: verdes (floresta) escurecem em manchas procedurais;
+                // áridos ganham matiz quente; tundra fria e clara via azul do mapa de biomas.
+                half forest = saturate((biome.g - biome.r) * 2.0);
+                half arid = saturate((biome.r - biome.g) * 2.0);
+                float2 dappleGrid = floor(input.uv * 2400.0);
+                half dapple = frac(sin(dot(dappleGrid, float2(12.9898, 78.233))) * 43758.5453);
+                terrain *= 1.0 - dapple * .10 * forest;
+                terrain *= lerp(half3(1.0, 1.0, 1.0), half3(1.05, .99, .88), arid * .6);
+                terrain *= lerp(half3(1.0, 1.0, 1.0), half3(.98, 1.02, 1.08), saturate(biome.b) * .35);
                 half shade = .8 + .2 * saturate(dot(normalize(input.normalWS), normalize(float3(-.4,.7,.5))));
                 half hatch = .96 + .04 * step(.45, frac((input.uv.x + input.uv.y) * 1600));
                 float2 glyph = frac(input.uv * float2(160,100)) - .5;

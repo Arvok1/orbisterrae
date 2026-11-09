@@ -123,6 +123,23 @@ namespace Orbis.UI
             Render(store.State);
         }
 
+        /// <summary>Tipografia por estilo (T1.13): Carta manuscrita usa serifa travada em itálico com
+        /// tinta sépia; Relevo usa traço neutro e claro. Ajusta os textos de identidade da HUD.</summary>
+        void ApplyTypography(MapVisualStyle style)
+        {
+            var manuscript = style == MapVisualStyle.Manuscript;
+            var inkColor = manuscript ? new Color(0.34f, 0.24f, 0.08f) : new Color(0.88f, 0.92f, 0.88f);
+            var headingWeight = manuscript ? UnityEngine.TextCore.Text.FontStyles.Italic : UnityEngine.TextCore.Text.FontStyles.Normal;
+            title.style.unityFontStyleAndWeight = headingWeight;
+            title.style.color = inkColor;
+            cityName.style.unityFontStyleAndWeight = manuscript
+                ? UnityEngine.TextCore.Text.FontStyles.BoldItalic
+                : UnityEngine.TextCore.Text.FontStyles.Bold;
+            cityName.style.color = inkColor;
+            coordinates.style.unityFontStyleAndWeight = headingWeight;
+            altitude.style.unityFontStyleAndWeight = headingWeight;
+        }
+
         void OnGeometryChanged(GeometryChangedEvent geometry)
         {
             root.EnableInClassList("compact-layout", geometry.newRect.width <= 720f);
@@ -236,6 +253,7 @@ namespace Orbis.UI
             localeButton.text = state.Locale == "en" ? "PT-BR" : "EN";
             root.Q<Label>("camera-hint").text = text["hint"];
             root.EnableInClassList("manuscript", state.VisualStyle == MapVisualStyle.Manuscript);
+            ApplyTypography(state.VisualStyle);
 
             var hasSession = state.Session != null;
             var isAdmin = state.Session?.IsAdmin == true;
