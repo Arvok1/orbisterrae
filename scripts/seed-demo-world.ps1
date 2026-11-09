@@ -3,8 +3,10 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path $PSScriptRoot -Parent
 Push-Location $repoRoot
 try {
-    try { Invoke-WebRequest -Uri "$HttpEndpoint/ready" -TimeoutSec 3 | Out-Null }
-    catch { throw "Gateway local indisponível em $HttpEndpoint. Inicie os serviços antes de semear o mundo demo." }
+    # curl em vez de Invoke-WebRequest: um proxy local pode responder 503 a endereços loopback (mesma causa da correção em tools/test-city.ps1).
+    if ((& curl.exe -s -m 3 "$HttpEndpoint/ready") -ne "orbis-gateway-worker-ready") {
+        throw "Gateway local indisponível em $HttpEndpoint. Inicie os serviços antes de semear o mundo demo."
+    }
     & pnpm --filter @orbis/protocol build
     if ($LASTEXITCODE -ne 0) { throw "Falha ao compilar protocolo." }
     & pnpm --filter @orbis/bot build

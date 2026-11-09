@@ -23,7 +23,8 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "Falha ao compilar serviços Rust." }
     }
     $orbisReady = $false
-    try { $orbisReady = (Invoke-WebRequest "http://127.0.0.1:8080/ready" -TimeoutSec 3).Content -eq "orbis-gateway-worker-ready" } catch {}
+    # curl em vez de Invoke-WebRequest: um proxy local pode responder 503 ao endereço loopback (mesma causa da correção em tools/test-city.ps1).
+    $orbisReady = (& curl.exe -s -m 3 "http://127.0.0.1:8080/ready") -eq "orbis-gateway-worker-ready"
     if ($orbisReady) { Write-Host "Gateway e worker já estão prontos."; return }
     if (-not $orbisNeedsBuild) { & "$orbisRoot/stop.ps1" }
     $orbisLogDir = Join-Path $orbisRoot ".local"
@@ -58,12 +59,11 @@ try {
         ConvertTo-Json -InputObject @($orbisRecords) | Set-Content "$orbisLogDir/services.json"
     }
     for ($orbisAttempt = 0; $orbisAttempt -lt 30; $orbisAttempt++) {
-        try {
-            if ((Invoke-WebRequest "http://127.0.0.1:8080/ready" -TimeoutSec 2).Content -eq "orbis-gateway-worker-ready") {
-                Write-Host "Gateway e worker NATS prontos."
-                return
-            }
-        } catch {}
+        # curl em vez de Invoke-WebRequest: um proxy local pode responder 503 a endereços loopback.
+        if ((& curl.exe -s -m 2 "http://127.0.0.1:8080/ready") -eq "orbis-gateway-worker-ready") {
+            Write-Host "Gateway e worker NATS prontos."
+            return
+        }
         Start-Sleep -Milliseconds 500
     }
     throw "Serviços não ficaram prontos; consulte .local/*.err.log."
