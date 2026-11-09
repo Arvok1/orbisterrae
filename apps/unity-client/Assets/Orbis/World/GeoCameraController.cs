@@ -106,7 +106,7 @@ namespace Orbis.World
         void Zoom(float scrollDelta, Vector2 pointer)
         {
             var anchor = RaycastCoordinate(pointer);
-            var factor = Mathf.Exp(-scrollDelta * 0.0012f);
+            var factor = Mathf.Exp(-scrollDelta * 0.004f);
             altitudeMeters = System.Math.Clamp(altitudeMeters * factor, MinimumAltitudeMeters, MaximumAltitudeMeters);
             if (anchor.HasValue)
             {

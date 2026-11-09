@@ -10,7 +10,7 @@ namespace Orbis.World
 {
     public sealed class GlobeRenderer : MonoBehaviour
     {
-        const float TerrainExaggeration = 1.45f;
+        const float TerrainExaggeration = 2.2f;
         const float PatchFadeSeconds = 0.4f;
         const float PatchUnloadSpeed = 2f;
         const int ConcurrentTileLoads = 2;
