@@ -129,12 +129,10 @@ namespace Orbis.UI
         {
             var manuscript = style == MapVisualStyle.Manuscript;
             var inkColor = manuscript ? new Color(0.34f, 0.24f, 0.08f) : new Color(0.88f, 0.92f, 0.88f);
-            var headingWeight = manuscript ? UnityEngine.TextCore.Text.FontStyles.Italic : UnityEngine.TextCore.Text.FontStyles.Normal;
+            var headingWeight = manuscript ? FontStyle.Italic : FontStyle.Normal;
             title.style.unityFontStyleAndWeight = headingWeight;
             title.style.color = inkColor;
-            cityName.style.unityFontStyleAndWeight = manuscript
-                ? UnityEngine.TextCore.Text.FontStyles.BoldItalic
-                : UnityEngine.TextCore.Text.FontStyles.Bold;
+            cityName.style.unityFontStyleAndWeight = manuscript ? FontStyle.BoldAndItalic : FontStyle.Bold;
             cityName.style.color = inkColor;
             coordinates.style.unityFontStyleAndWeight = headingWeight;
             altitude.style.unityFontStyleAndWeight = headingWeight;

@@ -243,7 +243,7 @@ namespace Orbis.World
             {
                 tile = package.ReadTile(key);
             }
-            catch (Exception exception)
+            catch (Exception)
             {
                 tile = null;
                 return false;

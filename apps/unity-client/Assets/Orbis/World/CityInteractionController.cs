@@ -14,7 +14,7 @@ namespace Orbis.World
         OrbisInputActions input;
         Action<uint,uint> edit;
         Action<string> selectCity;
-        Func<string> pickHub;
+        Func<Vector2,string> pickHub;
         Action<string> selectHub;
         GameObject preview;
         Renderer previewRenderer;
@@ -28,7 +28,7 @@ namespace Orbis.World
         bool wasPressed;
         bool blocked;
         bool dragged;
-        public void Initialize(GameStore state,GlobeRenderer terrain,WorldCartography map,Action<uint,uint> editCell,Action<string> select,Func<string> hubPick=null,Action<string> hubSelect=null)
+        public void Initialize(GameStore state,GlobeRenderer terrain,WorldCartography map,Action<uint,uint> editCell,Action<string> select,Func<Vector2,string> hubPick=null,Action<string> hubSelect=null)
         {
             store=state;globe=terrain;cartography=map;edit=editCell;selectCity=select;pickHub=hubPick;selectHub=hubSelect;worldCamera=Camera.main;
             properties=new MaterialPropertyBlock();
