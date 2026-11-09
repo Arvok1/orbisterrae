@@ -68,7 +68,7 @@ namespace Orbis.Tests.EditMode
             Assert.That(CityPresentation.Population(city),Is.EqualTo(17));
             var metrics=CityPresentation.MetricsText(city,"en");
             Assert.That(metrics,Does.Contain("84%"));Assert.That(metrics,Does.Contain("42%"));
-            Assert.That(metrics,Does.Contain("7.3"));Assert.That(metrics,Does.Contain("population: 17"));
+            Assert.That(metrics,Does.Contain("7.3"));Assert.That(metrics,Does.Contain("Population: 17"));
             var classes=CityPresentation.ClassesText(city,"en");
             Assert.That(classes,Does.Contain("Farmers: 10"));Assert.That(classes,Does.Contain("Priests: 1"));
             Assert.That(CityPresentation.EventsText(city,"en"),Is.EqualTo("⚡ famine · 🔥 fire"));

@@ -148,6 +148,12 @@ namespace Orbis.World
             return VerifyFile(descriptor.path, descriptor.bytes, descriptor.sha256);
         }
 
+        /// <summary>Resolves a package-relative path, refusing anything that escapes the root.</summary>
+        public string ResolveContained(string relative)
+        {
+            return CandidatePath(Root, relative);
+        }
+
         string VerifyFile(string relative, long bytes, string hash)
         {
             var candidate = CandidatePath(Root, relative);

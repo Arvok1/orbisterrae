@@ -104,8 +104,6 @@
 {"key":"building_requires_water","pt":"Construção exige acesso à água","en":"Building requires water access"},
 {"key":"building_wrong_zone","pt":"Zona incompatível","en":"Incompatible zone"},
 {"key":"insufficient_supplies","pt":"Suprimentos insuficientes","en":"Insufficient supplies"},
-{"key":"ruler_busy","pt":"Governante ocupado","en":"Ruler is busy"},
-{"key":"city_not_owned","pt":"Cidade pertence a outro reino","en":"City belongs to another kingdom"},
 {"key":"cannot_build","pt":"Construção não permitida","en":"Construction not permitted"},
 {"key":"building_collision","pt":"Área já ocupada por uma construção","en":"Area already occupied by a building"},
 {"key":"building_out_of_bounds","pt":"Construção fora da grade","en":"Building outside the grid"},
