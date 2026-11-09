@@ -128,8 +128,15 @@ da capacidade. O invariante persistido é conferido por
 conservado com tarifa, observação de preço registrada). O aceite simulado de
 7 dias continua como filete de segurança em `crates/sim/src/economy.rs`.
 
-Unity: os testes EditMode (`Assets/Tests/EditMode/EconomyTests.cs`) cobrem o
-read model `EconomyStore` (roster, hub selecionado com guarda de resposta
-atrasada, upsert de caravana por revisão) e o round-trip protobuf de
-`CreateCaravan`/`ListHubs`/`HubsState`/`CaravanState`/`MarketSnapshot`
-(9 testes, validados também fora do editor via `.local/cs-check`).
+Unity: os testes EditMode cobrem o read model `EconomyStore` (roster, hub
+selecionado com guarda de resposta atrasada, upsert de caravana por revisão) e
+o round-trip protobuf de `CreateCaravan`/`ListHubs`/`HubsState`/`CaravanState`/
+`MarketSnapshot` (9 testes). O 2º lote Unity (2026-11-08) soma 5 testes em
+`WorldPackageTests`: `MosaicRing` (cobertura de anel nos 6 faces, de-dup e
+determinismo com seed 12022017) e `PackageRoots` (cache local vence, fallback
+não se repete). Como a licença do editor ainda bloqueia modo batch, os 14
+testes EditMode são executados pelo harness de rascunho `.local/cs-check`
+(dotnet 8 + shims mínimos de Unity/NUnit): copie o C# e os testes tocados de
+`apps/unity-client/Assets` para `.local/cs-check/sources/` (WorldPackage.cs,
+UnityShim.cs e as provas de mosaico/raízes já estão sincronizados) e rode
+`dotnet run --project .local/cs-check`.

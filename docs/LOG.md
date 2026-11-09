@@ -1,5 +1,14 @@
 # Diário de bordo
 
+## 2026-11-08 (2º lote) — S1.2c Unity: mosaico de relevo, cache multi-root, relevo da cidade e estilos
+
+- **Mosaico de relevo (`GlobeRenderer`):** `SetView` agora monta um anel 3×3 de tiles por `CubeSphereProjection.MosaicRing` (centro + 8 vizinhos, atravessando costuras de faces do cubo), com até 2 leituras de disco concorrentes, fade de 0,4 s por patch via `_Fade` (nova propriedade do `Cartography.shader`; 0 = tinta do mar, globo base nasce em 1) e retirada LRU dos patches que saem do anel. `SampleHeightMeters` ganhou caminho rápido por cache (512 tiles, FIFO) antes da leitura síncrona do `WorldPackage`.
+- **Cache multi-root (`WorldPackage`/`PackageRoots`):** o cache local (padrão `persistente/world-packages`, override `--terrain-root`) vence quando contém manifesto; shards e visuais ausentes são resolvidos do pacote embutido por hash/bytes (streaming sem duplicação). Prepara o caminho de shards por demanda de T1.9b.
+- **Cidade física:** o prato amostra os 4 cantos no relevo (`CornerHeight`, delta relativo à origem) e reamostra quando `TerrainRevision` muda; governante vira malha — banner procedural de 20 m com bandeira de duas faces ao norte do prato, cor estável por reino (FNV-1a sobre `KingdomId`), visível quando o governante do mundo é o dono.
+- **Estilos (T1.13):** shader de biomas reforça floresta (dappled procedural), áridos (matiz quente) e tundra (frio); HUD troca tipografia por estilo — título/coordenadas itálico com tinta sépia na carta manuscrita.
+- **Scripts:** `start-services.ps1` e `seed-demo-world.ps1` trocam `Invoke-WebRequest` por `curl.exe` no `/ready` (proxy local respondia 503 ao loopback).
+- **Testes/gates:** cs-check 14/14 (mosaico: anel nos 6 faces + determinismo seed 12022017; multi-root: primário/fallback); `cargo fmt/clippy/test --workspace` (75 testes), `pnpm lint/test`, `tools/test-city.ps1` (S1.2 verde: reconnection/stale-revision) e `tools/test-trade.ps1` (S1.3b verde: 5 grão, +1 metal, sobrecarga rejeitada) todos verdes. Bloqueio persistente: Unity batch sem licença — EditMode continuam via cs-check até ativação.
+
 ## 2026-11-08 — S1.3b: comércio jogável v0 no protocolo real (web + Unity)
 
 - **Roster e detalhe de entrepostos no servidor:** `ListHubs` (tag 46) → `HubsState` (tag 18) carrega hubs ativos ordenados por nome com estoque, metal e tarifa; `GetHub` e `GetMarket` viram leituras autoritativas do banco, idempotentes, sem book matching (P2). Seed dos hubs ganhou `ON CONFLICT (id) DO NOTHING` para re-execuções.

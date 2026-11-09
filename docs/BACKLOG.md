@@ -134,7 +134,8 @@ Formato: `Tn.m` = tarefa. **Escopo** diz o que fazer; **Aceite** diz como saber 
 
 ## Aditivo S1.2c — mundo 3D nativo e cartografia (2026-11-05)
 
-- [~] **T1.9a Cliente Unity desktop.** Fundação URP, protocolo C#, login HTTP, sessão JWT, WebSocket com reconexão, observatório admin e HUD UI Toolkit implementados. Faltam globo offline em tiles, cidade física completa e cutover; manter o cliente web funcional até paridade. Uma câmera com FOV/rumo/inclinação contínuos; arraste esquerdo move terreno, direito orbita, roda aproxima no cursor.
+- [~] **T1.9a Cliente Unity desktop.** Fundação URP, protocolo C#, login HTTP, sessão JWT, WebSocket com reconexão, observatório admin e HUD UI Toolkit implementados. Globo offline em tiles chegou ao mosaico (anel 3×3 com fade e LRU em `GlobeRenderer`, 2026-11-08), cidade física tem relevo nos cantos do prato e banner do governante em malha; faltam soak de 5 min, checagem visual e cutover. Câmera com FOV/rumo/inclinação contínuos; arraste esquerdo move terreno, direito orbita, roda aproxima no cursor.
+  *Nota 2026-11-08:* o lado cliente do cache já existe — `WorldPackage` resolve shards do cache local com fallback ao pacote embutido (`PackageRoots`); o download contínuo de shards (índice por demanda, água) continua no corte de servidor de T1.9b.
 - [ ] **T1.9b Pacotes globais leves.** Copernicus GLO-90 + LC100 2019 (classe e fração arbórea); gerar e validar pacotes regionais em lotes, armazenar em disco externo e medir projeção global contra meta de 40 GB. O gerador inicial `pack_region.py` e seus testes são apenas o primeiro corte; ingestão global, água, índice e cache ainda faltam.
 
 - [ ] **T1.9 Mundo 3D e cartografia própria.** Cena Three.js única; HUD React/HTML sem Pixi; textura 4K amostrada sem raster intermediário, globo WGS84 e LOD global/regional/urbano. Relevo ETOPO, hidrografia Natural Earth e vegetação determinística ficam versionados em `data/world/v1`.

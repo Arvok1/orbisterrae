@@ -32,8 +32,13 @@
 | 28 | 2026-11-05 | Mundo, cidade, construções, governantes e tropas usam somente Three.js; React/HTML mantém HUD acima do canvas | Elimina dois renderizadores, corrige captura de eventos da HUD e permite escala física/LOD contínuo | Aceita |
 | 29 | 2026-11-05 | Terra usa raio de referência 6.371.000 m; cidade inicia em grade tangente de 256×256 células de 10 m | Mantém uma única referência geodésica ao passar de globo para construção urbana | Aceita |
 | 30 | 2026-11-05 | Estilos Relevo 3D e Carta manuscrita são materiais locais alternáveis sobre a mesma geometria e dados | Permite testar direção visual sem transformar arte em estado de jogo ou copiar a referência | Aceita |
+| 31 | 2026-11-08 | Globo Unity renderiza mosaico de patches com fade por `_Fade`; cache local vence e o pacote embutido vira fallback multi-root; governante é malha (banner) e a HUD troca tipografia por estilo | Relevo fica contínuo durante pan rápido, sem pós-blending por tile; streaming de shards sem duplicar bytes; governante ganha presença física mínima; S1.4+ desenvolve primeiro em Unity (ver ROADMAP) | Aceita |
 
 ## Em aberto
+
+### S1.2c — 2º lote Unity (2026-11-08, resolve mosaico/cache/estilos)
+
+O relevo do globo não troca mais um só patch: `SetView` monta um anel determinístico 3×3 de tiles (`MosaicRing`, atravessa faces do cubo), com no máximo dois shards em leitura concorrente e fade de 0,4 s por `_Fade` no material — 0 é a tinta do mar, então patches surgem e desaparecem sem esconder o globo. A amostragem de altitude usa o cache FIFO de 512 tiles antes de ler o pacote. O cache local (manifesto válido) vira raiz primária e shards ausentes saem pelo fallback verificado (hash + tamanho + contenção de caminho); `JsonUtility` continua sendo o parser do manifesto. O prato da cidade segue o relevo pelos 4 cantos amostrados e o governante é um banner em malha com cor estável por `KingdomId` (FNV-1a); tipografia da HUD por estilo fecha o T1.13 no cliente. Dados finos por bioma (LC100) continuam no corte de servidor T1.9b — o shader usa o mapa global de biomas já embutido.
 
 ### S1.2c: cartografia e kit urbano Unity (2026-11-07)
 
