@@ -76,8 +76,8 @@ namespace Orbis.World
             {
                 snapshot = city;
                 dirty |= Sync(city);
-                UpdateGround(city);
             }
+            UpdateGround(city, origin);
             if (dirty || currentLod != lod) { currentLod = lod; BuildBatches(); lastFrame = default; }
             if (lastFrame != frame.LocalToWorld)
             {
@@ -159,24 +159,29 @@ namespace Orbis.World
             }
         }
 
-        void UpdateGround(CitySnapshot city)
+        int groundRevision = -1;
+        void UpdateGround(CitySnapshot city, GeoCoordinate origin)
         {
+            var revision = globe.TerrainRevision;
             var key = city.Width + ":" + city.Height + ":" + city.RoadsRle.ToBase64() + ":" + city.ZonesRle.ToBase64() + ":" + city.TerrainRle.ToBase64();
-            if (surfaceKey == key) return;
+            if (surfaceKey == key && groundRevision == revision) return;
             try
             {
                 var count = checked((int)(city.Width * city.Height));
                 var roads = CityPresentation.DecodeRle(city.RoadsRle.ToByteArray(), count);
                 var zones = CityPresentation.DecodeRle(city.ZonesRle.ToByteArray(), count);
                 var terrain = CityPresentation.DecodeRle(city.TerrainRle.ToByteArray(), count);
-                if (surface != null) Destroy(surface);
-                surface = new Texture2D((int)city.Width, (int)city.Height, TextureFormat.RGB24, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
-                var colors = new Color[count];
-                var palette = new[] { new Color(.3f,.33f,.22f),new Color(.49f,.43f,.31f),new Color(.32f,.43f,.2f),
-                    new Color(.38f,.32f,.25f),new Color(.52f,.44f,.33f),new Color(.34f,.33f,.29f) };
-                for (var index = 0; index < count; index++) colors[index] = roads[index] != 0 ? new Color(.5f,.43f,.31f)
-                    : terrain[index] == 0 ? new Color(.08f,.18f,.22f) : palette[Math.Min(zones[index], palette.Length - 1)];
-                surface.SetPixels(colors); surface.Apply();
+                if (surfaceKey != key)
+                {
+                    if (surface != null) Destroy(surface);
+                    surface = new Texture2D((int)city.Width, (int)city.Height, TextureFormat.RGB24, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+                    var colors = new Color[count];
+                    var palette = new[] { new Color(.3f,.33f,.22f),new Color(.49f,.43f,.31f),new Color(.32f,.43f,.2f),
+                        new Color(.38f,.32f,.25f),new Color(.52f,.44f,.33f),new Color(.34f,.33f,.29f) };
+                    for (var index = 0; index < count; index++) colors[index] = roads[index] != 0 ? new Color(.5f,.43f,.31f)
+                        : terrain[index] == 0 ? new Color(.08f,.18f,.22f) : palette[Math.Min(zones[index], palette.Length - 1)];
+                    surface.SetPixels(colors); surface.Apply();
+                }
                 if (ground == null)
                 {
                     ground = new GameObject("Authoritative city surface"); ground.transform.SetParent(transform, false);
@@ -185,15 +190,33 @@ namespace Orbis.World
                     ground.AddComponent<MeshRenderer>().sharedMaterial = groundMaterial;
                 }
                 if (groundMesh != null) Destroy(groundMesh);
+                // O prato acompanha o relevo do mosaico: os 4 cantos amostram o delta de altitude relativo à origem.
                 var halfWidth = city.Width * 5f; var halfHeight = city.Height * 5f;
-                groundMesh = new Mesh { vertices = new[] { new Vector3(-halfWidth,0,-halfHeight),new Vector3(-halfWidth,0,halfHeight),new Vector3(halfWidth,0,halfHeight),new Vector3(halfWidth,0,-halfHeight) },
+                var baseElevation = globe.SampleHeightMeters(origin);
+                groundMesh = new Mesh { vertices = new[] {
+                        new Vector3(-halfWidth, CornerHeight(origin, -halfWidth, -halfHeight, baseElevation), -halfHeight),
+                        new Vector3(-halfWidth, CornerHeight(origin, -halfWidth, halfHeight, baseElevation), halfHeight),
+                        new Vector3(halfWidth, CornerHeight(origin, halfWidth, halfHeight, baseElevation), halfHeight),
+                        new Vector3(halfWidth, CornerHeight(origin, halfWidth, -halfHeight, baseElevation), -halfHeight) },
                     uv = new[] { Vector2.zero,Vector2.up,Vector2.one,Vector2.right },triangles = new[] { 0,1,2,0,2,3 } };
                 groundMesh.RecalculateNormals();
                 ground.GetComponent<MeshFilter>().sharedMesh = groundMesh;
                 groundMaterial.SetTexture("_BaseMap", surface);
                 surfaceKey = key;
+                groundRevision = revision;
             }
             catch (ArgumentException exception) { Debug.LogWarning(exception.Message); }
+        }
+
+        /// <summary>Altitude do relevo do globo no offset geodésico (metros a partir da origem), relativa à elevação de base.</summary>
+        float CornerHeight(GeoCoordinate origin, double offsetMetersX, double offsetMetersY, float baseElevationMeters)
+        {
+            const double MetersPerLatitudeDegree = 111_320;
+            var longitudeScale = Math.Max(0.05, Math.Cos(origin.LatitudeDegrees * Math.PI / 180));
+            var corner = new GeoCoordinate(
+                Mathf.Clamp((float)(origin.LatitudeDegrees + offsetMetersY / MetersPerLatitudeDegree), -89.5f, 89.5f),
+                (float)(origin.LongitudeDegrees + offsetMetersX / (MetersPerLatitudeDegree * longitudeScale)));
+            return globe.SampleHeightMeters(corner) - baseElevationMeters;
         }
         void OnDestroy()
         {
